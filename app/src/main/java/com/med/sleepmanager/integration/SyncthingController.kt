@@ -1,0 +1,92 @@
+package com.med.sleepmanager.integration
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.util.Log
+import com.med.sleepmanager.data.AppPreferences
+
+object SyncthingController {
+    const val PACKAGE_CURRENT = "com.github.catfriend1.syncthingfork"
+    const val PACKAGE_CURRENT_DEBUG = "com.github.catfriend1.syncthingfork.debug"
+    const val PACKAGE_LEGACY = "com.github.catfriend1.syncthingandroid"
+    const val PACKAGE_LEGACY_DEBUG = "com.github.catfriend1.syncthingandroid.debug"
+
+    private val supported = listOf(
+        PACKAGE_CURRENT,
+        PACKAGE_CURRENT_DEBUG,
+        PACKAGE_LEGACY,
+        PACKAGE_LEGACY_DEBUG
+    )
+
+    data class Target(val packageName: String, val displayName: String)
+
+    fun installedTargets(context: Context): List<Target> =
+        supported.filter { isInstalled(context, it) }.map { Target(it, displayName(context, it)) }
+
+    fun selectedTarget(context: Context): Target? {
+        val installed = installedTargets(context)
+        if (installed.isEmpty()) return null
+
+        val preferred = AppPreferences.getSelectedSyncthing(context)
+        val target = installed.firstOrNull { it.packageName == preferred } ?: installed.first()
+        if (target.packageName != preferred) {
+            AppPreferences.setSelectedSyncthing(context, target.packageName)
+        }
+        return target
+    }
+
+    fun select(context: Context, packageName: String) {
+        if (supported.contains(packageName) && isInstalled(context, packageName)) {
+            AppPreferences.setSelectedSyncthing(context, packageName)
+        }
+    }
+
+    fun sendStop(context: Context) =
+        send(context, selectedTarget(context)?.packageName, ".action.STOP", "STOP")
+
+    fun sendFollow(context: Context) =
+        send(context, selectedTarget(context)?.packageName, ".action.FOLLOW", "FOLLOW")
+
+    fun sendFollowTo(context: Context, packageName: String) =
+        send(context, packageName, ".action.FOLLOW", "FOLLOW(target changed)")
+
+    fun open(context: Context): Boolean {
+        val target = selectedTarget(context) ?: return false
+        val launch = context.packageManager.getLaunchIntentForPackage(target.packageName) ?: return false
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(launch)
+        return true
+    }
+
+    private fun send(context: Context, packageName: String?, suffix: String, label: String): Boolean {
+        if (packageName == null || !isInstalled(context, packageName)) return false
+        context.sendBroadcast(Intent(packageName + suffix).setPackage(packageName))
+        Log.i("SleepManager", "Sent Syncthing $label to $packageName")
+        return true
+    }
+
+    private fun isInstalled(context: Context, packageName: String): Boolean =
+        try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
+
+    private fun displayName(context: Context, packageName: String): String {
+        val base = when (packageName) {
+            PACKAGE_CURRENT -> "Syncthing-Fork"
+            PACKAGE_CURRENT_DEBUG -> "Syncthing-Fork Debug / Root"
+            PACKAGE_LEGACY -> "Syncthing-Fork Legacy"
+            PACKAGE_LEGACY_DEBUG -> "Syncthing-Fork Legacy Debug"
+            else -> "Syncthing-Fork"
+        }
+        return try {
+            val version = context.packageManager.getPackageInfo(packageName, 0).versionName
+            if (version.isNullOrBlank()) base else "$base • $version"
+        } catch (_: PackageManager.NameNotFoundException) {
+            base
+        }
+    }
+}

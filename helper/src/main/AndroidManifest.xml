@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="com.med.sleepmanager.permission.CONTROL_HELPER" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+
+    <application
+        android:allowBackup="false"
+        android:label="SleepManager Helper"
+        android:hasCode="true">
+
+        <receiver
+            android:name=".SleepManagerHelperReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="com.med.sleepmanager.permission.CONTROL_HELPER">
+            <intent-filter>
+                <action android:name="com.med.sleepmanager.helper.action.SLEEP" />
+                <action android:name="com.med.sleepmanager.helper.action.WAKE" />
+                <action android:name="com.med.sleepmanager.helper.action.RESTORE" />
+                <action android:name="com.med.sleepmanager.helper.action.QUERY_STATE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
