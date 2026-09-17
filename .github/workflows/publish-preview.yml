@@ -1,4 +1,4 @@
-name: Publish preview
+name: Publish release
 
 on:
   push:
@@ -45,12 +45,19 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk dist/SleepManager-0.2.12-debug.apk
           cp helper/build/outputs/apk/debug/helper-debug.apk dist/SleepManager-Helper-0.2.12-debug.apk
 
-      - name: Publish GitHub prerelease
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          Early preview of SleepManager.
+          SleepManager 0.2.12
+
+          ### Installation
+          1. Download and install `SleepManager-0.2.12-debug.apk`.
+          2. Install `SleepManager-Helper-0.2.12-debug.apk` if you want Wi-Fi or Bluetooth control.
+          3. Open SleepManager and select the actions you want to manage.
+          4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast** inside Syncthing-Fork.
+          5. Enable SleepManager.
 
           ### Current features
           - Wi-Fi sleep/wake automation with previous-state restoration
@@ -58,17 +65,36 @@ jobs:
           - Syncthing-Fork pause/resume integration
           - Background service with reboot persistence
           - Live current-state and Last activity UI
-          - Compatibility helper with no root or Shizuku
+          - Compatibility helper with no root, Shizuku or ADB
+
+          ### Sleep / wake behavior
+          - Screen OFF → Syncthing-Fork pauses, then selected radios turn off.
+          - Screen ON → selected radios restore to their previous state, then Syncthing-Fork resumes.
+          - When connectivity is managed, SleepManager currently waits 2.5 seconds before sending FOLLOW to Syncthing-Fork.
 
           Airplane mode is planned but intentionally disabled until a safe no-ADB method is available.
 
-          This is an early test build. Install the main SleepManager APK and the Helper APK if you want Wi-Fi/Bluetooth control.
+          See the README for the complete setup and usage guide.
           EOF
 
-          gh release create v0.2.12 \
-            dist/SleepManager-0.2.12-debug.apk \
-            dist/SleepManager-Helper-0.2.12-debug.apk \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "SleepManager 0.2.12" \
-            --notes-file release-notes.md \
-            --prerelease
+          if gh release view v0.2.12 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit v0.2.12 \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "SleepManager 0.2.12" \
+              --notes-file release-notes.md \
+              --prerelease=false \
+              --latest
+            gh release upload v0.2.12 \
+              dist/SleepManager-0.2.12-debug.apk \
+              dist/SleepManager-Helper-0.2.12-debug.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create v0.2.12 \
+              dist/SleepManager-0.2.12-debug.apk \
+              dist/SleepManager-Helper-0.2.12-debug.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "SleepManager 0.2.12" \
+              --notes-file release-notes.md \
+              --latest
+          fi
