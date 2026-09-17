@@ -1,0 +1,74 @@
+name: Publish preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-preview.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Build APKs
+        run: gradle :app:assembleDebug :helper:assembleDebug
+
+      - name: Prepare release files
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/SleepManager-0.2.12-debug.apk
+          cp helper/build/outputs/apk/debug/helper-debug.apk dist/SleepManager-Helper-0.2.12-debug.apk
+
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release-notes.md <<'EOF'
+          Early preview of SleepManager.
+
+          ### Current features
+          - Wi-Fi sleep/wake automation with previous-state restoration
+          - Bluetooth sleep/wake automation with previous-state restoration
+          - Syncthing-Fork pause/resume integration
+          - Background service with reboot persistence
+          - Live current-state and Last activity UI
+          - Compatibility helper with no root or Shizuku
+
+          Airplane mode is planned but intentionally disabled until a safe no-ADB method is available.
+
+          This is an early test build. Install the main SleepManager APK and the Helper APK if you want Wi-Fi/Bluetooth control.
+          EOF
+
+          gh release create v0.2.12 \
+            dist/SleepManager-0.2.12-debug.apk \
+            dist/SleepManager-Helper-0.2.12-debug.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SleepManager 0.2.12" \
+            --notes-file release-notes.md \
+            --prerelease
