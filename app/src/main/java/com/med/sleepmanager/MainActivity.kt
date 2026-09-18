@@ -68,6 +68,7 @@ import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
+import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
@@ -309,6 +310,7 @@ class MainActivity : ComponentActivity() {
             SleepCycleStore.completeIfRestored(this)
 
             AppPreferences.recordEvent(this, "SleepManager disabled")
+            SleepManagerTileService.requestRefresh(this)
             return
         }
 
@@ -344,8 +346,10 @@ class MainActivity : ComponentActivity() {
             else startService(service)
 
             AppPreferences.recordEvent(this, "SleepManager enabled")
+            SleepManagerTileService.requestRefresh(this)
         } catch (t: Throwable) {
             AppPreferences.setEnabled(this, false)
+            SleepManagerTileService.requestRefresh(this)
             Toast.makeText(
                 this,
                 "Unable to start: ${t.javaClass.simpleName}",
