@@ -571,29 +571,84 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                "SleepManager",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "Smart sleep automation",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            "SleepManager",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        AppSection.entries.forEach { section ->
+                            val label = when (section) {
+                                AppSection.HOME -> "Home"
+                                AppSection.ADVANCED -> "Advanced"
+                                AppSection.ACTIVITY_LOG -> "Activity log"
+                                AppSection.ABOUT -> "About"
+                            }
+
+                            NavigationDrawerItem(
+                                label = { Text(label) },
+                                selected = currentSection == section,
+                                onClick = {
+                                    currentSection = section
+                                    drawerScope.launch { drawerState.close() }
+                                }
                             )
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
-                    )
-                )
+                    }
+                }
             }
-        ) { padding ->
+        ) {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    TopAppBar(
+                        navigationIcon = {
+                            TextButton(
+                                onClick = {
+                                    drawerScope.launch { drawerState.open() }
+                                }
+                            ) {
+                                Text("☰")
+                            }
+                        },
+                        title = {
+                            Column {
+                                Text(
+                                    when (currentSection) {
+                                        AppSection.HOME -> "SleepManager"
+                                        AppSection.ADVANCED -> "Advanced"
+                                        AppSection.ACTIVITY_LOG -> "Activity log"
+                                        AppSection.ABOUT -> "About"
+                                    },
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    when (currentSection) {
+                                        AppSection.HOME -> "Smart sleep automation"
+                                        AppSection.ADVANCED -> "Custom delay and sleep conditions"
+                                        AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
+                                        AppSection.ABOUT -> "App information"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background
+                        )
+                    )
+                }
+            ) { padding ->
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -843,6 +898,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
         }
     }
     companion object {
