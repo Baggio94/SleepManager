@@ -42,59 +42,83 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/SleepManager-0.2.12-debug.apk
-          cp helper/build/outputs/apk/debug/helper-debug.apk dist/SleepManager-Helper-0.2.12-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/SleepManager-0.3.1-debug.apk
+          cp helper/build/outputs/apk/debug/helper-debug.apk dist/SleepManager-Helper-0.3.1-debug.apk
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cat > release-notes.md <<'EOF'
-          SleepManager 0.2.12
+          # SleepManager 0.3.1
 
-          ### Installation
-          1. Download and install `SleepManager-0.2.12-debug.apk`.
-          2. Install `SleepManager-Helper-0.2.12-debug.apk` if you want Wi-Fi or Bluetooth control.
-          3. Open SleepManager and select the actions you want to manage.
-          4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast** inside Syncthing-Fork.
-          5. Enable SleepManager.
+          SleepManager 0.3.1 adds AYN Thor closed-lid protection, improves sleep/wake robustness, and refreshes the app's visual identity.
 
-          ### Current features
-          - Wi-Fi sleep/wake automation with previous-state restoration
-          - Bluetooth sleep/wake automation with previous-state restoration
-          - Syncthing-Fork pause/resume integration
-          - Background service with reboot persistence
-          - Live current-state and Last activity UI
-          - Compatibility helper with no root, Shizuku or ADB
+          ## What's new
+          - **AYN Thor closed-lid protection**
+            - Detects the Thor hardware lid switch directly.
+            - Suppresses normal wake restoration when the device wakes while the lid is still closed.
+            - Automatically returns the Thor to sleep after accidental trigger wake-ups.
+            - Handles repeated wake bounces while the lid remains closed.
+            - Finds the hall_switch input dynamically instead of relying on a fixed /dev/input/eventX path.
+            - Requires a one-time Android Device Admin permission only when this feature is enabled.
+          - **Refreshed SleepManager icon**
+            - More depth, richer gradients, highlights and sharper detail.
+            - Proper adaptive-icon foreground/background structure and monochrome themed-icon support.
+          - **New Thor protection icon**
+            - Android-friendly clamshell + lock icon for the closed-lid protection setting.
 
-          ### Sleep / wake behavior
+          ## Fixed and improved
+          - Fixed re-enabling AYN Thor protection unexpectedly closing the SleepManager UI before the Device Admin confirmation screen appeared.
+          - Debounced duplicate SCREEN_OFF events so sleep actions are not sent twice during Thor wake bounces.
+          - Wake restoration remains suppressed until the Thor lid is actually opened.
+          - Existing Wi-Fi and Bluetooth previous-state restoration remains independent for every ON/OFF combination.
+          - Clarified compatibility: SleepManager supports **Android 9 / API 28 and newer**. The main app targets Android 16 / API 36.
+
+          ## Installation
+          1. Download and install `SleepManager-0.3.1-debug.apk`.
+          2. Install `SleepManager-Helper-0.3.1-debug.apk` if you want Wi-Fi or Bluetooth control.
+          3. Open SleepManager and enable the actions you want.
+          4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast**.
+          5. On AYN Thor, enabling closed-lid protection will request the required Device Admin permission.
+
+          The Helper has no launcher icon or UI and does not require root, Shizuku or ADB.
+
+          ## Sleep / wake behavior
           - Screen OFF → Syncthing-Fork pauses, then selected radios turn off.
-          - Screen ON → selected radios restore to their previous state, then Syncthing-Fork resumes.
+          - Normal wake → selected radios restore to their previous state, then Syncthing-Fork resumes.
+          - Thor closed-lid accidental wake → normal wake actions are suppressed and the device is returned to sleep.
           - When connectivity is managed, SleepManager currently waits 2.5 seconds before sending FOLLOW to Syncthing-Fork.
 
-          Airplane mode is planned but intentionally disabled until a safe no-ADB method is available.
+          ## Validation
+          During 0.3.1 testing on AYN Thor:
+          - Wi-Fi/Bluetooth previous-state restoration passed all four starting combinations: ON/ON, ON/OFF, OFF/ON and OFF/OFF.
+          - Syncthing-Fork STOP/FOLLOW behavior remained correct.
+          - Closed-lid accidental trigger wake was detected and returned to sleep without duplicate sleep actions.
 
-          See the README for the complete setup and usage guide.
+          Airplane mode remains intentionally disabled until a safe no-ADB method is available.
+
+          See the README for the full setup and usage guide.
           EOF
 
-          if gh release view v0.2.12 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit v0.2.12 \
+          if gh release view v0.3.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit v0.3.1 \
               --repo "$GITHUB_REPOSITORY" \
-              --title "SleepManager 0.2.12" \
+              --title "SleepManager 0.3.1" \
               --notes-file release-notes.md \
               --prerelease=false \
               --latest
-            gh release upload v0.2.12 \
-              dist/SleepManager-0.2.12-debug.apk \
-              dist/SleepManager-Helper-0.2.12-debug.apk \
+            gh release upload v0.3.1 \
+              dist/SleepManager-0.3.1-debug.apk \
+              dist/SleepManager-Helper-0.3.1-debug.apk \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
-            gh release create v0.2.12 \
-              dist/SleepManager-0.2.12-debug.apk \
-              dist/SleepManager-Helper-0.2.12-debug.apk \
+            gh release create v0.3.1 \
+              dist/SleepManager-0.3.1-debug.apk \
+              dist/SleepManager-Helper-0.3.1-debug.apk \
               --repo "$GITHUB_REPOSITORY" \
-              --title "SleepManager 0.2.12" \
+              --title "SleepManager 0.3.1" \
               --notes-file release-notes.md \
               --latest
           fi
