@@ -1,0 +1,10 @@
+# Copy this file to signing.properties and keep signing.properties private.
+#
+# Use ONE stable keystore for every SleepManager build that must update an
+# already installed APK. The main app and Helper must use the same signer.
+#
+# Absolute paths are recommended.
+storeFile=/absolute/path/to/sleepmanager-signing.jks
+storePassword=CHANGE_ME
+keyAlias=sleepmanager
+keyPassword=CHANGE_ME
