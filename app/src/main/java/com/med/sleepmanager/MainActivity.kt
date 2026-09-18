@@ -590,8 +590,8 @@ class MainActivity : ComponentActivity() {
                             },
                             status = if (helperInstalled) {
                                 currentWifiState?.let {
-                                    "Current: ${if (it) "ON" else "OFF"}"
-                                } ?: "Current: CHECKING…"
+                                    "Current state: ${if (it) "ON" else "OFF"}"
+                                } ?: "Current state: CHECKING…"
                             } else {
                                 null
                             },
