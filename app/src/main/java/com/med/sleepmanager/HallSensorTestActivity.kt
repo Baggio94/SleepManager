@@ -1,6 +1,9 @@
 package com.med.sleepmanager
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.hardware.input.InputManager
 import android.os.Build
 import android.os.Bundle
@@ -52,6 +55,7 @@ class HallSensorTestActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val liveLidState = mutableStateOf("NOT STARTED")
     private val liveHistory = mutableStateOf("No SW_LID events captured yet")
+    private val sleepTestStatus = mutableStateOf("Device Admin status not checked")
 
     @Volatile
     private var monitorRunning = false
@@ -211,6 +215,52 @@ class HallSensorTestActivity : ComponentActivity() {
         monitorThread = null
     }
 
+    private fun deviceAdminComponent(): ComponentName =
+        ComponentName(this, ThorDeviceAdminReceiver::class.java)
+
+    private fun refreshDeviceAdminStatus() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        sleepTestStatus.value = if (dpm.isAdminActive(deviceAdminComponent())) {
+            "READY — Device Admin is active"
+        } else {
+            "NOT READY — enable Device Admin first"
+        }
+    }
+
+    private fun requestDeviceAdmin() {
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, deviceAdminComponent())
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "SleepManager Hall Test needs the force-lock policy only to test putting the Thor back to sleep."
+            )
+        }
+        startActivity(intent)
+    }
+
+    private fun testForceSleep() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isAdminActive(deviceAdminComponent())) {
+            sleepTestStatus.value = "NOT READY — enable Device Admin first"
+            return
+        }
+
+        sleepTestStatus.value = "Calling DevicePolicyManager.lockNow()…"
+        mainHandler.postDelayed({
+            try {
+                dpm.lockNow()
+            } catch (t: Throwable) {
+                sleepTestStatus.value =
+                    "FAILED — ${t.javaClass.simpleName}: ${t.message ?: "no message"}"
+            }
+        }, 500)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshDeviceAdminStatus()
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun HallSensorTestScreen() {
@@ -350,6 +400,56 @@ class HallSensorTestActivity : ComponentActivity() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "Step 3 — Force-sleep test",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Enable the temporary Device Admin permission, then test whether Android can put the Thor to sleep without root, ADB or Shizuku. If the Thor has a secure screen lock configured, lockNow() may require normal authentication on wake.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Button(
+                        onClick = { requestDeviceAdmin() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enable sleep test permission")
+                    }
+                }
+
+                item {
+                    ResultCard(
+                        title = "Sleep permission",
+                        value = sleepTestStatus.value
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = { testForceSleep() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Test force sleep")
+                    }
                 }
             }
         }
