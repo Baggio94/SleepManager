@@ -927,25 +927,7 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     SettingsCard {
-                        SleepGraceSelector(
-                            valueMs = sleepGraceMs,
-                            customDelayEnabled = customDelayEnabled,
-                            customDelayMs = customDelayMs,
-                            onChange = { value ->
-                                sleepGraceMs = value
-                                AppPreferences.setSleepGraceMs(this@MainActivity, value)
-                            },
-                            onCustom = {
-                                currentSection = AppSection.ADVANCED
-                            }
-                        )
-
                         if (thorProtectionSupported) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "AYN Thor closed-lid protection",
@@ -959,7 +941,25 @@ class MainActivity : ComponentActivity() {
                                     activityRefreshToken++
                                 }
                             )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
                         }
+
+                        SleepGraceSelector(
+                            valueMs = sleepGraceMs,
+                            customDelayEnabled = customDelayEnabled,
+                            customDelayMs = customDelayMs,
+                            onChange = { value ->
+                                sleepGraceMs = value
+                                AppPreferences.setSleepGraceMs(this@MainActivity, value)
+                            },
+                            onCustom = {
+                                currentSection = AppSection.ADVANCED
+                            }
+                        )
                     }
                 }
 
@@ -1622,10 +1622,7 @@ private fun CompactIntegrationRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     onOpen?.let { open ->
-                        TextButton(
-                            onClick = feedbackClick(open),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
+                        OutlinedButton(onClick = feedbackClick(open)) {
                             Text("Open")
                         }
                     }
