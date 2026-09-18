@@ -60,7 +60,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
-import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
@@ -721,7 +720,6 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     DiagnosticsCard(
-                        context = this@MainActivity,
                         onCopy = { copyDiagnostics() }
                     )
                 }
@@ -1157,11 +1155,8 @@ private fun LastActivityCard(context: Context) {
 
 @Composable
 private fun DiagnosticsCard(
-    context: Context,
     onCopy: () -> Unit
 ) {
-    val events = EventHistoryStore.recent(context).take(10)
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -1180,26 +1175,10 @@ private fun DiagnosticsCard(
             )
 
             Text(
-                "Recent activity is kept locally (up to 20 events). Copy diagnostics includes app, device, transaction and recent activity details.",
+                "Copy app, device, transaction and recent activity details for troubleshooting.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            if (events.isEmpty()) {
-                Text(
-                    "No recent activity",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                events.forEach { event ->
-                    val time = DateFormat.getTimeFormat(context).format(Date(event.timestamp))
-                    Text(
-                        "$time • ${event.message}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
 
             OutlinedButton(
                 onClick = onCopy,
