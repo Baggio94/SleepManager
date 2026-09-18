@@ -275,6 +275,7 @@ class SleepManagerService : Service() {
 
         cancelNetworkReadyWait()
         cancelSleepDelay()
+        cancelTailscaleVerification()
         handler.removeCallbacks(sleepRadioRunnable)
         pendingSleepWifi = false
         pendingSleepBluetooth = false
@@ -282,20 +283,17 @@ class SleepManagerService : Service() {
         sleepSkippedByConditions = false
         releaseSleepTransitionWakeLock()
 
+        resolvePendingTailscaleVerificationForWake()
+
         val cycle = SleepCycleStore.current(this)
         val helperRestoreNeeded =
             cycle.active &&
                 cycle.helperExpected &&
                 !cycle.helperRestored
-        val syncthingChange =
-            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
+        val networkRestoreNeeded = hasPendingNetworkConnectorRestore()
 
-        pendingNetworkRestoreToken =
-            if (helperRestoreNeeded && syncthingChange != null) {
-                syncthingChange.restoreToken
-            } else {
-                null
-            }
+        pendingNetworkRestoreAfterHelper =
+            helperRestoreNeeded && networkRestoreNeeded
 
         if (helperRestoreNeeded) {
             val sent = HelperController.restoreNow(this)
@@ -304,14 +302,15 @@ class SleepManagerService : Service() {
                 return
             }
 
+            pendingNetworkRestoreAfterHelper = false
             Log.w(TAG, "Disable requested -> Helper restore could not be sent")
             AppPreferences.recordEvent(this, "Disable → Helper restore pending")
             finishDisableRestoreIfRequested(forceStop = true)
             return
         }
 
-        if (syncthingChange != null) {
-            waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
+        if (networkRestoreNeeded) {
+            waitForNetworkAndRestorePendingConnectors()
             return
         }
 
@@ -327,7 +326,7 @@ class SleepManagerService : Service() {
         }
 
         disableRestoreRequested = false
-        pendingNetworkRestoreToken = null
+        pendingNetworkRestoreAfterHelper = false
 
         if (!forceStop) {
             AppPreferences.recordEvent(this, "SleepManager disabled")
