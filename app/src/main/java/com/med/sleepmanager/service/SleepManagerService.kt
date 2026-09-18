@@ -58,6 +58,7 @@ class SleepManagerService : Service() {
     private var pendingSleepWifi = false
     private var pendingSleepBluetooth = false
     private var pendingSleepSyncthing = false
+    private var sleepGracePending = false
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
     private var pendingNetworkRestoreToken: String? = null
@@ -70,6 +71,12 @@ class SleepManagerService : Service() {
 
     private val thorAdminComponent by lazy {
         ComponentName(this, ThorDeviceAdminReceiver::class.java)
+    }
+
+    private val sleepGraceRunnable = Runnable {
+        sleepGracePending = false
+        Log.i(TAG, "Sleep grace elapsed -> applying sleep actions")
+        performFreshSleepActions()
     }
 
     private val sleepRadioRunnable = Runnable {
@@ -254,6 +261,26 @@ class SleepManagerService : Service() {
             }
             return
         }
+        if (sleepGracePending) {
+            Log.i(TAG, "Screen OFF -> sleep grace already pending")
+            return
+        }
+
+        val sleepGraceMs = AppPreferences.sleepGraceMs(this)
+        if (sleepGraceMs > 0L) {
+            sleepGracePending = true
+            acquireSleepTransitionWakeLock(
+                sleepGraceMs + SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
+            )
+            handler.postDelayed(sleepGraceRunnable, sleepGraceMs)
+            Log.i(TAG, "Screen OFF -> sleep grace scheduled for ${sleepGraceMs}ms")
+            return
+        }
+
+        performFreshSleepActions()
+    }
+
+    private fun performFreshSleepActions() {
         sleepActionsApplied = true
 
         handler.removeCallbacks(sleepRadioRunnable)
@@ -348,7 +375,9 @@ class SleepManagerService : Service() {
         }
     }
 
-    private fun acquireSleepTransitionWakeLock() {
+    private fun acquireSleepTransitionWakeLock(
+        timeoutMs: Long = SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
+    ) {
         releaseSleepTransitionWakeLock()
 
         val powerManager =
@@ -359,7 +388,7 @@ class SleepManagerService : Service() {
             "$packageName:syncthing-stop-grace"
         ).apply {
             setReferenceCounted(false)
-            acquire(SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS)
+            acquire(timeoutMs)
         }
 
         Log.i(TAG, "Sleep transition wakelock acquired")
@@ -385,6 +414,13 @@ class SleepManagerService : Service() {
                 THOR_SCREEN_ON_RECHECK_DELAY_MS
             )
             return
+        }
+
+        if (sleepGracePending) {
+            handler.removeCallbacks(sleepGraceRunnable)
+            sleepGracePending = false
+            releaseSleepTransitionWakeLock()
+            Log.i(TAG, "Sleep grace cancelled by wake")
         }
 
         handler.removeCallbacks(sleepRadioRunnable)
@@ -763,6 +799,8 @@ class SleepManagerService : Service() {
     override fun onDestroy() {
         cancelNetworkReadyWait()
         pendingNetworkRestoreToken = null
+        handler.removeCallbacks(sleepGraceRunnable)
+        sleepGracePending = false
         handler.removeCallbacks(sleepRadioRunnable)
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
