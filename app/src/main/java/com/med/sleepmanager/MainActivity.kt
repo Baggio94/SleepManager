@@ -2,6 +2,8 @@ package com.med.sleepmanager
 
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -58,7 +60,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
@@ -361,6 +365,20 @@ class MainActivity : ComponentActivity() {
         } else {
             AppPreferences.recordEvent(this, "Syncthing restore pending")
         }
+    }
+
+    private fun copyDiagnostics() {
+        val diagnostics = DiagnosticsBuilder.build(
+            context = this,
+            wifiState = currentWifiState,
+            bluetoothState = currentBluetoothState
+        )
+        val clipboard =
+            getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(
+            ClipData.newPlainText("SleepManager diagnostics", diagnostics)
+        )
+        Toast.makeText(this, "Diagnostics copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun ensureServiceRunning() {
@@ -699,6 +717,13 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     LastActivityCard(this@MainActivity)
+                }
+
+                item {
+                    DiagnosticsCard(
+                        context = this@MainActivity,
+                        onCopy = { copyDiagnostics() }
+                    )
                 }
             }
         }
@@ -1126,6 +1151,62 @@ private fun LastActivityCard(context: Context) {
 
         timeText?.let {
             Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsCard(
+    context: Context,
+    onCopy: () -> Unit
+) {
+    val events = EventHistoryStore.recent(context).take(10)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Diagnostics",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                "Recent activity is kept locally (up to 20 events). Copy diagnostics includes app, device, transaction and recent activity details.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (events.isEmpty()) {
+                Text(
+                    "No recent activity",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                events.forEach { event ->
+                    val time = DateFormat.getTimeFormat(context).format(Date(event.timestamp))
+                    Text(
+                        "\$time • \${event.message}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = onCopy,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Copy diagnostics")
+            }
         }
     }
 }
