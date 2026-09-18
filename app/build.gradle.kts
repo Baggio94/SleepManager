@@ -11,8 +11,8 @@ android {
         applicationId = "com.med.sleepmanager.halltest"
         minSdk = 28
         targetSdk = 36
-        versionCode = 214
-        versionName = "0.2.12-halltest2"
+        versionCode = 215
+        versionName = "0.2.12-halltest3"
     }
 
     buildFeatures {
@@ -28,11 +28,9 @@ android {
 
 dependencies {
     implementation("androidx.activity:activity-compose:1.12.4")
-
     implementation("androidx.compose.ui:ui:1.11.4")
     implementation("androidx.compose.ui:ui-tooling-preview:1.11.4")
     implementation("androidx.compose.foundation:foundation:1.11.4")
     implementation("androidx.compose.material3:material3:1.4.0")
-
     debugImplementation("androidx.compose.ui:ui-tooling:1.11.4")
 }
