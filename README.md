@@ -4,7 +4,7 @@
 
 SleepManager automatically puts selected Android services into a lower-power state when the screen turns off, then restores them when the device wakes.
 
-> Development version: **0.3.0**
+> Development version: **0.3.1**
 
 ## Features
 
@@ -20,8 +20,8 @@ SleepManager automatically puts selected Android services into a lower-power sta
 
 1. Open the [latest SleepManager release](https://github.com/Baggio94/SleepManager/releases/latest).
 2. Download:
-   - `SleepManager-0.3.0-debug.apk`
-   - `SleepManager-Helper-0.3.0-debug.apk`
+   - `SleepManager-0.3.1-debug.apk`
+   - `SleepManager-Helper-0.3.1-debug.apk`
 3. Install **SleepManager first**.
 4. Install the **Helper APK** if you want SleepManager to control Wi-Fi and/or Bluetooth.
 5. Open SleepManager and choose the actions you want it to manage.
