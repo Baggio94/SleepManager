@@ -73,7 +73,9 @@ import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
+import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
@@ -451,6 +453,9 @@ class MainActivity : ComponentActivity() {
         var syncthingEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageSyncthing(this))
         }
+        var tailscaleEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageTailscale(this))
+        }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
@@ -504,6 +509,12 @@ class MainActivity : ComponentActivity() {
         }
         val selectedTarget = remember(refreshToken) {
             SyncthingController.selectedTarget(this)
+        }
+        val tailscaleInstalled = remember(refreshToken) {
+            TailscaleController.isInstalled(this)
+        }
+        val tailscaleVersion = remember(refreshToken) {
+            TailscaleController.versionName(this)
         }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
@@ -874,6 +885,55 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        SettingRow(
+                            icon = R.drawable.ic_vpn,
+                            title = "Tailscale",
+                            subtitle = if (tailscaleInstalled) {
+                                "Disconnect during sleep. Restore only when SleepManager verifies it changed the VPN."
+                            } else {
+                                "Official Tailscale app not detected"
+                            },
+                            status = if (tailscaleInstalled && tailscaleVersion != null) {
+                                "Installed • $tailscaleVersion"
+                            } else {
+                                null
+                            },
+                            checked = tailscaleEnabled && tailscaleInstalled,
+                            enabled = tailscaleInstalled,
+                            onCheckedChange = {
+                                tailscaleEnabled = it
+                                AppPreferences.setManageTailscale(
+                                    this@MainActivity,
+                                    it
+                                )
+                            }
+                        )
+
+                        if (tailscaleInstalled) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = 64.dp,
+                                        end = 16.dp,
+                                        bottom = 12.dp
+                                    )
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        TailscaleController.open(this@MainActivity)
+                                    }
+                                ) {
+                                    Text("Open")
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -882,6 +942,7 @@ class MainActivity : ComponentActivity() {
                         wifi = wifiEnabled && helperInstalled,
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
+                        tailscale = tailscaleEnabled && tailscaleInstalled,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
@@ -1753,11 +1814,12 @@ private fun BehaviorCard(
     wifi: Boolean,
     bluetooth: Boolean,
     syncthing: Boolean,
+    tailscale: Boolean,
     thorProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
-    val hasSleepAction = wifi || bluetooth || syncthing
+    val hasSleepAction = wifi || bluetooth || syncthing || tailscale
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
@@ -1765,6 +1827,7 @@ private fun BehaviorCard(
         }
         advancedConditions.forEach { add("Only if $it") }
         if (syncthing) add("Stop Syncthing‑Fork")
+        if (tailscale) add("Disconnect Tailscale if its VPN is active")
         if (wifi) add("Turn Wi‑Fi off")
         if (bluetooth) add("Turn Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -1775,6 +1838,7 @@ private fun BehaviorCard(
         if (wifi) add("Restore Wi‑Fi to its previous state")
         if (bluetooth) add("Restore Bluetooth to its previous state")
         if (syncthing) add("Resume Syncthing‑Fork")
+        if (tailscale) add("Reconnect Tailscale only if SleepManager disconnected it")
     }
 
     Card(
@@ -1881,12 +1945,14 @@ private fun LastActivityCard(
                     action.startsWith("Wi‑Fi ") -> "Wi‑Fi"
                     action.startsWith("Bluetooth ") -> "Bluetooth"
                     action.startsWith("Syncthing ") -> "Syncthing"
+                    action.startsWith("Tailscale ") -> "Tailscale"
                     else -> null
                 }
                 val detail = when (subject) {
                     "Wi‑Fi" -> action.removePrefix("Wi‑Fi ").replaceFirstChar { it.uppercase() }
                     "Bluetooth" -> action.removePrefix("Bluetooth ").replaceFirstChar { it.uppercase() }
                     "Syncthing" -> action.removePrefix("Syncthing ").replaceFirstChar { it.uppercase() }
+                    "Tailscale" -> action.removePrefix("Tailscale ").replaceFirstChar { it.uppercase() }
                     else -> action
                 }
 
