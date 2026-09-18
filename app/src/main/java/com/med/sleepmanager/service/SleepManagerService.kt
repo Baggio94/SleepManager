@@ -846,7 +846,7 @@ class SleepManagerService : Service() {
 
         sleepTransitionWakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
-            "$packageName:syncthing-stop-grace"
+            "$packageName:sleep-transition"
         ).apply {
             setReferenceCounted(false)
             acquire(timeoutMs)
