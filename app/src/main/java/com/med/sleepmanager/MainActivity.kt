@@ -1733,9 +1733,9 @@ private fun AdvancedSleepRulesPage(
             AdvancedToggleRow(
                 title = "Use custom delay",
                 subtitle = if (customDelayEnabled) {
-                    "Home will show Advanced • ${formatDuration(customDelayMs)}"
+                    "Grace period will show Advanced • ${formatDuration(customDelayMs)}"
                 } else {
-                    "Home uses Immediate / 5s / 10s."
+                    "Grace period uses Immediate / 5s / 10s."
                 },
                 checked = customDelayEnabled,
                 onCheckedChange = onCustomDelayEnabledChange
