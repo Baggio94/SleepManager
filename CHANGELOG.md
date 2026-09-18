@@ -2,7 +2,7 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## 0.3.2 — upcoming
+## 0.3.2 — 2026-09-18
 
 ### Highlights
 
