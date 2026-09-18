@@ -96,6 +96,10 @@ class MainActivity : ComponentActivity() {
     private var activityRefreshToken by mutableIntStateOf(0)
     private var currentWifiState by mutableStateOf<Boolean?>(null)
     private var currentBluetoothState by mutableStateOf<Boolean?>(null)
+    private var currentSyncthingState by mutableStateOf<SyncthingController.RuntimeState?>(null)
+    private var currentTailscaleConnected by mutableStateOf<Boolean?>(null)
+    @Volatile
+    private var syncthingStateProbeRunning = false
     private var helperStateReceiverRegistered = false
     private var pendingThorAdminEnable = false
 
@@ -105,6 +109,7 @@ class MainActivity : ComponentActivity() {
             if (!isFinishing && !isDestroyed) {
                 // Refresh the real radio states through the compatibility helper.
                 HelperController.requestState(this@MainActivity)
+                refreshIntegrationRuntimeStates()
 
                 // Re-read every UI-facing state while the Activity is visible:
                 // manager/service state, enabled actions, helper availability,
@@ -114,6 +119,31 @@ class MainActivity : ComponentActivity() {
                 statusRefreshHandler.postDelayed(this, STATUS_REFRESH_INTERVAL_MS)
             }
         }
+    }
+
+    private fun refreshIntegrationRuntimeStates() {
+        currentTailscaleConnected =
+            if (TailscaleController.isInstalled(this)) {
+                TailscaleController.isConnected(this)
+            } else {
+                null
+            }
+
+        if (SyncthingController.selectedTarget(this) == null) {
+            currentSyncthingState = null
+            return
+        }
+
+        if (syncthingStateProbeRunning) return
+        syncthingStateProbeRunning = true
+
+        Thread {
+            val state = SyncthingController.runtimeState(this)
+            runOnUiThread {
+                currentSyncthingState = state
+                syncthingStateProbeRunning = false
+            }
+        }.start()
     }
 
     private val helperStateReceiver = object : BroadcastReceiver() {
@@ -409,7 +439,9 @@ class MainActivity : ComponentActivity() {
         val diagnostics = DiagnosticsBuilder.build(
             context = this,
             wifiState = currentWifiState,
-            bluetoothState = currentBluetoothState
+            bluetoothState = currentBluetoothState,
+            syncthingState = currentSyncthingState,
+            tailscaleConnected = currentTailscaleConnected
         )
         val clipboard =
             getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -845,6 +877,20 @@ class MainActivity : ComponentActivity() {
                             title = "Syncthing‑Fork",
                             subtitle = selectedTarget?.displayName
                                 ?: "No compatible Syncthing‑Fork build detected",
+                            status = if (selectedTarget != null) {
+                                when (currentSyncthingState) {
+                                    SyncthingController.RuntimeState.RUNNING ->
+                                        "Current state: RUNNING"
+                                    SyncthingController.RuntimeState.STOPPED ->
+                                        "Current state: STOPPED"
+                                    SyncthingController.RuntimeState.UNKNOWN ->
+                                        "Current state: UNKNOWN"
+                                    null ->
+                                        "Current state: CHECKING…"
+                                }
+                            } else {
+                                null
+                            },
                             checked = syncthingEnabled && selectedTarget != null,
                             enabled = selectedTarget != null,
                             onCheckedChange = {
@@ -901,7 +947,14 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 "Tailscale not detected"
                             },
-                            status = null,
+                            status = if (tailscaleInstalled) {
+                                currentTailscaleConnected?.let {
+                                    "Current state: " +
+                                        if (it) "CONNECTED" else "DISCONNECTED"
+                                } ?: "Current state: CHECKING…"
+                            } else {
+                                null
+                            },
                             checked = tailscaleEnabled && tailscaleInstalled,
                             enabled = tailscaleInstalled,
                             dimWhenDisabled = false,
@@ -1340,14 +1393,17 @@ private fun SettingRow(
             )
 
             status?.let { currentStatus ->
-                val isOn = currentStatus.contains("ON")
+                val isActive =
+                    currentStatus.contains("ON") ||
+                        currentStatus.contains("RUNNING") ||
+                        currentStatus.contains("CONNECTED")
                 Text(
                     currentStatus,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
                         currentStatus.contains("CHECKING") -> MaterialTheme.colorScheme.onSurfaceVariant
-                        isOn -> MaterialTheme.colorScheme.primary
+                        isActive -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
