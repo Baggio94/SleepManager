@@ -11,8 +11,8 @@ android {
         applicationId = "com.med.sleepmanager"
         minSdk = 28
         targetSdk = 36
-        versionCode = 212
-        versionName = "0.2.12"
+        versionCode = 300
+        versionName = "0.3.0"
     }
 
     buildFeatures {
