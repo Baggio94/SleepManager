@@ -781,6 +781,72 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+private fun OnboardingCard(
+    helperInstalled: Boolean,
+    helperVersion: String?,
+    syncthingTarget: SyncthingController.Target?,
+    syncthingEnabled: Boolean,
+    managerEnabled: Boolean,
+    onShowTest: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Quick setup",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                if (helperInstalled) {
+                    "✓ Compatibility helper installed${helperVersion?.let { " • $it" } ?: ""}"
+                } else {
+                    "• Compatibility helper not installed — only needed for Wi-Fi / Bluetooth."
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                syncthingTarget?.let { "✓ ${it.displayName} detected" }
+                    ?: "• Syncthing-Fork not detected — optional.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            if (syncthingEnabled && syncthingTarget != null) {
+                Text(
+                    "Syncthing-Fork: make sure Settings → Behaviour → Service control by broadcast is enabled.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Text(
+                if (managerEnabled) {
+                    "SleepManager is enabled. Finish setup when your selected actions look right."
+                } else {
+                    "Choose the actions you want below, then enable SleepManager."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            TextButton(onClick = onShowTest) {
+                Text("How to test sleep / wake")
+            }
+        }
+    }
+}
+
+@Composable
 private fun StatusCard(
     enabled: Boolean,
     running: Boolean,
