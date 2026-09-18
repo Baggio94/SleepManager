@@ -337,12 +337,32 @@ class SleepManagerService : Service() {
 
     private fun onScreenOff() {
         cancelNetworkReadyWait()
-        pendingNetworkRestoreToken = null
+        pendingNetworkRestoreAfterHelper = false
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
 
         val existingCycle = SleepCycleStore.current(this)
         if (sleepActionsApplied || existingCycle.active) {
             sleepActionsApplied = true
+
+            if (isTailscaleSleepVerificationPending()) {
+                if (
+                    existingCycle.active &&
+                    existingCycle.helperExpected &&
+                    !existingCycle.helperSleepRequested
+                ) {
+                    pendingSleepWifi = existingCycle.wifiManaged
+                    pendingSleepBluetooth = existingCycle.bluetoothManaged
+                    pendingSleepSyncthing =
+                        SleepCycleStore.hasConnectorChange(
+                            this,
+                            SyncthingConnector.id
+                        )
+                }
+
+                Log.i(TAG, "Recovered pending Tailscale disconnect verification")
+                scheduleTailscaleSleepVerification(resetAttempts = true)
+                return
+            }
 
             if (
                 existingCycle.active &&
@@ -422,6 +442,9 @@ class SleepManagerService : Service() {
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
         val syncthing = AppPreferences.manageSyncthing(this)
+        val tailscale =
+            AppPreferences.manageTailscale(this) &&
+                TailscaleConnector.isInstalled(this)
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
 
@@ -433,7 +456,8 @@ class SleepManagerService : Service() {
         )
         Log.i(
             TAG,
-            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth syncthing=$syncthing"
+            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
+                "syncthing=$syncthing tailscale=$tailscale"
         )
 
         val syncthingResult = if (syncthing) {
@@ -450,21 +474,52 @@ class SleepManagerService : Service() {
             )
         }
 
-        val stopSent = syncthingResult?.changed == true
+        val tailscaleResult = if (tailscale) {
+            TailscaleConnector.sleep(this)
+        } else {
+            null
+        }
 
-        if (stopSent && helperAvailable) {
+        if (
+            tailscaleResult?.attempted == true &&
+            tailscaleResult.restoreToken == TailscaleConnector.TOKEN_VERIFY_DISCONNECT
+        ) {
+            SleepCycleStore.recordConnectorChange(
+                this,
+                TailscaleConnector.id,
+                TailscaleConnector.TOKEN_VERIFY_DISCONNECT
+            )
+        }
+
+        val stopSent = syncthingResult?.changed == true
+        val tailscaleVerificationPending = isTailscaleSleepVerificationPending()
+
+        if (helperAvailable && (stopSent || tailscaleVerificationPending)) {
             pendingSleepWifi = wifi
             pendingSleepBluetooth = bluetooth
-            pendingSleepSyncthing = true
+            pendingSleepSyncthing = stopSent
 
-            acquireSleepTransitionWakeLock()
-            handler.postDelayed(sleepRadioRunnable, SYNCTHING_STOP_GRACE_MS)
+            if (tailscaleVerificationPending) {
+                Log.i(
+                    TAG,
+                    "Waiting for Tailscale disconnect verification before radio sleep"
+                )
+                scheduleTailscaleSleepVerification(resetAttempts = true)
+            } else {
+                acquireSleepTransitionWakeLock()
+                handler.postDelayed(sleepRadioRunnable, SYNCTHING_STOP_GRACE_MS)
 
-            Log.i(
-                TAG,
-                "Syncthing STOP grace scheduled for ${SYNCTHING_STOP_GRACE_MS}ms before radio sleep"
-            )
+                Log.i(
+                    TAG,
+                    "Syncthing STOP grace scheduled for " +
+                        "${SYNCTHING_STOP_GRACE_MS}ms before radio sleep"
+                )
+            }
         } else {
+            if (tailscaleVerificationPending) {
+                scheduleTailscaleSleepVerification(resetAttempts = true)
+            }
+
             applySleepConnectivity(
                 wifi = wifi,
                 bluetooth = bluetooth,
@@ -472,7 +527,10 @@ class SleepManagerService : Service() {
             )
         }
 
-        if (!helperAvailable && !stopSent) {
+        if (
+            !helperAvailable &&
+            !SleepCycleStore.hasPendingConnectorChanges(this)
+        ) {
             SleepCycleStore.clear(this)
         }
     }
