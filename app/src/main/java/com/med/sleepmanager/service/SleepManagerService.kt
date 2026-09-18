@@ -285,10 +285,21 @@ class SleepManagerService : Service() {
 
         prepareTailscaleVerificationForWake()
 
-        val cycle = SleepCycleStore.current(this)
+        var cycle = SleepCycleStore.current(this)
+        if (
+            cycle.active &&
+            cycle.helperExpected &&
+            !cycle.helperSleepRequested &&
+            !cycle.helperRestored
+        ) {
+            SleepCycleStore.markHelperRestored(this)
+            cycle = SleepCycleStore.current(this)
+        }
+
         val helperRestoreNeeded =
             cycle.active &&
                 cycle.helperExpected &&
+                cycle.helperSleepRequested &&
                 !cycle.helperRestored
         val networkRestoreNeeded = hasPendingNetworkConnectorRestore()
 
@@ -867,10 +878,21 @@ class SleepManagerService : Service() {
             prepareTailscaleVerificationForWake()
         }
 
-        val cycle = SleepCycleStore.current(this)
+        var cycle = SleepCycleStore.current(this)
+        if (
+            cycle.active &&
+            cycle.helperExpected &&
+            !cycle.helperSleepRequested &&
+            !cycle.helperRestored
+        ) {
+            SleepCycleStore.markHelperRestored(this)
+            cycle = SleepCycleStore.current(this)
+        }
+
         val helperRestoreNeeded =
             cycle.active &&
                 cycle.helperExpected &&
+                cycle.helperSleepRequested &&
                 !cycle.helperRestored
         val networkRestoreNeeded = hasPendingNetworkConnectorRestore()
 
