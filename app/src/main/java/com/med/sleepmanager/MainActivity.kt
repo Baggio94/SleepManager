@@ -879,7 +879,7 @@ class MainActivity : ComponentActivity() {
                         )
 
                         HorizontalDivider(
-                            modifier = Modifier.padding(start = 64.dp),
+                            modifier = Modifier.padding(start = 56.dp),
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
 
@@ -1547,45 +1547,49 @@ private fun CompactIntegrationRow(
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null
 ) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                }
-            ) {
-                Icon(
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                    tint = if (enabled) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    modifier = Modifier
-                        .padding(10.dp)
-                        .size(22.dp)
-                )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
             }
+        ) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(18.dp)
+            )
+        }
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
                 Text(
                     version,
                     style = MaterialTheme.typography.bodySmall,
@@ -1595,7 +1599,12 @@ private fun CompactIntegrationRow(
                 status?.let {
                     val active = it == "RUNNING" || it == "CONNECTED"
                     Text(
-                        "State: $it",
+                        "•",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        it,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (active) {
@@ -1607,34 +1616,37 @@ private fun CompactIntegrationRow(
                 }
             }
 
-            Switch(
-                checked = checked,
-                onCheckedChange = feedbackChange(onCheckedChange),
-                enabled = enabled
-            )
-        }
-
-        if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 70.dp, end = 16.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                onOpen?.let { open ->
-                    OutlinedButton(onClick = feedbackClick(open)) {
-                        Text("Open")
+            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    onOpen?.let { open ->
+                        TextButton(
+                            onClick = feedbackClick(open),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("Open")
+                        }
                     }
-                }
 
-                if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    TextButton(onClick = feedbackClick(onSecondaryAction)) {
-                        Text(secondaryActionLabel)
+                    if (secondaryActionLabel != null && onSecondaryAction != null) {
+                        TextButton(
+                            onClick = feedbackClick(onSecondaryAction),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(secondaryActionLabel)
+                        }
                     }
                 }
             }
         }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = feedbackChange(onCheckedChange),
+            enabled = enabled
+        )
     }
 }
 @Composable
