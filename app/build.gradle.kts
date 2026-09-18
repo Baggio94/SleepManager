@@ -11,8 +11,8 @@ android {
         applicationId = "com.med.sleepmanager.halltest"
         minSdk = 28
         targetSdk = 36
-        versionCode = 215
-        versionName = "0.2.12-halltest3"
+        versionCode = 216
+        versionName = "0.2.12-halltest4"
     }
 
     buildFeatures {
