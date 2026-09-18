@@ -60,10 +60,12 @@ object AppPreferences {
     }
 
     fun recordEvent(context: Context, event: String) {
+        val now = System.currentTimeMillis()
         prefs(context).edit()
             .putString(KEY_LAST_EVENT, event)
-            .putLong(KEY_LAST_EVENT_TIME, System.currentTimeMillis())
+            .putLong(KEY_LAST_EVENT_TIME, now)
             .apply()
+        EventHistoryStore.record(context, event, now)
     }
 
     fun lastEvent(context: Context): String =
