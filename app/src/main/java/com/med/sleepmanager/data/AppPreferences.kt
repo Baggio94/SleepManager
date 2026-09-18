@@ -9,6 +9,7 @@ object AppPreferences {
     private const val KEY_BLUETOOTH = "bluetooth"
     private const val KEY_SYNCTHING = "syncthing"
     private const val KEY_THOR_PROTECTION = "thor_protection"
+    private const val KEY_SLEEP_GRACE_MS = "sleep_grace_ms"
     private const val KEY_SELECTED_SYNCTHING = "selected_syncthing"
     private const val KEY_LAST_EVENT = "last_event"
     private const val KEY_LAST_EVENT_TIME = "last_event_time"
@@ -37,6 +38,16 @@ object AppPreferences {
 
     fun setManageThorProtection(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_THOR_PROTECTION, value).apply()
+
+    fun sleepGraceMs(context: Context): Long {
+        val value = prefs(context).getLong(KEY_SLEEP_GRACE_MS, 0L)
+        return if (value in setOf(0L, 3000L, 5000L, 10000L)) value else 0L
+    }
+
+    fun setSleepGraceMs(context: Context, value: Long) {
+        val safeValue = if (value in setOf(0L, 3000L, 5000L, 10000L)) value else 0L
+        prefs(context).edit().putLong(KEY_SLEEP_GRACE_MS, safeValue).apply()
+    }
 
     fun getSelectedSyncthing(context: Context): String? =
         prefs(context).getString(KEY_SELECTED_SYNCTHING, null)
