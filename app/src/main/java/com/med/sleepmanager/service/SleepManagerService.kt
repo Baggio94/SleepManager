@@ -396,13 +396,15 @@ class SleepManagerService : Service() {
         sleepActionsApplied = false
 
         val cycle = SleepCycleStore.current(this)
-        val wifiManaged = AppPreferences.manageWifi(this)
-        val bluetoothManaged = AppPreferences.manageBluetooth(this)
-        val connectivity = wifiManaged || bluetoothManaged
+        val helperRestoreNeeded =
+            cycle.active &&
+                cycle.helperExpected &&
+                !cycle.helperRestored
 
         Log.i(
             TAG,
-            "Screen ON -> restoring cycle=${cycle.cycleId} active=${cycle.active}"
+            "Screen ON -> restoring cycle=${cycle.cycleId} active=${cycle.active} " +
+                "helperRestoreNeeded=$helperRestoreNeeded"
         )
 
         lastWakeWifiManaged = false
@@ -413,18 +415,18 @@ class SleepManagerService : Service() {
         val syncthingChange =
             SleepCycleStore.connectorChange(this, SyncthingConnector.id)
 
-        // If the Helper must restore a managed radio, wait for its WAKE result
-        // before evaluating network readiness. Otherwise the previous/default
-        // network can still look VALIDATED for a few milliseconds and trigger
-        // FOLLOW too early.
+        // Restoration must follow the persisted sleep transaction, not today's
+        // UI switches. The user may change options while the device is asleep.
+        // If Helper changed a radio for this cycle, let Helper restore that
+        // exact previous state before evaluating network readiness.
         pendingNetworkRestoreToken =
-            if (connectivity && syncthingChange != null) {
+            if (helperRestoreNeeded && syncthingChange != null) {
                 syncthingChange.restoreToken
             } else {
                 null
             }
 
-        val helperSent = if (connectivity) {
+        val helperSent = if (helperRestoreNeeded) {
             HelperController.sendWake(this)
         } else {
             false
@@ -435,14 +437,21 @@ class SleepManagerService : Service() {
             lastWakeBluetoothManaged = false
             pendingNetworkRestoreToken = null
 
-            if (cycle.active && cycle.helperExpected) {
-                SleepCycleStore.markHelperRestored(this)
+            if (helperRestoreNeeded) {
+                Log.w(
+                    TAG,
+                    "Helper restore still pending; preserving sleep transaction"
+                )
+                AppPreferences.recordEvent(
+                    this,
+                    "Wake → Helper restore pending"
+                )
             }
 
             if (syncthingChange != null) {
                 waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
             } else {
-                if (!connectivity) {
+                if (!helperRestoreNeeded) {
                     AppPreferences.recordEvent(
                         this,
                         buildWakeSummary(
@@ -488,7 +497,15 @@ class SleepManagerService : Service() {
                 Log.i(TAG, "Network ready result=$result -> restoring Syncthing")
 
                 val wakeResult = SyncthingConnector.wake(this, restoreToken)
-                SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
+
+                if (wakeResult.success) {
+                    SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
+                } else {
+                    Log.w(
+                        TAG,
+                        "Syncthing restore failed; preserving pending connector transaction"
+                    )
+                }
 
                 AppPreferences.recordEvent(
                     this,
@@ -501,7 +518,7 @@ class SleepManagerService : Service() {
                             syncthing = true
                         )
                     } else {
-                        "Wake → Syncthing restore failed"
+                        "Wake → Syncthing restore pending"
                     }
                 )
 
