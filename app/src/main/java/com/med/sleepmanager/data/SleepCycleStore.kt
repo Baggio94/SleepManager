@@ -9,7 +9,10 @@ object SleepCycleStore {
     private const val KEY_CYCLE_ID = "cycle_id"
     private const val KEY_STARTED_AT = "started_at"
     private const val KEY_HELPER_EXPECTED = "helper_expected"
+    private const val KEY_HELPER_SLEEP_REQUESTED = "helper_sleep_requested"
     private const val KEY_HELPER_RESTORED = "helper_restored"
+    private const val KEY_WIFI_MANAGED = "wifi_managed"
+    private const val KEY_BLUETOOTH_MANAGED = "bluetooth_managed"
 
     data class ConnectorChange(
         val connectorId: String,
@@ -21,13 +24,21 @@ object SleepCycleStore {
         val cycleId: Long,
         val startedAt: Long,
         val helperExpected: Boolean,
-        val helperRestored: Boolean
+        val helperSleepRequested: Boolean,
+        val helperRestored: Boolean,
+        val wifiManaged: Boolean,
+        val bluetoothManaged: Boolean
     )
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun begin(context: Context, helperExpected: Boolean): Snapshot {
+    fun begin(
+        context: Context,
+        helperExpected: Boolean,
+        wifiManaged: Boolean,
+        bluetoothManaged: Boolean
+    ): Snapshot {
         val now = System.currentTimeMillis()
         prefs(context).edit()
             .clear()
@@ -35,7 +46,10 @@ object SleepCycleStore {
             .putLong(KEY_CYCLE_ID, now)
             .putLong(KEY_STARTED_AT, now)
             .putBoolean(KEY_HELPER_EXPECTED, helperExpected)
+            .putBoolean(KEY_HELPER_SLEEP_REQUESTED, false)
             .putBoolean(KEY_HELPER_RESTORED, !helperExpected)
+            .putBoolean(KEY_WIFI_MANAGED, wifiManaged)
+            .putBoolean(KEY_BLUETOOTH_MANAGED, bluetoothManaged)
             .commit()
 
         return current(context)
@@ -48,11 +62,20 @@ object SleepCycleStore {
             cycleId = p.getLong(KEY_CYCLE_ID, 0L),
             startedAt = p.getLong(KEY_STARTED_AT, 0L),
             helperExpected = p.getBoolean(KEY_HELPER_EXPECTED, false),
-            helperRestored = p.getBoolean(KEY_HELPER_RESTORED, true)
+            helperSleepRequested = p.getBoolean(KEY_HELPER_SLEEP_REQUESTED, false),
+            helperRestored = p.getBoolean(KEY_HELPER_RESTORED, true),
+            wifiManaged = p.getBoolean(KEY_WIFI_MANAGED, false),
+            bluetoothManaged = p.getBoolean(KEY_BLUETOOTH_MANAGED, false)
         )
     }
 
     fun isActive(context: Context): Boolean = current(context).active
+
+    fun markHelperSleepRequested(context: Context) {
+        prefs(context).edit()
+            .putBoolean(KEY_HELPER_SLEEP_REQUESTED, true)
+            .commit()
+    }
 
     fun markHelperRestored(context: Context) {
         prefs(context).edit()
