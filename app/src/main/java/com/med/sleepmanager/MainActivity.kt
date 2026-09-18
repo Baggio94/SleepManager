@@ -354,10 +354,11 @@ class MainActivity : ComponentActivity() {
                 ?: return
 
         val result = SyncthingConnector.wake(this, change.restoreToken)
-        SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
 
-        if (!result.success) {
-            AppPreferences.recordEvent(this, "Syncthing restore failed")
+        if (result.success) {
+            SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
+        } else {
+            AppPreferences.recordEvent(this, "Syncthing restore pending")
         }
     }
 
