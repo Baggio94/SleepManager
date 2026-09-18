@@ -1,28 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <permission
-        android:name="com.med.sleepmanager.permission.CONTROL_HELPER"
-        android:protectionLevel="signature" />
-
-    <uses-permission android:name="com.med.sleepmanager.permission.CONTROL_HELPER" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-
-    <queries>
-        <package android:name="com.med.sleepmanager.helper" />
-        <package android:name="com.github.catfriend1.syncthingfork" />
-        <package android:name="com.github.catfriend1.syncthingfork.debug" />
-        <package android:name="com.github.catfriend1.syncthingandroid" />
-        <package android:name="com.github.catfriend1.syncthingandroid.debug" />
-    </queries>
-
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="SleepManager"
+        android:label="SleepManager Hall Test"
         android:supportsRtl="true"
         android:theme="@style/Theme.SleepManager">
 
@@ -35,31 +17,5 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            android:excludeFromRecents="true" />
-
-        <service
-            android:name=".service.SleepManagerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Monitors screen sleep and wake state to apply low-power actions and safely restore them on wake." />
-        </service>
-
-        <receiver
-            android:name=".service.BootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
     </application>
-
 </manifest>
