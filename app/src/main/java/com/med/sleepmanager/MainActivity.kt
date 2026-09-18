@@ -17,6 +17,9 @@ import android.net.Uri
 import android.text.format.DateFormat
 import android.provider.Settings
 import android.widget.Toast
+import android.view.HapticFeedbackConstants
+import android.view.SoundEffectConstants
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -70,6 +73,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -89,6 +93,33 @@ import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
 
 import kotlinx.coroutines.launch
+
+private fun View.performSleepManagerFeedback() {
+    if (isHapticFeedbackEnabled) {
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+    }
+    if (isSoundEffectsEnabled) {
+        playSoundEffect(SoundEffectConstants.CLICK)
+    }
+}
+
+@Composable
+private fun feedbackClick(action: () -> Unit): () -> Unit {
+    val view = LocalView.current
+    return {
+        view.performSleepManagerFeedback()
+        action()
+    }
+}
+
+@Composable
+private fun <T> feedbackChange(action: (T) -> Unit): (T) -> Unit {
+    val view = LocalView.current
+    return { value ->
+        view.performSleepManagerFeedback()
+        action(value)
+    }
+}
 
 private enum class AppSection {
     HOME,
@@ -598,7 +629,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showTestDialog = false }) {
+                    TextButton(onClick = feedbackClick { showTestDialog = false }) {
                         Text("Got it")
                     }
                 }
@@ -661,7 +692,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 label = { Text(section.label) },
                                 selected = currentSection == section,
-                                onClick = {
+                                onClick = feedbackClick {
                                     currentSection = section
                                     drawerScope.launch { drawerState.close() }
                                 }
@@ -997,7 +1028,7 @@ class MainActivity : ComponentActivity() {
                 if (managerEnabled && !setupComplete) {
                     item {
                         Button(
-                            onClick = { finishSetup() },
+                            onClick = feedbackClick { finishSetup() },
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Finish setup")
@@ -1119,7 +1150,7 @@ private fun CompactSideRail(
         modifier = Modifier.width(64.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         header = {
-            IconButton(onClick = onMenuClick) {
+            IconButton(onClick = feedbackClick(onMenuClick)) {
                 Icon(
                     painter = painterResource(R.drawable.ic_menu),
                     contentDescription = "Open navigation"
@@ -1130,7 +1161,7 @@ private fun CompactSideRail(
         AppSection.values().forEach { section ->
             NavigationRailItem(
                 selected = currentSection == section,
-                onClick = { onSectionSelected(section) },
+                onClick = feedbackClick { onSectionSelected(section) },
                 icon = {
                     Icon(
                         painter = painterResource(section.iconRes),
@@ -1216,7 +1247,7 @@ private fun OnboardingCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            TextButton(onClick = onShowTest) {
+            TextButton(onClick = feedbackClick(onShowTest)) {
                 Text("How to test sleep / wake")
             }
         }
@@ -1297,7 +1328,7 @@ private fun StatusCard(
             }
 
             Button(
-                onClick = onToggle,
+                onClick = feedbackClick(onToggle),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
@@ -1418,7 +1449,7 @@ private fun SettingRow(
 
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = feedbackChange(onCheckedChange),
             enabled = enabled
         )
     }
@@ -1513,13 +1544,13 @@ private fun CompactIntegrationRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 onOpen?.let { open ->
-                    OutlinedButton(onClick = open) {
+                    OutlinedButton(onClick = feedbackClick(open)) {
                         Text("Open")
                     }
                 }
 
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
-                    TextButton(onClick = onSecondaryAction) {
+                    TextButton(onClick = feedbackClick(onSecondaryAction)) {
                         Text(secondaryActionLabel)
                     }
                 }
@@ -1567,7 +1598,7 @@ private fun SleepGraceSelector(
             options.forEach { (label, value) ->
                 FilterChip(
                     selected = !customDelayEnabled && valueMs == value,
-                    onClick = { onChange(value) },
+                    onClick = feedbackClick { onChange(value) },
                     enabled = !customDelayEnabled,
                     modifier = Modifier.weight(1f),
                     label = {
@@ -1581,7 +1612,7 @@ private fun SleepGraceSelector(
 
             FilterChip(
                 selected = customDelayEnabled,
-                onClick = onCustom,
+                onClick = feedbackClick(onCustom),
                 modifier = Modifier.weight(1f),
                 label = {
                     Text(
@@ -1593,7 +1624,7 @@ private fun SleepGraceSelector(
         }
 
         if (customDelayEnabled) {
-            TextButton(onClick = onCustom) {
+            TextButton(onClick = feedbackClick(onCustom)) {
                 Text("Advanced • ${formatDuration(customDelayMs)}")
             }
         }
@@ -1671,7 +1702,7 @@ private fun AdvancedSleepRulesPage(
                             val (label, value) = options[index]
                             FilterChip(
                                 selected = customDelayMs == value,
-                                onClick = { onCustomDelayChange(value) },
+                                onClick = feedbackClick { onCustomDelayChange(value) },
                                 label = { Text(label) }
                             )
                         }
@@ -1717,7 +1748,7 @@ private fun AdvancedSleepRulesPage(
                             val level = levels[index]
                             FilterChip(
                                 selected = batteryBelowPercent == level,
-                                onClick = { onBatteryBelowPercentChange(level) },
+                                onClick = feedbackClick { onBatteryBelowPercentChange(level) },
                                 label = { Text("< ${level}%") }
                             )
                         }
@@ -1777,7 +1808,7 @@ private fun AdvancedSleepRulesPage(
                         val (label, mode) = modes[index]
                         FilterChip(
                             selected = batterySaverMode == mode,
-                            onClick = { onBatterySaverModeChange(mode) },
+                            onClick = feedbackClick { onBatterySaverModeChange(mode) },
                             label = { Text(label) }
                         )
                     }
@@ -1808,13 +1839,13 @@ private fun AdvancedSleepRulesPage(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = onPickScheduleStart,
+                        onClick = feedbackClick(onPickScheduleStart),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("From ${formatTime(scheduleStartMinutes)}")
                     }
                     OutlinedButton(
-                        onClick = onPickScheduleEnd,
+                        onClick = feedbackClick(onPickScheduleEnd),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("To ${formatTime(scheduleEndMinutes)}")
@@ -1854,7 +1885,7 @@ private fun AdvancedToggleRow(
 
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = feedbackChange(onCheckedChange)
         )
     }
 }
@@ -1873,7 +1904,7 @@ private fun ActivityLogPage(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
         ) {
-            OutlinedButton(onClick = onCopyLog) {
+            OutlinedButton(onClick = feedbackClick(onCopyLog)) {
                 Text("Copy log")
             }
         }
@@ -2104,7 +2135,7 @@ private fun AboutActionRow(
             )
         }
 
-        OutlinedButton(onClick = onClick) {
+        OutlinedButton(onClick = feedbackClick(onClick)) {
             Text(actionLabel)
         }
     }
@@ -2227,7 +2258,7 @@ private fun BehaviorCard(
                     )
                 }
 
-                TextButton(onClick = { expanded = !expanded }) {
+                TextButton(onClick = feedbackClick { expanded = !expanded }) {
                     Text(if (expanded) "Less" else "Details")
                 }
             }
@@ -2428,7 +2459,7 @@ private fun ActivityLogDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = feedbackClick(onDismiss)) {
                 Text("Close")
             }
         }
@@ -2449,7 +2480,7 @@ private fun SyncthingTargetDialog(
             Column {
                 targets.forEach { target ->
                     TextButton(
-                        onClick = { onSelect(target) },
+                        onClick = feedbackClick { onSelect(target) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -2473,7 +2504,7 @@ private fun SyncthingTargetDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = feedbackClick(onDismiss)) {
                 Text("Close")
             }
         }
