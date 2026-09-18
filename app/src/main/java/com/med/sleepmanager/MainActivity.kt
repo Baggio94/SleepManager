@@ -1255,7 +1255,10 @@ private fun SettingRow(
 @Composable
 private fun SleepGraceSelector(
     valueMs: Long,
-    onChange: (Long) -> Unit
+    customDelayEnabled: Boolean,
+    customDelayMs: Long,
+    onChange: (Long) -> Unit,
+    onCustom: () -> Unit
 ) {
     val options = listOf(
         "Immediate" to 0L,
@@ -1269,28 +1272,426 @@ private fun SleepGraceSelector(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            "Sleep grace period",
+            "Grace period",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium
         )
         Text(
-            "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed.",
+            if (customDelayEnabled) {
+                "Using custom delay from Advanced settings."
+            } else {
+                "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
+
+        LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            options.forEach { (label, value) ->
+            items(options.size) { index ->
+                val (label, value) = options[index]
                 FilterChip(
-                    selected = valueMs == value,
+                    selected = !customDelayEnabled && valueMs == value,
                     onClick = { onChange(value) },
+                    enabled = !customDelayEnabled,
                     label = { Text(label) }
+                )
+            }
+
+            item {
+                FilterChip(
+                    selected = customDelayEnabled,
+                    onClick = onCustom,
+                    label = { Text("Custom") }
+                )
+            }
+        }
+
+        if (customDelayEnabled) {
+            TextButton(onClick = onCustom) {
+                Text("Advanced • ${formatDuration(customDelayMs)}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedSleepRulesPage(
+    customDelayEnabled: Boolean,
+    customDelayMs: Long,
+    batteryConditionEnabled: Boolean,
+    batteryBelowPercent: Int,
+    notChargingOnly: Boolean,
+    batterySaverMode: String,
+    scheduleEnabled: Boolean,
+    scheduleStartMinutes: Int,
+    scheduleEndMinutes: Int,
+    onCustomDelayEnabledChange: (Boolean) -> Unit,
+    onCustomDelayChange: (Long) -> Unit,
+    onBatteryConditionEnabledChange: (Boolean) -> Unit,
+    onBatteryBelowPercentChange: (Int) -> Unit,
+    onNotChargingOnlyChange: (Boolean) -> Unit,
+    onBatterySaverModeChange: (String) -> Unit,
+    onScheduleEnabledChange: (Boolean) -> Unit,
+    onPickScheduleStart: () -> Unit,
+    onPickScheduleEnd: () -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SectionTitle(
+            title = "Custom delay",
+            subtitle = "Override the short Grace period shown on Home."
+        )
+
+        SettingsCard {
+            AdvancedToggleRow(
+                title = "Use custom delay",
+                subtitle = if (customDelayEnabled) {
+                    "Home will show Advanced • ${formatDuration(customDelayMs)}"
+                } else {
+                    "Home uses Immediate / 3s / 5s / 10s."
+                },
+                checked = customDelayEnabled,
+                onCheckedChange = onCustomDelayEnabledChange
+            )
+
+            if (customDelayEnabled) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Delay before sleep actions",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    val options = listOf(
+                        "30 s" to 30_000L,
+                        "1 min" to 60_000L,
+                        "2 min" to 120_000L,
+                        "5 min" to 300_000L,
+                        "10 min" to 600_000L
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(options.size) { index ->
+                            val (label, value) = options[index]
+                            FilterChip(
+                                selected = customDelayMs == value,
+                                onClick = { onCustomDelayChange(value) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        SectionTitle(
+            title = "Conditions",
+            subtitle = "Sleep actions run only when every enabled condition is true."
+        )
+
+        InfoCard(
+            title = "AND logic",
+            text = "Enabled conditions are combined. If any one of them is false, SleepManager skips the sleep actions for that screen-off cycle."
+        )
+
+        SettingsCard {
+            AdvancedToggleRow(
+                title = "Battery level",
+                subtitle = if (batteryConditionEnabled) {
+                    "Only below ${batteryBelowPercent}%"
+                } else {
+                    "Ignore battery percentage"
+                },
+                checked = batteryConditionEnabled,
+                onCheckedChange = onBatteryConditionEnabledChange
+            )
+
+            if (batteryConditionEnabled) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val levels = listOf(20, 30, 40, 50, 60)
+                        items(levels.size) { index ->
+                            val level = levels[index]
+                            FilterChip(
+                                selected = batteryBelowPercent == level,
+                                onClick = { onBatteryBelowPercentChange(level) },
+                                label = { Text("< ${level}%") }
+                            )
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AdvancedToggleRow(
+                title = "Charging",
+                subtitle = if (notChargingOnly) {
+                    "Only when the device is not charging"
+                } else {
+                    "Ignore charging state"
+                },
+                checked = notChargingOnly,
+                onCheckedChange = onNotChargingOnlyChange
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Battery Saver",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    when (batterySaverMode) {
+                        AppPreferences.BATTERY_SAVER_ON -> "Only when Android Battery Saver is ON"
+                        AppPreferences.BATTERY_SAVER_OFF -> "Only when Android Battery Saver is OFF"
+                        else -> "Ignore Battery Saver state"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val modes = listOf(
+                        "Ignore" to AppPreferences.BATTERY_SAVER_IGNORE,
+                        "ON" to AppPreferences.BATTERY_SAVER_ON,
+                        "OFF" to AppPreferences.BATTERY_SAVER_OFF
+                    )
+                    items(modes.size) { index ->
+                        val (label, mode) = modes[index]
+                        FilterChip(
+                            selected = batterySaverMode == mode,
+                            onClick = { onBatterySaverModeChange(mode) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AdvancedToggleRow(
+                title = "Schedule",
+                subtitle = if (scheduleEnabled) {
+                    "Only between ${formatTime(scheduleStartMinutes)} and ${formatTime(scheduleEndMinutes)}"
+                } else {
+                    "No time restriction"
+                },
+                checked = scheduleEnabled,
+                onCheckedChange = onScheduleEnabledChange
+            )
+
+            if (scheduleEnabled) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onPickScheduleStart,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("From ${formatTime(scheduleStartMinutes)}")
+                    }
+                    OutlinedButton(
+                        onClick = onPickScheduleEnd,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("To ${formatTime(scheduleEndMinutes)}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvancedToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun ActivityLogPage(
+    context: Context,
+    onCopyLog: () -> Unit
+) {
+    val events = EventHistoryStore.recent(context)
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            OutlinedButton(onClick = onCopyLog) {
+                Text("Copy log")
+            }
+        }
+
+        if (events.isEmpty()) {
+            InfoCard(
+                title = "Activity log",
+                text = "No recent activity"
+            )
+        } else {
+            SettingsCard {
+                events.forEachIndexed { index, event ->
+                    val date = Date(event.timestamp)
+                    val timestamp =
+                        DateFormat.getMediumDateFormat(context).format(date) +
+                            " • " +
+                            DateFormat.getTimeFormat(context).format(date)
+
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            event.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            timestamp,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (index != events.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutPage(context: Context) {
+    val packageInfo = remember {
+        runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0)
+        }.getOrNull()
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        InfoCard(
+            title = "SleepManager",
+            text = "Version ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
+        )
+
+        SettingsCard {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "How it works",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "SleepManager applies only the sleep actions you select, remembers what it changed, and restores only those changes on a real wake.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "Advanced conditions use AND logic: every enabled condition must be true before sleep actions are applied.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
+}
+
+private fun formatDuration(valueMs: Long): String =
+    when (valueMs) {
+        0L -> "Immediate"
+        3000L -> "3 s"
+        5000L -> "5 s"
+        10000L -> "10 s"
+        30000L -> "30 s"
+        60000L -> "1 min"
+        120000L -> "2 min"
+        300000L -> "5 min"
+        600000L -> "10 min"
+        else -> "${valueMs / 1000}s"
+    }
+
+private fun formatTime(minutes: Int): String {
+    val safe = minutes.coerceIn(0, 1439)
+    return "%02d:%02d".format(safe / 60, safe % 60)
 }
 
 @Composable
