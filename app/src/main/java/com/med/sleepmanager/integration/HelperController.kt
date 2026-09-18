@@ -27,6 +27,7 @@ object HelperController {
     const val EXTRA_BLUETOOTH_MANAGED = "bluetooth_managed"
     const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
     const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
+    const val EXTRA_RESTORE_SUCCESS = "restore_success"
     const val PHASE_SLEEP = "sleep"
     const val PHASE_WAKE = "wake"
 
