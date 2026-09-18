@@ -45,6 +45,9 @@ object SyncthingController {
     fun sendStop(context: Context) =
         send(context, selectedTarget(context)?.packageName, ".action.STOP", "STOP")
 
+    fun sendStopTo(context: Context, packageName: String) =
+        send(context, packageName, ".action.STOP", "STOP")
+
     fun sendFollow(context: Context) =
         send(context, selectedTarget(context)?.packageName, ".action.FOLLOW", "FOLLOW")
 
@@ -61,9 +64,14 @@ object SyncthingController {
 
     private fun send(context: Context, packageName: String?, suffix: String, label: String): Boolean {
         if (packageName == null || !isInstalled(context, packageName)) return false
-        context.sendBroadcast(Intent(packageName + suffix).setPackage(packageName))
-        Log.i("SleepManager", "Sent Syncthing $label to $packageName")
-        return true
+        return try {
+            context.sendBroadcast(Intent(packageName + suffix).setPackage(packageName))
+            Log.i("SleepManager", "Sent Syncthing $label to $packageName")
+            true
+        } catch (t: Throwable) {
+            Log.e("SleepManager", "Unable to send Syncthing $label to $packageName", t)
+            false
+        }
     }
 
     private fun isInstalled(context: Context, packageName: String): Boolean =
