@@ -41,6 +41,8 @@ class SleepManagerService : Service() {
         private const val SYNCTHING_STOP_GRACE_MS = 1000L
         private const val TAILSCALE_VERIFY_INTERVAL_MS = 500L
         private const val TAILSCALE_VERIFY_MAX_ATTEMPTS = 8
+        private const val TAILSCALE_WAKE_RETRY_AT_ATTEMPT = 4
+        private const val TAILSCALE_WAKE_MAX_ATTEMPTS = 12
         private const val SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS = 3000L
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
@@ -765,7 +767,19 @@ class SleepManagerService : Service() {
         }
 
         tailscaleWakeVerifyAttempts++
-        if (tailscaleWakeVerifyAttempts < TAILSCALE_VERIFY_MAX_ATTEMPTS) {
+
+        if (
+            tailscaleWakeVerifyAttempts ==
+            TAILSCALE_WAKE_RETRY_AT_ATTEMPT
+        ) {
+            val retrySent = TailscaleController.sendConnect(this)
+            Log.i(
+                TAG,
+                "Tailscale reconnect still pending -> CONNECT retry sent=$retrySent"
+            )
+        }
+
+        if (tailscaleWakeVerifyAttempts < TAILSCALE_WAKE_MAX_ATTEMPTS) {
             handler.postDelayed(
                 tailscaleWakeVerifyRunnable,
                 TAILSCALE_VERIFY_INTERVAL_MS
