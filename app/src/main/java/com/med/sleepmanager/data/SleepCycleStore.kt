@@ -13,6 +13,8 @@ object SleepCycleStore {
     private const val KEY_HELPER_RESTORED = "helper_restored"
     private const val KEY_WIFI_MANAGED = "wifi_managed"
     private const val KEY_BLUETOOTH_MANAGED = "bluetooth_managed"
+    private const val CONNECTOR_PREFIX = "connector."
+    private const val CONNECTOR_CHANGED_SUFFIX = ".changed"
 
     data class ConnectorChange(
         val connectorId: String,
@@ -116,14 +118,21 @@ object SleepCycleStore {
     fun hasConnectorChange(context: Context, connectorId: String): Boolean =
         prefs(context).getBoolean(connectorChangedKey(connectorId), false)
 
+    fun hasPendingConnectorChanges(context: Context): Boolean =
+        prefs(context).all.any { (key, value) ->
+            key.startsWith(CONNECTOR_PREFIX) &&
+                key.endsWith(CONNECTOR_CHANGED_SUFFIX) &&
+                value == true
+        }
+
     fun completeIfRestored(context: Context): Boolean {
         val snapshot = current(context)
         if (!snapshot.active) return true
 
         val helperDone = !snapshot.helperExpected || snapshot.helperRestored
-        val syncthingDone = !hasConnectorChange(context, "syncthing")
+        val connectorsDone = !hasPendingConnectorChanges(context)
 
-        if (helperDone && syncthingDone) {
+        if (helperDone && connectorsDone) {
             clear(context)
             return true
         }
@@ -134,6 +143,8 @@ object SleepCycleStore {
         prefs(context).edit().clear().commit()
     }
 
-    private fun connectorChangedKey(id: String) = "connector.$id.changed"
-    private fun connectorTokenKey(id: String) = "connector.$id.token"
+    private fun connectorChangedKey(id: String) =
+        "$CONNECTOR_PREFIX$id$CONNECTOR_CHANGED_SUFFIX"
+
+    private fun connectorTokenKey(id: String) = "$CONNECTOR_PREFIX$id.token"
 }
