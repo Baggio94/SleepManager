@@ -1,53 +1,81 @@
 # SleepManager
 
-**Smart sleep automation for Android.**
+SleepManager is a lightweight Android utility for handheld devices that automates selected actions when the screen turns off and restores them when the device wakes.
 
-SleepManager automatically puts selected Android services into a lower-power state when the screen turns off, then restores them when the device wakes.
+The project is designed to stay predictable and lightweight:
 
-> Current version: **0.3.1**
+- event-driven rather than polling-driven
+- no root
+- no Shizuku
+- no ADB requirement on the device
+- no permanent wake lock
+- restore only the state SleepManager actually changed
 
 ## Features
 
-- **Wi-Fi** — turns it off during sleep and restores its previous state on wake.
-- **Bluetooth** — turns it off during sleep and restores its previous state on wake.
-- **Syncthing-Fork** — pauses on sleep and resumes after connectivity restoration on wake.
-- **Previous-state restoration** — if Wi-Fi or Bluetooth was already off before sleep, SleepManager leaves it off after wake.
-- **Reboot persistence** — restarts the automation after boot when SleepManager was enabled.
-- **Live status** — shows current radio state, active behavior and the last sleep/wake activity.
-- **AYN Thor closed-lid protection** — detects accidental wake-ups while the lid is still closed and immediately returns the device to sleep.
+| Feature | Sleep | Wake |
+| --- | --- | --- |
+| Wi-Fi | Turns Wi-Fi off when enabled | Restores it only if SleepManager turned it off |
+| Bluetooth | Turns Bluetooth off when enabled | Restores it only if SleepManager turned it off |
+| Syncthing-Fork | Sends `STOP`, then gives it a short grace period before managed radios are disabled | Sends `FOLLOW` after the normal wake flow |
+| AYN Thor closed-lid protection | Keeps protection armed while the lid is closed | Suppresses false wakes and calls `lockNow()` instead of restoring normal wake actions |
+
+## Components
+
+### SleepManager
+
+Main application:
+
+`com.med.sleepmanager`
+
+The main app contains the UI, foreground service, sleep/wake sequencing, Syncthing integration, and AYN Thor closed-lid protection.
+
+### SleepManager Helper
+
+Compatibility helper:
+
+`com.med.sleepmanager.helper`
+
+The Helper has no launcher icon and no user interface. It exists only to control Wi-Fi and Bluetooth through the older Android APIs required by this project.
+
+The main app must be installed before the Helper because the two apps communicate through a signature-level permission.
+
+## Compatibility
+
+- Minimum Android version: **Android 9 / API 28**
+- SleepManager target SDK: **36**
+- Helper target SDK: **28**
+
+`targetSdk` is not the minimum Android version.
 
 ## Installation
 
-1. Open the [latest SleepManager release](https://github.com/Baggio94/SleepManager/releases/latest).
-2. Download:
-   - `SleepManager-0.3.1-debug.apk`
-   - `SleepManager-Helper-0.3.1-debug.apk`
-3. Install **SleepManager first**.
-4. Install the **Helper APK** if you want SleepManager to control Wi-Fi and/or Bluetooth.
-5. Open SleepManager and choose the actions you want it to manage.
+Install the APKs in this order:
 
-The Helper has no launcher icon or UI. It is only used by SleepManager to control Wi-Fi and Bluetooth without root, Shizuku or ADB.
+1. **SleepManager**
+2. **SleepManager Helper**
 
-If you only want the Syncthing-Fork integration, the Helper is not required.
+Then open SleepManager, choose the actions you want it to manage, and enable SleepManager.
+
+If Wi-Fi or Bluetooth management is enabled, the Helper must be installed.
 
 ## Setup
 
 ### Wi-Fi and Bluetooth
 
-Enable the Wi-Fi and/or Bluetooth switches inside SleepManager.
+SleepManager keeps track of whether each managed radio was already on before sleep and whether SleepManager actually changed it.
 
-The switch means **SleepManager manages this setting while the device sleeps**. The `Current: ON/OFF` label shows the actual current Android state.
+That means:
 
-SleepManager remembers the state before sleep:
+- Wi-Fi already off before sleep stays off after wake.
+- Bluetooth already off before sleep stays off after wake.
+- A radio is restored only when SleepManager itself turned it off.
 
-- Wi-Fi ON before sleep → turns OFF → restores ON after wake.
-- Wi-Fi already OFF → remains OFF.
-- Bluetooth ON before sleep → turns OFF → restores ON after wake.
-- Bluetooth already OFF → remains OFF.
+This avoids unexpectedly changing the user's previous connectivity state.
 
 ### Syncthing-Fork
 
-SleepManager supports these Syncthing-Fork package variants:
+Supported package names:
 
 - `com.github.catfriend1.syncthingfork`
 - `com.github.catfriend1.syncthingfork.debug`
@@ -56,117 +84,193 @@ SleepManager supports these Syncthing-Fork package variants:
 
 In Syncthing-Fork, enable:
 
-**Settings → Behaviour → Service Control by Broadcast**
+`Settings -> Behaviour -> Service Control by Broadcast`
 
-Then return to SleepManager:
+When the device sleeps, SleepManager sends `STOP` first. In 0.3.2, if Wi-Fi or Bluetooth also needs to be disabled, SleepManager waits **1 second** before applying the radio sleep action. A short, one-shot partial wake lock keeps the CPU alive only for that transition.
 
-1. Select Syncthing-Fork as the target if prompted.
-2. Enable the Syncthing-Fork switch.
-3. Enable SleepManager.
+On a normal wake, SleepManager restores the managed radio state first and currently schedules Syncthing `FOLLOW` **2.5 seconds** later.
 
-## How it works
+### AYN Thor closed-lid protection
 
-When the screen turns **OFF**:
+This feature was developed and validated on the AYN Thor.
 
-1. SleepManager sends `STOP` to Syncthing-Fork if enabled.
-2. It turns off the selected radios.
+The Thor exposes a Linux Hall switch (`hall_switch / SW_LID`). SleepManager discovers the corresponding input device dynamically instead of relying on a fixed `/dev/input/eventX` path.
 
-When the screen turns **ON**:
+When the lid is closed, protection remains armed. If Android wakes while the lid is still closed, SleepManager:
 
-1. SleepManager restores Wi-Fi and Bluetooth to their previous states.
-2. If connectivity is being managed, it waits **2.5 seconds**.
-3. It sends `FOLLOW` to Syncthing-Fork so normal Syncthing run conditions resume.
+1. does not restore Wi-Fi or Bluetooth
+2. does not resume Syncthing
+3. calls `DevicePolicyManager.lockNow()`
+4. ignores the duplicate sleep event that follows
 
-If neither Wi-Fi nor Bluetooth is managed, the current version uses a shorter **0.8 second** wake delay before `FOLLOW`.
+Enabling this feature requires Android Device Admin access because `lockNow()` is the only reason SleepManager uses Device Admin.
 
-A future version will replace the fixed delay with real network-readiness detection.
+Disabling AYN Thor closed-lid protection removes that Device Admin access.
 
-## Using SleepManager
+## Sleep and wake sequence
 
-Once your options are configured:
-
-1. Tap **Enable SleepManager**.
-2. Check **Current behavior** to confirm what will happen on sleep and wake.
-3. Tap **Finish setup** if you want to close the setup screen.
-
-SleepManager continues running in the background after the setup screen is closed.
-
-The **Last activity** section shows what happened during the most recent sleep/wake cycle, for example:
+### Normal sleep
 
 ```text
-Wake
-Wi-Fi · Restored to previous state
-Bluetooth · Unchanged
-Syncthing · Resumed
+SCREEN_OFF
+  -> Syncthing STOP
+  -> 1 s grace period when managed radios also need to sleep
+  -> Wi-Fi / Bluetooth sleep action
+  -> remember only the states SleepManager actually changed
 ```
 
-## AYN Thor closed-lid protection
+### Closed-lid false wake on AYN Thor
 
-On AYN Thor, SleepManager can monitor the hardware lid switch directly.
+```text
+SCREEN_ON while SW_LID = CLOSED
+  -> restore nothing
+  -> do not send Syncthing FOLLOW
+  -> lockNow()
+  -> duplicate SCREEN_OFF is ignored
+```
 
-When enabled:
+### Normal wake
 
-1. Closing the lid arms the protection.
-2. If a trigger or other input causes the Thor to wake while the lid is still closed, normal wake restoration is suppressed.
-3. SleepManager immediately returns the Thor to sleep.
-4. Opening the lid disarms the protection and normal wake behavior resumes.
+```text
+SW_LID = OPEN / normal SCREEN_ON
+  -> restore only app-managed radio changes
+  -> schedule Syncthing FOLLOW
+```
 
-The feature requires a one-time Android **Device Admin** permission so SleepManager can call the system lock/sleep action. It does not require root, Shizuku or ADB.
+## Architecture and battery impact
 
-## Airplane mode
+SleepManager uses an event-driven foreground service.
 
-Airplane mode is visible in the UI but intentionally disabled for now.
+It does **not** permanently poll the screen state. The main sleep/wake flow reacts to Android screen events, while the Thor Hall sensor is read directly through the Linux input device.
 
-It will only be enabled if a safe no-ADB method is found.
+The app does not hold a permanent wake lock. The only wake lock in 0.3.2 is a temporary one-shot partial wake lock used during the 1-second Syncthing STOP grace period, with a safety timeout.
 
-## Compatibility helper
+The UI queries current radio and integration state only while the Activity is visible.
 
-Wi-Fi and Bluetooth control is handled by a small companion Helper APK.
+## Build identity and updates
 
-The Helper:
+Android updates depend on more than the package name.
 
-- has no launcher activity
-- has no UI
-- requires no root
-- requires no Shizuku
-- requires no ADB
-- accepts commands only from SleepManager through a signature-protected permission
+SleepManager intentionally keeps these application IDs stable:
 
-SleepManager supports **Android 9 / API 28 and newer**. The main app targets **Android 16 / API 36**, which means it is tested against and opts into Android 16 runtime behavior; Android 16 is not the minimum supported version. The compatibility helper also has a minimum API of 28, but intentionally targets API 28 to retain access to the older public Wi-Fi/Bluetooth toggle APIs on supported devices.
+- Main app: `com.med.sleepmanager`
+- Helper: `com.med.sleepmanager.helper`
+
+For an APK to update an already installed build without uninstalling it, Android also requires the **same signing certificate** and a compatible `versionCode`.
+
+The main app and Helper must always be signed with the same project key because their communication permission is protected with `signature`.
+
+Project version and application IDs are centralized in `gradle.properties` so both modules stay aligned.
+
+### Local stable signing
+
+Copy:
+
+```bash
+cp signing.properties.example signing.properties
+```
+
+Then edit `signing.properties` with the path, alias, and credentials for your project signing key.
+
+`signing.properties`, `*.jks`, and `*.keystore` are ignored by Git and must never be committed.
+
+When stable signing is configured, both the app and Helper use the same signer for local debug/release builds.
+
+### GitHub Actions signing
+
+Official CI artifacts should use the same signing key through GitHub Actions Secrets:
+
+- `SLEEPMANAGER_KEYSTORE_B64`
+- `SLEEPMANAGER_KEYSTORE_PASSWORD`
+- `SLEEPMANAGER_KEY_ALIAS`
+- `SLEEPMANAGER_KEY_PASSWORD`
+
+The keystore itself must remain private and must never be committed to the repository.
+
+The workflow verifies the two package IDs and checks that the app and Helper were signed with the same certificate before publishing artifacts.
 
 ## Build from source
 
-The included build script is currently designed for macOS with Homebrew:
+Requirements:
+
+- JDK 17+
+- Android SDK 36
+- Android build-tools 36.0.0
+- Gradle 9.6.0, or use the included bootstrap script
+
+On macOS:
 
 ```bash
-chmod +x bootstrap_and_build.sh install_emulator.sh
+chmod +x bootstrap_and_build.sh
 ./bootstrap_and_build.sh
 ```
 
-Build outputs:
+Debug APKs are generated at:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 helper/build/outputs/apk/debug/helper-debug.apk
 ```
 
-To install both APKs on a connected Android device or emulator:
+Install the main app before the Helper:
 
 ```bash
-./install_emulator.sh
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r helper/build/outputs/apk/debug/helper-debug.apk
 ```
 
-## Quick test
+## Launcher icon
 
-```bash
-./test_sleep_wake.sh
-./test_last_activity.sh cycle
-```
+SleepManager 0.3.2 uses an Android launcher icon set with:
 
-The test scripts use deterministic Android `SLEEP` and `WAKEUP` key events and print recent SleepManager activity.
+- adaptive foreground/background layers
+- Android 13+ monochrome/themed icon support
+- round launcher support
+- legacy density fallbacks for older launchers
+- a separate 512x512 store icon source
 
-## Project status
+The manifest uses `@mipmap/ic_launcher` and `@mipmap/ic_launcher_round`.
 
-SleepManager is under active development. Current priorities include real network-readiness detection before Syncthing resumes, optional lightweight integrations, onboarding improvements and continued UI polish.
+## Troubleshooting
 
-No license has been selected yet.
+### Syncthing does not stop or resume
+
+Check that:
+
+- a supported Syncthing-Fork package is installed
+- `Service Control by Broadcast` is enabled
+- the correct detected Syncthing build is selected in SleepManager
+
+### Wi-Fi or Bluetooth does not change
+
+Check that the SleepManager Helper is installed and that the main app was installed first.
+
+### APK refuses to update
+
+If Android reports a signature mismatch, the new APK was signed with a different certificate. Matching package IDs alone are not enough.
+
+Use one stable signing key for every build you intend to install as an update.
+
+### AYN Thor protection cannot be enabled
+
+SleepManager must detect the Thor Hall sensor and Device Admin access must be granted.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## Roadmap
+
+Possible future improvements include:
+
+- network-ready detection before Syncthing `FOLLOW` instead of a fixed wake delay
+- media pause/resume
+- Quick Settings tile
+- configurable sleep delays
+- charging/battery conditions
+- diagnostics/history
+- additional integrations
+
+## Current status
+
+**0.3.2** is a consolidation release focused on sleep reliability, Syncthing shutdown timing, launcher icon completeness, build/update consistency, and clearer documentation.
