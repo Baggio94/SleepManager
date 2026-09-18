@@ -170,8 +170,6 @@ class SleepManagerService : Service() {
                     lastWakeBluetoothManaged = bluetoothManaged
                     lastWakeBluetoothChanged = bluetoothChanged
 
-                    val restoreToken = pendingNetworkRestoreToken
-
                     if (!restoreSuccess) {
                         Log.w(TAG, "Helper restore failed; preserving sleep transaction")
                         AppPreferences.recordEvent(
@@ -189,26 +187,21 @@ class SleepManagerService : Service() {
                     if (SleepCycleStore.isActive(this@SleepManagerService)) {
                         SleepCycleStore.markHelperRestored(this@SleepManagerService)
                     }
-                    pendingNetworkRestoreToken = null
 
-                    if (
-                        restoreToken != null &&
-                        SleepCycleStore.hasConnectorChange(
-                            this@SleepManagerService,
-                            SyncthingConnector.id
-                        )
-                    ) {
+                    val restoreNetworkConnectors = pendingNetworkRestoreAfterHelper
+                    pendingNetworkRestoreAfterHelper = false
+
+                    if (restoreNetworkConnectors && hasPendingNetworkConnectorRestore()) {
                         Log.i(
                             TAG,
                             "Helper wake completed -> starting network-ready wait"
                         )
-                        waitForNetworkAndRestoreSyncthing(restoreToken)
+                        waitForNetworkAndRestorePendingConnectors()
                     } else {
                         if (
                             !disableRestoreRequested &&
-                            !SleepCycleStore.hasConnectorChange(
-                                this@SleepManagerService,
-                                SyncthingConnector.id
+                            !SleepCycleStore.hasPendingConnectorChanges(
+                                this@SleepManagerService
                             )
                         ) {
                             AppPreferences.recordEvent(
