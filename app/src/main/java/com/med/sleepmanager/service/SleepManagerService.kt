@@ -49,6 +49,7 @@ class SleepManagerService : Service() {
     private var lastWakeWifiChanged = false
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
+    private var sleepActionsApplied = false
 
     @Volatile
     private var thorLidClosed = false
@@ -171,6 +172,12 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(followRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
 
+        if (sleepActionsApplied) {
+            Log.i(TAG, "Screen OFF -> sleep actions already applied; skipping duplicate")
+            return
+        }
+        sleepActionsApplied = true
+
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
         val syncthing = AppPreferences.manageSyncthing(this)
@@ -211,6 +218,8 @@ class SleepManagerService : Service() {
             )
             return
         }
+
+        sleepActionsApplied = false
 
         val wifiManaged = AppPreferences.manageWifi(this)
         val bluetoothManaged = AppPreferences.manageBluetooth(this)
