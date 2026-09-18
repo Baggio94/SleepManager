@@ -638,26 +638,29 @@ class SleepManagerService : Service() {
                     )
                 }
 
-                AppPreferences.recordEvent(
-                    this,
-                    if (disableRestoreRequested) {
-                        if (wakeResult.success) {
-                            "SleepManager disabled"
-                        } else {
+                if (disableRestoreRequested) {
+                    if (!wakeResult.success) {
+                        AppPreferences.recordEvent(
+                            this,
                             "Disable → Syncthing restore pending"
-                        }
-                    } else if (wakeResult.success) {
-                        buildWakeSummary(
-                            wifiManaged = lastWakeWifiManaged,
-                            wifiChanged = lastWakeWifiChanged,
-                            bluetoothManaged = lastWakeBluetoothManaged,
-                            bluetoothChanged = lastWakeBluetoothChanged,
-                            syncthing = true
                         )
-                    } else {
-                        "Wake → Syncthing restore pending"
                     }
-                )
+                } else {
+                    AppPreferences.recordEvent(
+                        this,
+                        if (wakeResult.success) {
+                            buildWakeSummary(
+                                wifiManaged = lastWakeWifiManaged,
+                                wifiChanged = lastWakeWifiChanged,
+                                bluetoothManaged = lastWakeBluetoothManaged,
+                                bluetoothChanged = lastWakeBluetoothChanged,
+                                syncthing = true
+                            )
+                        } else {
+                            "Wake → Syncthing restore pending"
+                        }
+                    )
+                }
 
                 SleepCycleStore.completeIfRestored(this)
                 finishDisableRestoreIfRequested(forceStop = !wakeResult.success)
