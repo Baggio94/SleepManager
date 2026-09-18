@@ -658,9 +658,11 @@ class SleepManagerService : Service() {
 
         val powerManager =
             getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val interactive = powerManager?.isInteractive == true
+        val realWake =
+            powerManager?.isInteractive == true &&
+                (!AppPreferences.manageThorProtection(this) || !thorLidClosed)
 
-        if (interactive || tailscaleVerificationNeedsWakeRestore) {
+        if (realWake || tailscaleVerificationNeedsWakeRestore) {
             pendingSleepWifi = false
             pendingSleepBluetooth = false
             pendingSleepSyncthing = false
