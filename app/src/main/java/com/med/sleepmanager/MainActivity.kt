@@ -661,6 +661,8 @@ class MainActivity : ComponentActivity() {
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                when (currentSection) {
+                    AppSection.HOME -> {
                 item {
                     StatusCard(
                         enabled = managerEnabled,
@@ -782,9 +784,14 @@ class MainActivity : ComponentActivity() {
                     SettingsCard {
                         SleepGraceSelector(
                             valueMs = sleepGraceMs,
+                            customDelayEnabled = customDelayEnabled,
+                            customDelayMs = customDelayMs,
                             onChange = { value ->
                                 sleepGraceMs = value
                                 AppPreferences.setSleepGraceMs(this@MainActivity, value)
+                            },
+                            onCustom = {
+                                currentSection = AppSection.ADVANCED
                             }
                         )
 
@@ -875,7 +882,7 @@ class MainActivity : ComponentActivity() {
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
-                        sleepGraceMs = sleepGraceMs
+                        sleepGraceMs = effectiveSleepDelayMs
                     )
                 }
 
@@ -893,9 +900,88 @@ class MainActivity : ComponentActivity() {
                 item {
                     LastActivityCard(
                         context = this@MainActivity,
-                        onViewLog = { showLogDialog = true },
+                        onViewLog = { currentSection = AppSection.ACTIVITY_LOG },
                         onCopyLog = { copyDiagnostics() }
                     )
+                }
+                    }
+
+                    AppSection.ADVANCED -> {
+                        item {
+                            AdvancedSleepRulesPage(
+                                customDelayEnabled = customDelayEnabled,
+                                customDelayMs = customDelayMs,
+                                batteryConditionEnabled = batteryConditionEnabled,
+                                batteryBelowPercent = batteryBelowPercent,
+                                notChargingOnly = notChargingOnly,
+                                batterySaverMode = batterySaverMode,
+                                scheduleEnabled = scheduleEnabled,
+                                scheduleStartMinutes = scheduleStartMinutes,
+                                scheduleEndMinutes = scheduleEndMinutes,
+                                onCustomDelayEnabledChange = {
+                                    customDelayEnabled = it
+                                    AppPreferences.setCustomDelayEnabled(this@MainActivity, it)
+                                },
+                                onCustomDelayChange = {
+                                    customDelayMs = it
+                                    AppPreferences.setCustomDelayMs(this@MainActivity, it)
+                                },
+                                onBatteryConditionEnabledChange = {
+                                    batteryConditionEnabled = it
+                                    AppPreferences.setBatteryConditionEnabled(this@MainActivity, it)
+                                },
+                                onBatteryBelowPercentChange = {
+                                    batteryBelowPercent = it
+                                    AppPreferences.setBatteryBelowPercent(this@MainActivity, it)
+                                },
+                                onNotChargingOnlyChange = {
+                                    notChargingOnly = it
+                                    AppPreferences.setNotChargingOnly(this@MainActivity, it)
+                                },
+                                onBatterySaverModeChange = {
+                                    batterySaverMode = it
+                                    AppPreferences.setBatterySaverMode(this@MainActivity, it)
+                                },
+                                onScheduleEnabledChange = {
+                                    scheduleEnabled = it
+                                    AppPreferences.setScheduleEnabled(this@MainActivity, it)
+                                },
+                                onPickScheduleStart = {
+                                    showTimePicker(scheduleStartMinutes) { value ->
+                                        scheduleStartMinutes = value
+                                        AppPreferences.setScheduleStartMinutes(
+                                            this@MainActivity,
+                                            value
+                                        )
+                                    }
+                                },
+                                onPickScheduleEnd = {
+                                    showTimePicker(scheduleEndMinutes) { value ->
+                                        scheduleEndMinutes = value
+                                        AppPreferences.setScheduleEndMinutes(
+                                            this@MainActivity,
+                                            value
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    AppSection.ACTIVITY_LOG -> {
+                        item {
+                            ActivityLogPage(
+                                context = this@MainActivity,
+                                onCopyLog = { copyDiagnostics() }
+                            )
+                        }
+                    }
+
+                    AppSection.ABOUT -> {
+                        item {
+                            AboutPage(context = this@MainActivity)
+                        }
+                    }
                 }
             }
         }
