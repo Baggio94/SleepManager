@@ -123,14 +123,12 @@ class SleepManagerTileService : TileService() {
 
         tile.label = "SleepManager"
         tile.state = if (enabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.contentDescription =
-            if (enabled) "SleepManager is active" else "SleepManager is off"
         tile.updateTile()
     }
 
     companion object {
         fun requestRefresh(context: Context) {
-            requestListeningState(
+            TileService.requestListeningState(
                 context,
                 ComponentName(context, SleepManagerTileService::class.java)
             )
