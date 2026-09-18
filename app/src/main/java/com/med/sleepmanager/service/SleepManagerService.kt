@@ -235,19 +235,17 @@ class SleepManagerService : Service() {
         }
 
         if (intent?.action == ACTION_SLEEP_DELAY_ELAPSED) {
+            cancelSleepDelay()
+
             if (!AppPreferences.isEnabled(this)) {
-                cancelSleepDelay()
                 stopSelf()
                 return START_NOT_STICKY
             }
 
             val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
             if (powerManager?.isInteractive == false && !SleepCycleStore.isActive(this)) {
-                sleepGracePending = false
                 Log.i(TAG, "Custom sleep delay elapsed -> evaluating advanced rules")
                 performFreshSleepActions()
-            } else {
-                cancelSleepDelay()
             }
             return START_STICKY
         }
