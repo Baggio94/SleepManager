@@ -32,6 +32,8 @@ class SleepManagerService : Service() {
         private const val CHANNEL_ID = "sleep_manager"
         private const val NOTIFICATION_ID = 5217
         private const val FOLLOW_DELAY_MS = 2500L
+        private const val SYNCTHING_STOP_GRACE_MS = 1000L
+        private const val SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS = 3000L
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val THOR_LOCK_COOLDOWN_MS = 900L
@@ -50,6 +52,11 @@ class SleepManagerService : Service() {
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
     private var sleepActionsApplied = false
+
+    private var pendingSleepWifi = false
+    private var pendingSleepBluetooth = false
+    private var pendingSleepSyncthing = false
+    private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
 
     @Volatile
     private var thorLidClosed = false
@@ -77,6 +84,19 @@ class SleepManagerService : Service() {
                 syncthing = syncthing
             )
         )
+    }
+
+    private val sleepRadioRunnable = Runnable {
+        val wifi = pendingSleepWifi
+        val bluetooth = pendingSleepBluetooth
+        val syncthing = pendingSleepSyncthing
+
+        pendingSleepWifi = false
+        pendingSleepBluetooth = false
+        pendingSleepSyncthing = false
+
+        Log.i(TAG, "Syncthing STOP grace elapsed -> applying radio sleep")
+        applySleepConnectivity(wifi, bluetooth, syncthing)
     }
 
     private val thorCloseGuardRunnable = Runnable {
@@ -108,6 +128,7 @@ class SleepManagerService : Service() {
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
+                    releaseSleepTransitionWakeLock()
                     AppPreferences.recordEvent(
                         this@SleepManagerService,
                         buildSleepSummary(
@@ -178,14 +199,46 @@ class SleepManagerService : Service() {
         }
         sleepActionsApplied = true
 
+        handler.removeCallbacks(sleepRadioRunnable)
+        releaseSleepTransitionWakeLock()
+
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
         val syncthing = AppPreferences.manageSyncthing(this)
 
         Log.i(TAG, "Screen OFF -> wifi=$wifi bluetooth=$bluetooth syncthing=$syncthing")
 
-        if (syncthing) SyncthingController.sendStop(this)
+        val stopSent = if (syncthing) {
+            SyncthingController.sendStop(this)
+        } else {
+            false
+        }
 
+        val radiosManaged = wifi || bluetooth
+        val helperAvailable = radiosManaged && HelperController.isInstalled(this)
+
+        if (stopSent && helperAvailable) {
+            pendingSleepWifi = wifi
+            pendingSleepBluetooth = bluetooth
+            pendingSleepSyncthing = syncthing
+
+            acquireSleepTransitionWakeLock()
+            handler.postDelayed(sleepRadioRunnable, SYNCTHING_STOP_GRACE_MS)
+
+            Log.i(
+                TAG,
+                "Syncthing STOP grace scheduled for ${SYNCTHING_STOP_GRACE_MS}ms before radio sleep"
+            )
+        } else {
+            applySleepConnectivity(wifi, bluetooth, syncthing)
+        }
+    }
+
+    private fun applySleepConnectivity(
+        wifi: Boolean,
+        bluetooth: Boolean,
+        syncthing: Boolean
+    ) {
         val helperSent = if (wifi || bluetooth) {
             HelperController.sendSleep(this, wifi, bluetooth)
         } else {
@@ -193,6 +246,7 @@ class SleepManagerService : Service() {
         }
 
         if (!helperSent) {
+            releaseSleepTransitionWakeLock()
             AppPreferences.recordEvent(
                 this,
                 buildSleepSummary(
@@ -204,6 +258,32 @@ class SleepManagerService : Service() {
                 )
             )
         }
+    }
+
+    private fun acquireSleepTransitionWakeLock() {
+        releaseSleepTransitionWakeLock()
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+
+        sleepTransitionWakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "$packageName:syncthing-stop-grace"
+        ).apply {
+            setReferenceCounted(false)
+            acquire(SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS)
+        }
+
+        Log.i(TAG, "Sleep transition wakelock acquired")
+    }
+
+    private fun releaseSleepTransitionWakeLock() {
+        val wakeLock = sleepTransitionWakeLock ?: return
+
+        if (wakeLock.isHeld) {
+            runCatching { wakeLock.release() }
+        }
+        sleepTransitionWakeLock = null
     }
 
     private fun onScreenOn() {
@@ -218,6 +298,12 @@ class SleepManagerService : Service() {
             )
             return
         }
+
+        handler.removeCallbacks(sleepRadioRunnable)
+        pendingSleepWifi = false
+        pendingSleepBluetooth = false
+        pendingSleepSyncthing = false
+        releaseSleepTransitionWakeLock()
 
         sleepActionsApplied = false
 
@@ -489,8 +575,13 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(followRunnable)
+        handler.removeCallbacks(sleepRadioRunnable)
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
+        pendingSleepWifi = false
+        pendingSleepBluetooth = false
+        pendingSleepSyncthing = false
+        releaseSleepTransitionWakeLock()
         stopThorLidMonitor()
 
         if (receiverRegistered) {
