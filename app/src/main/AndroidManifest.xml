@@ -27,14 +27,19 @@
         android:theme="@style/Theme.SleepManager">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".HallSensorTestActivity"
             android:exported="true"
-            android:excludeFromRecents="true">
+            android:label="SleepManager Hall Test">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:excludeFromRecents="true" />
 
         <service
             android:name=".service.SleepManagerService"
