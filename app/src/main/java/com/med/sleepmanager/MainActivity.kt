@@ -1094,6 +1094,15 @@ class MainActivity : ComponentActivity() {
                             Text("Finish setup")
                         }
                     }
+                } else if (setupComplete) {
+                    item {
+                        Button(
+                            onClick = feedbackClick { finishAndRemoveTask() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Done")
+                        }
+                    }
                 }
 
                 item {
