@@ -76,6 +76,7 @@ class SleepManagerService : Service() {
     private var pendingNetworkRestoreAfterHelper = false
     private var tailscaleSleepVerifyAttempts = 0
     private var tailscaleWakeVerifyAttempts = 0
+    private var tailscaleVerificationNeedsWakeRestore = false
     private var disableRestoreRequested = false
 
     @Volatile
@@ -564,6 +565,212 @@ class SleepManagerService : Service() {
                 )
             )
         }
+    }
+
+    private fun isTailscaleSleepVerificationPending(): Boolean =
+        SleepCycleStore.connectorChange(this, TailscaleConnector.id)
+            ?.restoreToken == TailscaleConnector.TOKEN_VERIFY_DISCONNECT
+
+    private fun prepareTailscaleVerificationForWake() {
+        if (!isTailscaleSleepVerificationPending()) return
+
+        tailscaleVerificationNeedsWakeRestore = true
+        scheduleTailscaleSleepVerification(resetAttempts = true)
+        Log.i(TAG, "Tailscale disconnect verification continuing during wake")
+    }
+
+    private fun scheduleTailscaleSleepVerification(resetAttempts: Boolean) {
+        handler.removeCallbacks(tailscaleSleepVerifyRunnable)
+        if (resetAttempts) {
+            tailscaleSleepVerifyAttempts = 0
+        }
+
+        acquireSleepTransitionWakeLock(
+            TAILSCALE_VERIFY_INTERVAL_MS *
+                (TAILSCALE_VERIFY_MAX_ATTEMPTS + 2)
+        )
+        handler.postDelayed(
+            tailscaleSleepVerifyRunnable,
+            TAILSCALE_VERIFY_INTERVAL_MS
+        )
+    }
+
+    private fun verifyTailscaleSleepDisconnect() {
+        val change =
+            SleepCycleStore.connectorChange(this, TailscaleConnector.id)
+                ?: return releaseSleepTransitionWakeLock()
+
+        if (change.restoreToken != TailscaleConnector.TOKEN_VERIFY_DISCONNECT) {
+            releaseSleepTransitionWakeLock()
+            return
+        }
+
+        if (!TailscaleController.hasAnyVpnTransport(this)) {
+            SleepCycleStore.recordConnectorChange(
+                this,
+                TailscaleConnector.id,
+                TailscaleConnector.TOKEN_RESTORE
+            )
+            Log.i(TAG, "Tailscale disconnect verified")
+            AppPreferences.recordEvent(
+                this,
+                "Sleep → Tailscale disconnected"
+            )
+            continueAfterTailscaleSleepVerification()
+            return
+        }
+
+        tailscaleSleepVerifyAttempts++
+        if (tailscaleSleepVerifyAttempts < TAILSCALE_VERIFY_MAX_ATTEMPTS) {
+            handler.postDelayed(
+                tailscaleSleepVerifyRunnable,
+                TAILSCALE_VERIFY_INTERVAL_MS
+            )
+            return
+        }
+
+        SleepCycleStore.clearConnectorChange(this, TailscaleConnector.id)
+        Log.i(
+            TAG,
+            "Tailscale disconnect not verified; no restore will be scheduled"
+        )
+        AppPreferences.recordEvent(
+            this,
+            "Sleep → Tailscale unchanged"
+        )
+        continueAfterTailscaleSleepVerification()
+    }
+
+    private fun continueAfterTailscaleSleepVerification() {
+        handler.removeCallbacks(tailscaleSleepVerifyRunnable)
+        tailscaleSleepVerifyAttempts = 0
+        releaseSleepTransitionWakeLock()
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val interactive = powerManager?.isInteractive == true
+
+        if (interactive || tailscaleVerificationNeedsWakeRestore) {
+            pendingSleepWifi = false
+            pendingSleepBluetooth = false
+            pendingSleepSyncthing = false
+
+            val shouldRestoreNow =
+                tailscaleVerificationNeedsWakeRestore &&
+                    hasPendingNetworkConnectorRestore()
+            tailscaleVerificationNeedsWakeRestore = false
+
+            if (shouldRestoreNow) {
+                waitForNetworkAndRestorePendingConnectors()
+            } else {
+                SleepCycleStore.completeIfRestored(this)
+                finishDisableRestoreIfRequested()
+            }
+            return
+        }
+
+        val hasPendingRadioSleep =
+            pendingSleepWifi || pendingSleepBluetooth
+
+        if (hasPendingRadioSleep) {
+            val elapsed =
+                System.currentTimeMillis() -
+                    SleepCycleStore.current(this).startedAt
+            val remainingSyncthingGrace =
+                if (pendingSleepSyncthing) {
+                    (SYNCTHING_STOP_GRACE_MS - elapsed).coerceAtLeast(0L)
+                } else {
+                    0L
+                }
+
+            if (remainingSyncthingGrace > 0L) {
+                acquireSleepTransitionWakeLock()
+                handler.postDelayed(
+                    sleepRadioRunnable,
+                    remainingSyncthingGrace
+                )
+            } else {
+                sleepRadioRunnable.run()
+            }
+        } else {
+            SleepCycleStore.completeIfRestored(this)
+        }
+    }
+
+    private fun cancelTailscaleVerification() {
+        handler.removeCallbacks(tailscaleSleepVerifyRunnable)
+        handler.removeCallbacks(tailscaleWakeVerifyRunnable)
+        tailscaleSleepVerifyAttempts = 0
+        tailscaleWakeVerifyAttempts = 0
+        tailscaleVerificationNeedsWakeRestore = false
+    }
+
+    private fun hasPendingNetworkConnectorRestore(): Boolean {
+        val syncthingPending =
+            SleepCycleStore.hasConnectorChange(this, SyncthingConnector.id)
+        val tailscalePending =
+            SleepCycleStore.connectorChange(this, TailscaleConnector.id)
+                ?.restoreToken == TailscaleConnector.TOKEN_RESTORE
+        return syncthingPending || tailscalePending
+    }
+
+    private fun scheduleTailscaleWakeVerification() {
+        handler.removeCallbacks(tailscaleWakeVerifyRunnable)
+        tailscaleWakeVerifyAttempts = 0
+        handler.postDelayed(
+            tailscaleWakeVerifyRunnable,
+            TAILSCALE_VERIFY_INTERVAL_MS
+        )
+    }
+
+    private fun verifyTailscaleWakeReconnect() {
+        val change =
+            SleepCycleStore.connectorChange(this, TailscaleConnector.id)
+                ?: return
+
+        if (change.restoreToken != TailscaleConnector.TOKEN_RESTORE) {
+            return
+        }
+
+        if (TailscaleController.hasAnyVpnTransport(this)) {
+            SleepCycleStore.clearConnectorChange(this, TailscaleConnector.id)
+            Log.i(TAG, "Tailscale reconnect verified")
+
+            if (!disableRestoreRequested) {
+                AppPreferences.recordEvent(
+                    this,
+                    "Wake → Tailscale restored"
+                )
+            }
+
+            val complete = SleepCycleStore.completeIfRestored(this)
+            if (disableRestoreRequested && !complete) {
+                finishDisableRestoreIfRequested(forceStop = true)
+            } else {
+                finishDisableRestoreIfRequested()
+            }
+            return
+        }
+
+        tailscaleWakeVerifyAttempts++
+        if (tailscaleWakeVerifyAttempts < TAILSCALE_VERIFY_MAX_ATTEMPTS) {
+            handler.postDelayed(
+                tailscaleWakeVerifyRunnable,
+                TAILSCALE_VERIFY_INTERVAL_MS
+            )
+            return
+        }
+
+        Log.w(TAG, "Tailscale reconnect not verified; restore remains pending")
+        AppPreferences.recordEvent(
+            this,
+            if (disableRestoreRequested) {
+                "Disable → Tailscale restore pending"
+            } else {
+                "Wake → Tailscale restore pending"
+            }
+        )
+        finishDisableRestoreIfRequested(forceStop = disableRestoreRequested)
     }
 
     private fun scheduleSleepDelay(delayMs: Long) {
