@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
@@ -617,7 +618,7 @@ class MainActivity : ComponentActivity() {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet {
+                ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
                     Column(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -632,7 +633,7 @@ class MainActivity : ComponentActivity() {
                         AppSection.values().forEach { section ->
                             val label = when (section) {
                                 AppSection.HOME -> "Home"
-                                AppSection.ADVANCED -> "Advanced"
+                                AppSection.ADVANCED -> "Advanced settings"
                                 AppSection.ACTIVITY_LOG -> "Activity log"
                                 AppSection.ABOUT -> "About"
                             }
@@ -793,19 +794,6 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 64.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-
-                        SettingRow(
-                            icon = R.drawable.ic_airplane,
-                            title = "Airplane mode",
-                            subtitle = "Planned - Working on a safe no-ADB method",
-                            checked = false,
-                            enabled = false,
-                            onCheckedChange = {}
-                        )
                     }
                 }
 
@@ -872,21 +860,19 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     SettingsCard {
-                        SettingRow(
+                        CompactIntegrationRow(
                             icon = R.drawable.ic_sync,
                             title = "Syncthing‑Fork",
-                            subtitle = selectedTarget?.displayName
-                                ?: "No compatible Syncthing‑Fork build detected",
+                            version = selectedTarget?.displayName
+                                ?.substringAfter("•")
+                                ?.trim()
+                                ?: if (selectedTarget != null) "Installed" else "Not detected",
                             status = if (selectedTarget != null) {
                                 when (currentSyncthingState) {
-                                    SyncthingController.RuntimeState.RUNNING ->
-                                        "Current state: RUNNING"
-                                    SyncthingController.RuntimeState.STOPPED ->
-                                        "Current state: STOPPED"
-                                    SyncthingController.RuntimeState.UNKNOWN ->
-                                        "Current state: UNKNOWN"
-                                    null ->
-                                        "Current state: CHECKING…"
+                                    SyncthingController.RuntimeState.RUNNING -> "RUNNING"
+                                    SyncthingController.RuntimeState.STOPPED -> "STOPPED"
+                                    SyncthingController.RuntimeState.UNKNOWN -> "UNKNOWN"
+                                    null -> "CHECKING…"
                                 }
                             } else {
                                 null
@@ -901,94 +887,59 @@ class MainActivity : ComponentActivity() {
                                     restoreSyncthingTransactionNow()
                                     SleepCycleStore.completeIfRestored(this@MainActivity)
                                 }
-                            }
-                        )
-
-                        if (selectedTarget != null) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = 64.dp,
-                                        end = 16.dp,
-                                        bottom = 12.dp
-                                    ),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        SyncthingController.open(this@MainActivity)
-                                    }
-                                ) {
-                                    Text("Open")
-                                }
-
+                            },
+                            onOpen = if (selectedTarget != null) {
+                                { SyncthingController.open(this@MainActivity) }
+                            } else {
+                                null
+                            },
+                            secondaryActionLabel =
+                                if (targets.size > 1) "Change target" else null,
+                            onSecondaryAction =
                                 if (targets.size > 1) {
-                                    TextButton(
-                                        onClick = { showTargetDialog = true }
-                                    ) {
-                                        Text("Change target")
-                                    }
+                                    { showTargetDialog = true }
+                                } else {
+                                    null
                                 }
-                            }
-                        }
+                        )
 
                         HorizontalDivider(
                             modifier = Modifier.padding(start = 64.dp),
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
 
-                        SettingRow(
+                        CompactIntegrationRow(
                             icon = R.drawable.ic_tailscale,
                             title = "Tailscale",
-                            subtitle = if (tailscaleInstalled) {
-                                "Tailscale • " +
-                                    (tailscaleVersion?.substringBefore("-") ?: "Installed")
+                            version = if (tailscaleInstalled) {
+                                tailscaleVersion?.substringBefore("-") ?: "Installed"
                             } else {
-                                "Tailscale not detected"
+                                "Not detected"
                             },
                             status = if (tailscaleInstalled) {
                                 currentTailscaleConnected?.let {
-                                    "Current state: " +
-                                        if (it) "CONNECTED" else "DISCONNECTED"
-                                } ?: "Current state: CHECKING…"
+                                    if (it) "CONNECTED" else "DISCONNECTED"
+                                } ?: "CHECKING…"
                             } else {
                                 null
                             },
                             checked = tailscaleEnabled && tailscaleInstalled,
                             enabled = tailscaleInstalled,
-                            dimWhenDisabled = false,
                             onCheckedChange = {
                                 tailscaleEnabled = it
                                 AppPreferences.setManageTailscale(
                                     this@MainActivity,
                                     it
                                 )
+                            },
+                            onOpen = if (tailscaleInstalled) {
+                                { TailscaleController.open(this@MainActivity) }
+                            } else {
+                                null
                             }
                         )
-
-                        if (tailscaleInstalled) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = 64.dp,
-                                        end = 16.dp,
-                                        bottom = 12.dp
-                                    )
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        TailscaleController.open(this@MainActivity)
-                                    }
-                                ) {
-                                    Text("Open")
-                                }
-                            }
-                        }
                     }
                 }
-
                 item {
                     BehaviorCard(
                         wifi = wifiEnabled && helperInstalled,
@@ -1236,8 +1187,8 @@ private fun StatusCard(
         shape = RoundedCornerShape(24.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1262,8 +1213,8 @@ private fun StatusCard(
                             MaterialTheme.colorScheme.surface
                         },
                         modifier = Modifier
-                            .padding(10.dp)
-                            .size(24.dp)
+                            .padding(8.dp)
+                            .size(22.dp)
                     )
                 }
 
@@ -1419,6 +1370,107 @@ private fun SettingRow(
 }
 
 @Composable
+private fun CompactIntegrationRow(
+    @DrawableRes icon: Int,
+    title: String,
+    version: String,
+    status: String?,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onOpen: (() -> Unit)? = null,
+    secondaryActionLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (enabled) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier
+                    .padding(9.dp)
+                    .size(22.dp)
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                version,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            status?.let {
+                val active = it == "RUNNING" || it == "CONNECTED"
+                Text(
+                    "● $it",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (active) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+
+            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    onOpen?.let { open ->
+                        TextButton(
+                            onClick = open,
+                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                        ) {
+                            Text("Open ›")
+                        }
+                    }
+
+                    if (secondaryActionLabel != null && onSecondaryAction != null) {
+                        TextButton(
+                            onClick = onSecondaryAction,
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Text(secondaryActionLabel)
+                        }
+                    }
+                }
+            }
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
+    }
+}
+@Composable
 private fun SleepGraceSelector(
     valueMs: Long,
     customDelayEnabled: Boolean,
@@ -1563,12 +1615,14 @@ private fun AdvancedSleepRulesPage(
 
         SectionTitle(
             title = "Conditions",
-            subtitle = "Sleep actions run only when every enabled condition is true."
+            subtitle = "All enabled conditions must be true."
         )
 
-        InfoCard(
-            title = "AND logic",
-            text = "Enabled conditions are combined. If any one of them is false, SleepManager skips the sleep actions for that screen-off cycle."
+        Text(
+            "Conditions are combined with AND logic. If one enabled condition is false, sleep actions are skipped.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp)
         )
 
         SettingsCard {
@@ -1610,9 +1664,9 @@ private fun AdvancedSleepRulesPage(
             )
 
             AdvancedToggleRow(
-                title = "Charging",
+                title = "Not charging",
                 subtitle = if (notChargingOnly) {
-                    "Only when the device is not charging"
+                    "Only run sleep actions while unplugged"
                 } else {
                     "Ignore charging state"
                 },
@@ -1893,27 +1947,40 @@ private fun BehaviorCard(
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
+    var expanded by remember { mutableStateOf(false) }
     val hasSleepAction = wifi || bluetooth || syncthing || tailscale
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
-            add("Wait ${formatDuration(sleepGraceMs)} before applying sleep actions")
+            add("Wait ${formatDuration(sleepGraceMs)}")
         }
         advancedConditions.forEach { add("Only if $it") }
-        if (syncthing) add("Stop Syncthing‑Fork")
-        if (tailscale) add("Disconnect Tailscale if its VPN is active")
-        if (wifi) add("Turn Wi‑Fi off")
-        if (bluetooth) add("Turn Bluetooth off")
+        if (syncthing) add("Pause Syncthing‑Fork")
+        if (tailscale) add("Disconnect Tailscale")
+        if (wifi) add("Wi‑Fi off")
+        if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
-        if (thorProtection) add("Protect AYN Thor against closed-lid wake-ups")
+        if (thorProtection) add("Thor closed-lid protection")
     }
 
     val wakeLines = buildList {
-        if (wifi) add("Restore Wi‑Fi to its previous state")
-        if (bluetooth) add("Restore Bluetooth to its previous state")
+        if (wifi) add("Restore Wi‑Fi")
+        if (bluetooth) add("Restore Bluetooth")
         if (syncthing) add("Resume Syncthing‑Fork")
-        if (tailscale) add("Reconnect Tailscale only if SleepManager disconnected it")
+        if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
     }
+
+    val compactSleepSummary = buildList {
+        if (sleepGraceMs > 0L && hasSleepAction) add(formatDuration(sleepGraceMs))
+        if (wifi) add("Wi‑Fi")
+        if (bluetooth) add("Bluetooth")
+        if (syncthing) add("Syncthing")
+        if (tailscale) add("Tailscale")
+        if (advancedConditions.isNotEmpty()) {
+            add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
+        }
+        if (!hasSleepAction) add("No actions")
+    }.joinToString(" • ")
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1923,44 +1990,61 @@ private fun BehaviorCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                "Current behavior",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Current behavior",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        compactSleepSummary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-            BehaviorGroup(
-                title = "When screen turns OFF",
-                lines = sleepLines
-            )
-
-            BehaviorGroup(
-                title = "When screen turns ON",
-                lines = wakeLines.ifEmpty { listOf("Nothing to restore") }
-            )
-
-            if (wifi || bluetooth) {
-                Text(
-                    "SleepManager restores only states it changed. If Wi‑Fi or Bluetooth was already off before sleep, it stays off after wake.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) "Less" else "Details")
+                }
             }
 
-            if (thorProtection) {
-                Text(
-                    "AYN Thor: if the device wakes while the lid is still closed, SleepManager returns it to sleep without restoring normal wake actions.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (expanded) {
+                BehaviorGroup(
+                    title = "When screen turns OFF",
+                    lines = sleepLines
                 )
+
+                BehaviorGroup(
+                    title = "When screen turns ON",
+                    lines = wakeLines.ifEmpty { listOf("Nothing to restore") }
+                )
+
+                if (wifi || bluetooth) {
+                    Text(
+                        "Only states changed by SleepManager are restored.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (thorProtection) {
+                    Text(
+                        "Thor false wakes with the lid closed are returned to sleep without normal wake restoration.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
 }
-
 @Composable
 private fun BehaviorGroup(title: String, lines: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
