@@ -892,12 +892,12 @@ class MainActivity : ComponentActivity() {
                         )
 
                         SettingRow(
-                            icon = R.drawable.ic_vpn,
+                            icon = R.drawable.ic_tailscale,
                             title = "Tailscale",
                             subtitle = if (tailscaleInstalled) {
                                 "Disconnect during sleep. Restore only when SleepManager verifies it changed the VPN."
                             } else {
-                                "Official Tailscale app not detected"
+                                "Tailscale not detected"
                             },
                             status = if (tailscaleInstalled && tailscaleVersion != null) {
                                 "Installed • $tailscaleVersion"
@@ -906,6 +906,7 @@ class MainActivity : ComponentActivity() {
                             },
                             checked = tailscaleEnabled && tailscaleInstalled,
                             enabled = tailscaleInstalled,
+                            dimWhenDisabled = false,
                             onCheckedChange = {
                                 tailscaleEnabled = it
                                 AppPreferences.setManageTailscale(
@@ -1283,8 +1284,12 @@ private fun SettingRow(
     status: String? = null,
     checked: Boolean,
     enabled: Boolean,
+    dimWhenDisabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val contentAlpha = if (enabled || !dimWhenDisabled) 1f else 0.55f
+    val secondaryAlpha = if (enabled || !dimWhenDisabled) 1f else 0.6f
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1294,7 +1299,7 @@ private fun SettingRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (enabled) {
+            color = if (enabled || !dimWhenDisabled) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
@@ -1303,7 +1308,7 @@ private fun SettingRow(
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = if (enabled) {
+                tint = if (enabled || !dimWhenDisabled) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
@@ -1320,14 +1325,14 @@ private fun SettingRow(
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface.copy(
-                    alpha = if (enabled) 1f else 0.55f
+                    alpha = contentAlpha
                 )
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                    alpha = if (enabled) 1f else 0.6f
+                    alpha = secondaryAlpha
                 )
             )
 
