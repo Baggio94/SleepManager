@@ -1571,8 +1571,8 @@ private fun CompactIntegrationRow(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier
-                    .padding(8.dp)
-                    .size(18.dp)
+                    .padding(10.dp)
+                    .size(22.dp)
             )
         }
 
