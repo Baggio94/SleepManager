@@ -693,6 +693,7 @@ class MainActivity : ComponentActivity() {
                             helperVersion = helperVersion,
                             syncthingTarget = selectedTarget,
                             syncthingEnabled = syncthingEnabled,
+                            tailscaleInstalled = tailscaleInstalled,
                             managerEnabled = managerEnabled,
                             onShowTest = { showTestDialog = true }
                         )
@@ -1089,6 +1090,7 @@ private fun OnboardingCard(
     helperVersion: String?,
     syncthingTarget: SyncthingController.Target?,
     syncthingEnabled: Boolean,
+    tailscaleInstalled: Boolean,
     managerEnabled: Boolean,
     onShowTest: () -> Unit
 ) {
@@ -1131,6 +1133,15 @@ private fun OnboardingCard(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+
+            Text(
+                if (tailscaleInstalled) {
+                    "✓ Tailscale detected"
+                } else {
+                    "• Tailscale not detected — optional."
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
 
             Text(
                 if (managerEnabled) {
