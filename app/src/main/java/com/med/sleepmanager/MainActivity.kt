@@ -576,14 +576,9 @@ class MainActivity : ComponentActivity() {
                     item {
                         SettingsCard {
                             SettingRow(
-                                icon = R.drawable.ic_shield,
+                                icon = R.drawable.ic_lid_lock,
                                 title = "AYN Thor closed-lid protection",
                                 subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed.",
-                                status = if (thorProtectionEnabled && thorAdminActive) {
-                                    "Protection ready"
-                                } else {
-                                    "Requires one-time Device Admin permission"
-                                },
                                 checked = thorProtectionEnabled && thorAdminActive,
                                 enabled = true,
                                 onCheckedChange = { enabled ->
