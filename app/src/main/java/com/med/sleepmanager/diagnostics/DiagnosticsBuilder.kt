@@ -21,7 +21,9 @@ object DiagnosticsBuilder {
     fun build(
         context: Context,
         wifiState: Boolean?,
-        bluetoothState: Boolean?
+        bluetoothState: Boolean?,
+        syncthingState: SyncthingController.RuntimeState?,
+        tailscaleConnected: Boolean?
     ): String {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val versionName = packageInfo.versionName ?: "unknown"
@@ -45,7 +47,6 @@ object DiagnosticsBuilder {
         val tailscalePending =
             SleepCycleStore.connectorChange(context, TailscaleConnector.id)
         val tailscaleVersion = TailscaleController.versionName(context)
-        val anyVpnActive = TailscaleController.hasAnyVpnTransport(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -93,11 +94,22 @@ object DiagnosticsBuilder {
                     else "not detected"
             )
             appendLine(
+                "- Syncthing state: " +
+                    (syncthingState?.name ?: "unknown")
+            )
+            appendLine(
                 "- Tailscale: " +
                     if (tailscaleVersion != null) "installed • $tailscaleVersion"
                     else "not installed"
             )
-            appendLine("- Any VPN transport active: $anyVpnActive")
+            appendLine(
+                "- Tailscale state: " +
+                    when (tailscaleConnected) {
+                        true -> "CONNECTED"
+                        false -> "DISCONNECTED"
+                        null -> "unknown"
+                    }
+            )
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
