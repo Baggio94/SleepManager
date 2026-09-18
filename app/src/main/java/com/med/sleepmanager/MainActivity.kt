@@ -34,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -394,6 +395,9 @@ class MainActivity : ComponentActivity() {
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
+        var sleepGraceMs by remember(refreshToken) {
+            mutableStateOf(AppPreferences.sleepGraceMs(this))
+        }
 
         val helperInstalled = remember(refreshToken) {
             HelperController.isInstalled(this)
@@ -574,16 +578,29 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                if (thorProtectionSupported) {
-                    item {
-                        SectionTitle(
-                            title = "Device protection",
-                            subtitle = "Device-specific safeguards for sleep and wake."
-                        )
-                    }
+                item {
+                    SectionTitle(
+                        title = "Sleep behavior",
+                        subtitle = "Control how SleepManager reacts when the screen turns off."
+                    )
+                }
 
-                    item {
-                        SettingsCard {
+                item {
+                    SettingsCard {
+                        SleepGraceSelector(
+                            valueMs = sleepGraceMs,
+                            onChange = { value ->
+                                sleepGraceMs = value
+                                AppPreferences.setSleepGraceMs(this@MainActivity, value)
+                            }
+                        )
+
+                        if (thorProtectionSupported) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "AYN Thor closed-lid protection",
@@ -664,7 +681,8 @@ class MainActivity : ComponentActivity() {
                         wifi = wifiEnabled && helperInstalled,
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
-                        thorProtection = thorProtectionEnabled && thorAdminActive
+                        thorProtection = thorProtectionEnabled && thorAdminActive,
+                        sleepGraceMs = sleepGraceMs
                     )
                 }
 
@@ -885,6 +903,47 @@ private fun SettingRow(
 }
 
 @Composable
+private fun SleepGraceSelector(
+    valueMs: Long,
+    onChange: (Long) -> Unit
+) {
+    val options = listOf(
+        "Immediate" to 0L,
+        "3 s" to 3000L,
+        "5 s" to 5000L,
+        "10 s" to 10000L
+    )
+
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "Sleep grace period",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { (label, value) ->
+                FilterChip(
+                    selected = valueMs == value,
+                    onClick = { onChange(value) },
+                    label = { Text(label) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun InfoCard(title: String, text: String) {
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -915,9 +974,13 @@ private fun BehaviorCard(
     wifi: Boolean,
     bluetooth: Boolean,
     syncthing: Boolean,
-    thorProtection: Boolean
+    thorProtection: Boolean,
+    sleepGraceMs: Long
 ) {
     val sleepLines = buildList {
+        if (sleepGraceMs > 0L && (wifi || bluetooth || syncthing)) {
+            add("Wait ${sleepGraceMs / 1000}s before applying sleep actions")
+        }
         if (syncthing) add("Stop Syncthing‑Fork")
         if (wifi) add("Turn Wi‑Fi off")
         if (bluetooth) add("Turn Bluetooth off")
