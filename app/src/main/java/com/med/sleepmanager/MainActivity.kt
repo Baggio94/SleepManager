@@ -944,6 +944,14 @@ class MainActivity : ComponentActivity() {
                                 onCustomDelayEnabledChange = {
                                     customDelayEnabled = it
                                     AppPreferences.setCustomDelayEnabled(this@MainActivity, it)
+
+                                    if (!it) {
+                                        sleepGraceMs = 0L
+                                        AppPreferences.setSleepGraceMs(
+                                            this@MainActivity,
+                                            0L
+                                        )
+                                    }
                                 },
                                 onCustomDelayChange = {
                                     customDelayMs = it
