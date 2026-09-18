@@ -291,6 +291,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        AppPreferences.setSetupComplete(this, true)
         AppPreferences.recordEvent(this, "Setup finished • background automation active")
         finishAndRemoveTask()
     }
@@ -396,6 +397,7 @@ class MainActivity : ComponentActivity() {
     private fun SleepManagerScreen() {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
+        var showTestDialog by remember { mutableStateOf(false) }
 
         var managerEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.isEnabled(this))
@@ -415,9 +417,17 @@ class MainActivity : ComponentActivity() {
         var sleepGraceMs by remember(refreshToken) {
             mutableStateOf(AppPreferences.sleepGraceMs(this))
         }
+        val setupComplete = remember(refreshToken) {
+            AppPreferences.isSetupComplete(this)
+        }
 
         val helperInstalled = remember(refreshToken) {
             HelperController.isInstalled(this)
+        }
+        val helperVersion = remember(refreshToken) {
+            runCatching {
+                packageManager.getPackageInfo(HelperController.PACKAGE, 0).versionName
+            }.getOrNull()
         }
         val targets = remember(refreshToken) {
             SyncthingController.installedTargets(this)
