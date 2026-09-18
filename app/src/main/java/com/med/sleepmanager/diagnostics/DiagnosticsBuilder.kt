@@ -51,7 +51,10 @@ object DiagnosticsBuilder {
             appendLine("- Version: $versionName ($versionCode)")
             appendLine("- Enabled: ${AppPreferences.isEnabled(context)}")
             appendLine("- Service running: ${SleepManagerService.running}")
-            appendLine("- Sleep grace: ${AppPreferences.sleepGraceMs(context)} ms")
+            appendLine("- Home grace: ${AppPreferences.sleepGraceMs(context)} ms")
+            appendLine("- Custom delay enabled: ${AppPreferences.customDelayEnabled(context)}")
+            appendLine("- Custom delay: ${AppPreferences.customDelayMs(context)} ms")
+            appendLine("- Effective sleep delay: ${AppPreferences.effectiveSleepDelayMs(context)} ms")
             appendLine()
             appendLine("Device")
             appendLine("- Model: ${Build.MANUFACTURER} ${Build.MODEL}")
@@ -63,6 +66,15 @@ object DiagnosticsBuilder {
             appendLine("- Bluetooth: ${AppPreferences.manageBluetooth(context)}")
             appendLine("- Syncthing-Fork: ${AppPreferences.manageSyncthing(context)}")
             appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
+            appendLine()
+            appendLine("Advanced conditions")
+            appendLine("- Battery condition: ${AppPreferences.batteryConditionEnabled(context)}")
+            appendLine("- Battery below: ${AppPreferences.batteryBelowPercent(context)}%")
+            appendLine("- Not charging only: ${AppPreferences.notChargingOnly(context)}")
+            appendLine("- Battery Saver mode: ${AppPreferences.batterySaverMode(context)}")
+            appendLine("- Schedule enabled: ${AppPreferences.scheduleEnabled(context)}")
+            appendLine("- Schedule start: ${formatMinutes(AppPreferences.scheduleStartMinutes(context))}")
+            appendLine("- Schedule end: ${formatMinutes(AppPreferences.scheduleEndMinutes(context))}")
             appendLine()
             appendLine("Current state")
             appendLine("- Wi-Fi: ${formatState(wifiState)}")
@@ -97,6 +109,11 @@ object DiagnosticsBuilder {
                 }
             }
         }
+    }
+
+    private fun formatMinutes(minutes: Int): String {
+        val safe = minutes.coerceIn(0, 1439)
+        return "%02d:%02d".format(safe / 60, safe % 60)
     }
 
     private fun formatState(value: Boolean?): String = when (value) {
