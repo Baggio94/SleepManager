@@ -1157,7 +1157,7 @@ class SleepManagerService : Service() {
         try {
             lastThorLockAt = now
             cancelNetworkReadyWait()
-            pendingNetworkRestoreToken = null
+            pendingNetworkRestoreAfterHelper = false
             Log.i(TAG, "Thor protection -> lockNow() ($reason)")
             AppPreferences.recordEvent(
                 this,
@@ -1302,7 +1302,7 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         cancelNetworkReadyWait()
-        pendingNetworkRestoreToken = null
+        pendingNetworkRestoreAfterHelper = false
         disableRestoreRequested = false
         if (!AppPreferences.isEnabled(this)) {
             cancelSleepDelay()
@@ -1311,6 +1311,7 @@ class SleepManagerService : Service() {
             sleepGracePending = false
         }
         handler.removeCallbacks(sleepRadioRunnable)
+        cancelTailscaleVerification()
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
         pendingSleepWifi = false
