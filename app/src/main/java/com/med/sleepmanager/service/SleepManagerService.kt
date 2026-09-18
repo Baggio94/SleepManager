@@ -811,12 +811,35 @@ class SleepManagerService : Service() {
             return
         }
 
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-        alarmManager?.setAndAllowWhileIdle(
-            AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + delayMs,
-            sleepDelayPendingIntent()
-        )
+        val alarmManager =
+            getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                ?: return
+
+        val triggerAt =
+            SystemClock.elapsedRealtime() + delayMs
+
+        val canScheduleExact =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                alarmManager.canScheduleExactAlarms()
+
+        if (canScheduleExact) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAt,
+                sleepDelayPendingIntent()
+            )
+            Log.i(TAG, "Custom sleep delay scheduled as exact alarm")
+        } else {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                triggerAt,
+                sleepDelayPendingIntent()
+            )
+            Log.w(
+                TAG,
+                "Exact alarm access unavailable; custom sleep delay may be deferred"
+            )
+        }
     }
 
     private fun cancelSleepDelay() {
