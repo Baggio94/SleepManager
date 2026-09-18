@@ -1285,7 +1285,6 @@ private fun SleepGraceSelector(
 ) {
     val options = listOf(
         "Immediate" to 0L,
-        "3 s" to 3000L,
         "5 s" to 5000L,
         "10 s" to 10000L
     )
@@ -1397,11 +1396,10 @@ private fun AdvancedSleepRulesPage(
                     )
 
                     val options = listOf(
-                        "30 s" to 30_000L,
                         "1 min" to 60_000L,
-                        "2 min" to 120_000L,
                         "5 min" to 300_000L,
-                        "10 min" to 600_000L
+                        "10 min" to 600_000L,
+                        "30 min" to 1_800_000L
                     )
 
                     LazyRow(
@@ -1704,11 +1702,10 @@ private fun formatDuration(valueMs: Long): String =
         3000L -> "3 s"
         5000L -> "5 s"
         10000L -> "10 s"
-        30000L -> "30 s"
         60000L -> "1 min"
-        120000L -> "2 min"
         300000L -> "5 min"
         600000L -> "10 min"
+        1800000L -> "30 min"
         else -> "${valueMs / 1000}s"
     }
 
