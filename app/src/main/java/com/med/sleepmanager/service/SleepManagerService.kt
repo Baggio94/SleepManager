@@ -49,7 +49,7 @@ class SleepManagerService : Service() {
         private const val THOR_LOCK_COOLDOWN_MS = 900L
         const val ACTION_DISABLE_AND_RESTORE =
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
-        private const val ACTION_SLEEP_DELAY_ELAPSED =
+        const val ACTION_SLEEP_DELAY_ELAPSED =
             "com.med.sleepmanager.action.SLEEP_DELAY_ELAPSED"
         private const val SLEEP_DELAY_REQUEST_CODE = 5218
 
@@ -851,10 +851,10 @@ class SleepManagerService : Service() {
     }
 
     private fun sleepDelayPendingIntent(): PendingIntent =
-        PendingIntent.getForegroundService(
+        PendingIntent.getBroadcast(
             this,
             SLEEP_DELAY_REQUEST_CODE,
-            Intent(this, SleepManagerService::class.java)
+            Intent(this, SleepDelayReceiver::class.java)
                 .setAction(ACTION_SLEEP_DELAY_ELAPSED),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
