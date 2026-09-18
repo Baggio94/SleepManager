@@ -1591,36 +1591,26 @@ private fun SleepGraceSelector(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            options.forEach { (label, value) ->
+            items(options.size) { index ->
+                val (label, value) = options[index]
                 FilterChip(
                     selected = !customDelayEnabled && valueMs == value,
                     onClick = feedbackClick { onChange(value) },
                     enabled = !customDelayEnabled,
-                    modifier = Modifier.weight(1f),
-                    label = {
-                        Text(
-                            label,
-                            maxLines = 1
-                        )
-                    }
+                    label = { Text(label) }
                 )
             }
 
-            FilterChip(
-                selected = customDelayEnabled,
-                onClick = feedbackClick(onCustom),
-                modifier = Modifier.weight(1f),
-                label = {
-                    Text(
-                        "Custom",
-                        maxLines = 1
-                    )
-                }
-            )
+            item {
+                FilterChip(
+                    selected = customDelayEnabled,
+                    onClick = feedbackClick(onCustom),
+                    label = { Text("Custom") }
+                )
+            }
         }
 
         if (customDelayEnabled) {
