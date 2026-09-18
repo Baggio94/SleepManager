@@ -113,6 +113,9 @@ class SleepManagerService : Service() {
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
+                    if (SleepCycleStore.isActive(this@SleepManagerService)) {
+                        SleepCycleStore.markHelperSleepRequested(this@SleepManagerService)
+                    }
                     releaseSleepTransitionWakeLock()
                     AppPreferences.recordEvent(
                         this@SleepManagerService,
@@ -132,7 +135,9 @@ class SleepManagerService : Service() {
                     lastWakeBluetoothManaged = bluetoothManaged
                     lastWakeBluetoothChanged = bluetoothChanged
 
-                    SleepCycleStore.markHelperRestored(this@SleepManagerService)
+                    if (SleepCycleStore.isActive(this@SleepManagerService)) {
+                        SleepCycleStore.markHelperRestored(this@SleepManagerService)
+                    }
 
                     if (!SleepCycleStore.hasConnectorChange(
                             this@SleepManagerService,
@@ -186,9 +191,48 @@ class SleepManagerService : Service() {
         cancelNetworkReadyWait()
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
 
-        if (sleepActionsApplied || SleepCycleStore.isActive(this)) {
+        val existingCycle = SleepCycleStore.current(this)
+        if (sleepActionsApplied || existingCycle.active) {
             sleepActionsApplied = true
-            Log.i(TAG, "Screen OFF -> active sleep transaction already exists; skipping duplicate")
+
+            if (
+                existingCycle.active &&
+                existingCycle.helperExpected &&
+                !existingCycle.helperSleepRequested
+            ) {
+                val syncthingStopped =
+                    SleepCycleStore.hasConnectorChange(this, SyncthingConnector.id)
+                val elapsed = System.currentTimeMillis() - existingCycle.startedAt
+                val remainingGrace =
+                    if (syncthingStopped) {
+                        (SYNCTHING_STOP_GRACE_MS - elapsed).coerceAtLeast(0L)
+                    } else {
+                        0L
+                    }
+
+                pendingSleepWifi = existingCycle.wifiManaged
+                pendingSleepBluetooth = existingCycle.bluetoothManaged
+                pendingSleepSyncthing = syncthingStopped
+
+                if (remainingGrace > 0L) {
+                    acquireSleepTransitionWakeLock()
+                    handler.postDelayed(sleepRadioRunnable, remainingGrace)
+                    Log.i(
+                        TAG,
+                        "Recovered pending sleep transaction; radio sleep in " +
+                            remainingGrace + "ms"
+                    )
+                } else {
+                    Log.i(TAG, "Recovered pending sleep transaction; applying radio sleep now")
+                    applySleepConnectivity(
+                        wifi = existingCycle.wifiManaged,
+                        bluetooth = existingCycle.bluetoothManaged,
+                        syncthing = syncthingStopped
+                    )
+                }
+            } else {
+                Log.i(TAG, "Screen OFF -> active sleep transaction already exists; skipping duplicate")
+            }
             return
         }
         sleepActionsApplied = true
@@ -202,7 +246,12 @@ class SleepManagerService : Service() {
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
 
-        val cycle = SleepCycleStore.begin(this, helperExpected = helperAvailable)
+        val cycle = SleepCycleStore.begin(
+            context = this,
+            helperExpected = helperAvailable,
+            wifiManaged = wifi,
+            bluetoothManaged = bluetooth
+        )
         Log.i(
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth syncthing=$syncthing"
@@ -260,7 +309,12 @@ class SleepManagerService : Service() {
             false
         }
 
-        if (!helperSent) {
+        if (helperSent) {
+            SleepCycleStore.markHelperSleepRequested(this)
+        } else {
+            if (SleepCycleStore.isActive(this)) {
+                SleepCycleStore.markHelperRestored(this)
+            }
             releaseSleepTransitionWakeLock()
             AppPreferences.recordEvent(
                 this,
@@ -394,30 +448,29 @@ class SleepManagerService : Service() {
                     TAG,
                     "Network ready result=$result while device is not in a real wake; restore deferred"
                 )
-                return@NetworkReadyGate
+            } else {
+                Log.i(TAG, "Network ready result=$result -> restoring Syncthing")
+
+                val wakeResult = SyncthingConnector.wake(this, restoreToken)
+                SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
+
+                AppPreferences.recordEvent(
+                    this,
+                    if (wakeResult.success) {
+                        buildWakeSummary(
+                            wifiManaged = lastWakeWifiManaged,
+                            wifiChanged = lastWakeWifiChanged,
+                            bluetoothManaged = lastWakeBluetoothManaged,
+                            bluetoothChanged = lastWakeBluetoothChanged,
+                            syncthing = true
+                        )
+                    } else {
+                        "Wake → Syncthing restore failed"
+                    }
+                )
+
+                SleepCycleStore.completeIfRestored(this)
             }
-
-            Log.i(TAG, "Network ready result=$result -> restoring Syncthing")
-
-            val wakeResult = SyncthingConnector.wake(this, restoreToken)
-            SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
-
-            AppPreferences.recordEvent(
-                this,
-                if (wakeResult.success) {
-                    buildWakeSummary(
-                        wifiManaged = lastWakeWifiManaged,
-                        wifiChanged = lastWakeWifiChanged,
-                        bluetoothManaged = lastWakeBluetoothManaged,
-                        bluetoothChanged = lastWakeBluetoothChanged,
-                        syncthing = true
-                    )
-                } else {
-                    "Wake → Syncthing restore failed"
-                }
-            )
-
-            SleepCycleStore.completeIfRestored(this)
         }.also { it.start() }
     }
 
