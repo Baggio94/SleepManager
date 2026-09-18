@@ -60,6 +60,7 @@ class SleepManagerService : Service() {
     private var pendingSleepSyncthing = false
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
+    private var pendingNetworkRestoreToken: String? = null
 
     @Volatile
     private var thorLidClosed = false
@@ -139,24 +140,41 @@ class SleepManagerService : Service() {
                         SleepCycleStore.markHelperRestored(this@SleepManagerService)
                     }
 
-                    if (!SleepCycleStore.hasConnectorChange(
+                    val restoreToken = pendingNetworkRestoreToken
+                    pendingNetworkRestoreToken = null
+
+                    if (
+                        restoreToken != null &&
+                        SleepCycleStore.hasConnectorChange(
                             this@SleepManagerService,
                             SyncthingConnector.id
                         )
                     ) {
-                        AppPreferences.recordEvent(
-                            this@SleepManagerService,
-                            buildWakeSummary(
-                                wifiManaged = wifiManaged,
-                                wifiChanged = wifiChanged,
-                                bluetoothManaged = bluetoothManaged,
-                                bluetoothChanged = bluetoothChanged,
-                                syncthing = false
-                            )
+                        Log.i(
+                            TAG,
+                            "Helper wake completed -> starting network-ready wait"
                         )
-                    }
+                        waitForNetworkAndRestoreSyncthing(restoreToken)
+                    } else {
+                        if (!SleepCycleStore.hasConnectorChange(
+                                this@SleepManagerService,
+                                SyncthingConnector.id
+                            )
+                        ) {
+                            AppPreferences.recordEvent(
+                                this@SleepManagerService,
+                                buildWakeSummary(
+                                    wifiManaged = wifiManaged,
+                                    wifiChanged = wifiChanged,
+                                    bluetoothManaged = bluetoothManaged,
+                                    bluetoothChanged = bluetoothChanged,
+                                    syncthing = false
+                                )
+                            )
+                        }
 
-                    SleepCycleStore.completeIfRestored(this@SleepManagerService)
+                        SleepCycleStore.completeIfRestored(this@SleepManagerService)
+                    }
                 }
             }
         }
@@ -189,6 +207,7 @@ class SleepManagerService : Service() {
 
     private fun onScreenOff() {
         cancelNetworkReadyWait()
+        pendingNetworkRestoreToken = null
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
 
         val existingCycle = SleepCycleStore.current(this)
@@ -391,6 +410,20 @@ class SleepManagerService : Service() {
         lastWakeBluetoothManaged = false
         lastWakeBluetoothChanged = false
 
+        val syncthingChange =
+            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
+
+        // If the Helper must restore a managed radio, wait for its WAKE result
+        // before evaluating network readiness. Otherwise the previous/default
+        // network can still look VALIDATED for a few milliseconds and trigger
+        // FOLLOW too early.
+        pendingNetworkRestoreToken =
+            if (connectivity && syncthingChange != null) {
+                syncthingChange.restoreToken
+            } else {
+                null
+            }
+
         val helperSent = if (connectivity) {
             HelperController.sendWake(this)
         } else {
@@ -400,29 +433,32 @@ class SleepManagerService : Service() {
         if (!helperSent) {
             lastWakeWifiManaged = false
             lastWakeBluetoothManaged = false
+            pendingNetworkRestoreToken = null
+
             if (cycle.active && cycle.helperExpected) {
                 SleepCycleStore.markHelperRestored(this)
             }
-        }
 
-        val syncthingChange =
-            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
-
-        if (syncthingChange != null) {
-            waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
-        } else {
-            if (!connectivity) {
-                AppPreferences.recordEvent(
-                    this,
-                    buildWakeSummary(
-                        wifiManaged = false,
-                        wifiChanged = false,
-                        bluetoothManaged = false,
-                        bluetoothChanged = false,
-                        syncthing = false
+            if (syncthingChange != null) {
+                waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
+            } else {
+                if (!connectivity) {
+                    AppPreferences.recordEvent(
+                        this,
+                        buildWakeSummary(
+                            wifiManaged = false,
+                            wifiChanged = false,
+                            bluetoothManaged = false,
+                            bluetoothChanged = false,
+                            syncthing = false
+                        )
                     )
-                )
+                }
+                SleepCycleStore.completeIfRestored(this)
             }
+        } else if (syncthingChange != null) {
+            Log.i(TAG, "Syncthing restore waiting for Helper wake result")
+        } else {
             SleepCycleStore.completeIfRestored(this)
         }
     }
@@ -564,6 +600,7 @@ class SleepManagerService : Service() {
         try {
             lastThorLockAt = now
             cancelNetworkReadyWait()
+            pendingNetworkRestoreToken = null
             Log.i(TAG, "Thor protection -> lockNow() ($reason)")
             AppPreferences.recordEvent(
                 this,
@@ -708,6 +745,7 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         cancelNetworkReadyWait()
+        pendingNetworkRestoreToken = null
         handler.removeCallbacks(sleepRadioRunnable)
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
