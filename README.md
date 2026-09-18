@@ -4,7 +4,7 @@
 
 SleepManager automatically puts selected Android services into a lower-power state when the screen turns off, then restores them when the device wakes.
 
-> Development version: **0.3.1**
+> Current version: **0.3.1**
 
 ## Features
 
@@ -167,6 +167,6 @@ The test scripts use deterministic Android `SLEEP` and `WAKEUP` key events and p
 
 ## Project status
 
-SleepManager is under active development. Current priorities include real network-readiness detection before Syncthing resumes, onboarding improvements and continued UI polish.
+SleepManager is under active development. Current priorities include real network-readiness detection before Syncthing resumes, optional lightweight integrations, onboarding improvements and continued UI polish.
 
 No license has been selected yet.
