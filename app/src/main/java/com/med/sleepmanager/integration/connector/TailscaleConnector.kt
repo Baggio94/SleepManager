@@ -23,11 +23,8 @@ object TailscaleConnector : AppConnector {
     override fun currentState(context: Context): ConnectorState {
         if (!isInstalled(context)) return ConnectorState.UNKNOWN
 
-        return if (TailscaleController.hasAnyVpnTransport(context)) {
-            // Android exposes that a VPN transport exists, but does not expose
-            // another app's VPN owner to ordinary third-party apps. Treat this
-            // as unknown until the disconnect request is verified.
-            ConnectorState.UNKNOWN
+        return if (TailscaleController.isConnected(context)) {
+            ConnectorState.ACTIVE
         } else {
             ConnectorState.INACTIVE
         }
@@ -42,7 +39,7 @@ object TailscaleConnector : AppConnector {
             )
         }
 
-        if (!TailscaleController.hasAnyVpnTransport(context)) {
+        if (!TailscaleController.isConnected(context)) {
             return ConnectorSleepResult(
                 attempted = false,
                 changed = false,
