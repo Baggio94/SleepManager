@@ -2,7 +2,10 @@ package com.med.sleepmanager
 
 import android.content.Context
 import android.hardware.input.InputManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.InputDevice
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,6 +36,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.io.FileInputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class HallSensorTestActivity : ComponentActivity() {
 
@@ -40,6 +48,15 @@ class HallSensorTestActivity : ComponentActivity() {
         val directOpen: String,
         val inputManager: String
     )
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val liveLidState = mutableStateOf("NOT STARTED")
+    private val liveHistory = mutableStateOf("No SW_LID events captured yet")
+
+    @Volatile
+    private var monitorRunning = false
+    private var monitorStream: FileInputStream? = null
+    private var monitorThread: Thread? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +67,11 @@ class HallSensorTestActivity : ComponentActivity() {
                 HallSensorTestScreen()
             }
         }
+    }
+
+    override fun onDestroy() {
+        stopMonitor()
+        super.onDestroy()
     }
 
     private fun runProbe(): ProbeResult {
@@ -74,7 +96,7 @@ class HallSensorTestActivity : ComponentActivity() {
                 inputManager,
                 -1,
                 InputDevice.SOURCE_ANY,
-                0 // Linux SW_LID
+                0
             ) as Int
 
             val meaning = when (value) {
@@ -93,6 +115,99 @@ class HallSensorTestActivity : ComponentActivity() {
             directOpen = directOpenResult,
             inputManager = inputManagerResult
         )
+    }
+
+    private fun startMonitor() {
+        if (monitorRunning) return
+
+        monitorRunning = true
+        liveLidState.value = "WAITING FOR SW_LID EVENT"
+        liveHistory.value = "Monitor started. Close and reopen the Thor."
+
+        monitorThread = Thread {
+            try {
+                val stream = FileInputStream("/dev/input/event1")
+                monitorStream = stream
+
+                val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
+                val eventSize = if (is64Bit) 24 else 16
+                val payloadOffset = if (is64Bit) 16 else 8
+                val buffer = ByteArray(eventSize)
+
+                while (monitorRunning) {
+                    var offset = 0
+                    while (offset < eventSize && monitorRunning) {
+                        val count = stream.read(buffer, offset, eventSize - offset)
+                        if (count < 0) throw IllegalStateException("Unexpected EOF")
+                        offset += count
+                    }
+                    if (!monitorRunning) break
+
+                    val byteBuffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN)
+                    byteBuffer.position(payloadOffset)
+
+                    val type = byteBuffer.short.toInt() and 0xffff
+                    val code = byteBuffer.short.toInt() and 0xffff
+                    val value = byteBuffer.int
+
+                    // Linux input-event constants:
+                    // EV_SW = 0x05, SW_LID = 0x00
+                    if (type == 0x05 && code == 0x00) {
+                        val state = when (value) {
+                            1 -> "CLOSED"
+                            0 -> "OPEN"
+                            else -> "UNKNOWN ($value)"
+                        }
+
+                        val timestamp = SimpleDateFormat(
+                            "HH:mm:ss.SSS",
+                            Locale.getDefault()
+                        ).format(Date())
+
+                        mainHandler.post {
+                            liveLidState.value = state
+                            val previous = liveHistory.value
+                            liveHistory.value = if (previous.startsWith("Monitor started")) {
+                                "$timestamp  SW_LID → $state"
+                            } else {
+                                (previous + "\n" + "$timestamp  SW_LID → $state")
+                                    .lineSequence()
+                                    .takeLast(8)
+                                    .joinToString("\n")
+                            }
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                if (monitorRunning) {
+                    mainHandler.post {
+                        liveLidState.value =
+                            "ERROR — ${t.javaClass.simpleName}: ${t.message ?: "no message"}"
+                    }
+                }
+            } finally {
+                try {
+                    monitorStream?.close()
+                } catch (_: Throwable) {
+                }
+                monitorStream = null
+                monitorRunning = false
+            }
+        }.apply {
+            name = "HallSwitchMonitor"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun stopMonitor() {
+        monitorRunning = false
+        try {
+            monitorStream?.close()
+        } catch (_: Throwable) {
+        }
+        monitorStream = null
+        monitorThread = null
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -143,13 +258,12 @@ class HallSensorTestActivity : ComponentActivity() {
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                "What this tests",
+                                "Step 1 — Access probe",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "1. Whether the real SleepManager app process can open the Thor hall-switch input device.\n" +
-                                    "2. Whether Android's internal InputManager API can report SW_LID without root, ADB or Shizuku.",
+                                "Checks direct access to the Thor hall-switch device and the optional Android InputManager path.",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -161,7 +275,7 @@ class HallSensorTestActivity : ComponentActivity() {
                         onClick = { result.value = runProbe() },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Run hall sensor probe")
+                        Text("Run access probe")
                     }
                 }
 
@@ -179,14 +293,62 @@ class HallSensorTestActivity : ComponentActivity() {
                             value = probe.inputManager
                         )
                     }
+                }
 
-                    item {
-                        Text(
-                            "Run the probe once with the lid open. If InputManager succeeds, close the Thor while connected and reproduce the trigger wake issue, then reopen it and run the probe again.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
                         )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "Step 2 — Live SW_LID monitor",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Start while the Thor is open. Then close it, press a trigger immediately to reproduce the wake bug, wait a few seconds, and reopen it.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
+                }
+
+                item {
+                    Button(
+                        onClick = { startMonitor() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Start live lid monitor")
+                    }
+                }
+
+                item {
+                    ResultCard(
+                        title = "Current captured lid state",
+                        value = liveLidState.value
+                    )
+                }
+
+                item {
+                    ResultCard(
+                        title = "SW_LID event history",
+                        value = liveHistory.value
+                    )
+                }
+
+                item {
+                    Text(
+                        "If the history shows CLOSED followed by OPEN after the test, SleepManager can track the lid directly from the real app process without root, ADB or Shizuku.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
