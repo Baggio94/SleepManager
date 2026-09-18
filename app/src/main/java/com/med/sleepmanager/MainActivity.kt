@@ -60,6 +60,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
@@ -398,6 +399,7 @@ class MainActivity : ComponentActivity() {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
+        var showLogDialog by remember { mutableStateOf(false) }
 
         var managerEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.isEnabled(this))
@@ -465,6 +467,13 @@ class MainActivity : ComponentActivity() {
                         Text("Got it")
                     }
                 }
+            )
+        }
+
+        if (showLogDialog) {
+            ActivityLogDialog(
+                context = this@MainActivity,
+                onDismiss = { showLogDialog = false }
             )
         }
 
@@ -764,12 +773,10 @@ class MainActivity : ComponentActivity() {
                 }
 
                 item {
-                    LastActivityCard(this@MainActivity)
-                }
-
-                item {
-                    DiagnosticsCard(
-                        onCopy = { copyDiagnostics() }
+                    LastActivityCard(
+                        context = this@MainActivity,
+                        onViewLog = { showLogDialog = true },
+                        onCopyLog = { copyDiagnostics() }
                     )
                 }
             }
@@ -1195,7 +1202,11 @@ private fun BehaviorGroup(title: String, lines: List<String>) {
 }
 
 @Composable
-private fun LastActivityCard(context: Context) {
+private fun LastActivityCard(
+    context: Context,
+    onViewLog: () -> Unit,
+    onCopyLog: () -> Unit
+) {
     val event = AppPreferences.lastEvent(context)
     val time = AppPreferences.lastEventTime(context)
 
@@ -1265,44 +1276,83 @@ private fun LastActivityCard(context: Context) {
         timeText?.let {
             Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onViewLog,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("View log")
+            }
+
+            OutlinedButton(
+                onClick = onCopyLog,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Copy log")
+            }
+        }
     }
 }
 
 @Composable
-private fun DiagnosticsCard(
-    onCopy: () -> Unit
+private fun ActivityLogDialog(
+    context: Context,
+    onDismiss: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "Diagnostics",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+    val events = EventHistoryStore.recent(context)
 
-            Text(
-                "Copy app, device, transaction and recent activity details for troubleshooting.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            OutlinedButton(
-                onClick = onCopy,
-                modifier = Modifier.fillMaxWidth()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Activity log") },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Copy diagnostics")
+                if (events.isEmpty()) {
+                    item {
+                        Text(
+                            "No recent activity",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(events.size) { index ->
+                        val event = events[index]
+                        val date = Date(event.timestamp)
+                        val timestamp =
+                            DateFormat.getMediumDateFormat(context).format(date) +
+                                " • " +
+                                DateFormat.getTimeFormat(context).format(date)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                event.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                timestamp,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
             }
         }
-    }
+    )
 }
 
 @Composable
