@@ -1381,7 +1381,7 @@ private fun AdvancedSleepRulesPage(
                 subtitle = if (customDelayEnabled) {
                     "Home will show Advanced • ${formatDuration(customDelayMs)}"
                 } else {
-                    "Home uses Immediate / 3s / 5s / 10s."
+                    "Home uses Immediate / 5s / 10s."
                 },
                 checked = customDelayEnabled,
                 onCheckedChange = onCustomDelayEnabledChange
