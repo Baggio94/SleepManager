@@ -1,6 +1,8 @@
 package com.med.sleepmanager
 
+import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -57,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
+import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
     private var currentWifiState by mutableStateOf<Boolean?>(null)
     private var currentBluetoothState by mutableStateOf<Boolean?>(null)
     private var helperStateReceiverRegistered = false
+    private var pendingThorAdminEnable = false
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -118,7 +123,31 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        if (pendingThorAdminEnable) {
+            pendingThorAdminEnable = false
+            val granted = isThorAdminActive()
+            AppPreferences.setManageThorProtection(this, granted)
+            if (!granted) {
+                Toast.makeText(
+                    this,
+                    "Closed-lid protection permission was not enabled",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            activityRefreshToken++
+        }
+
+        if (
+            AppPreferences.manageThorProtection(this) &&
+            !isThorAdminActive()
+        ) {
+            AppPreferences.setManageThorProtection(this, false)
+            activityRefreshToken++
+        }
+
         ensureServiceRunning()
+        refreshRunningService()
 
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
         statusRefreshRunnable.run()
@@ -177,6 +206,67 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun thorAdminComponent(): ComponentName =
+        ComponentName(this, ThorDeviceAdminReceiver::class.java)
+
+    private fun isThorAdminActive(): Boolean {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        return dpm.isAdminActive(thorAdminComponent())
+    }
+
+    private fun requestThorAdmin() {
+        pendingThorAdminEnable = true
+        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, thorAdminComponent())
+            putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "Allows SleepManager to immediately return the AYN Thor to sleep if it wakes while the lid is still closed."
+            )
+        }
+        startActivity(intent)
+    }
+
+    private fun setThorProtectionEnabled(enabled: Boolean) {
+        if (!enabled) {
+            AppPreferences.setManageThorProtection(this, false)
+            refreshRunningService()
+
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            if (dpm.isAdminActive(thorAdminComponent())) {
+                runCatching { dpm.removeActiveAdmin(thorAdminComponent()) }
+            }
+            return
+        }
+
+        if (!ThorLidMonitor.isSupported()) {
+            Toast.makeText(
+                this,
+                "AYN Thor hall sensor not detected",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        if (!isThorAdminActive()) {
+            requestThorAdmin()
+            return
+        }
+
+        AppPreferences.setManageThorProtection(this, true)
+        refreshRunningService()
+    }
+
+    private fun refreshRunningService() {
+        if (!AppPreferences.isEnabled(this)) return
+
+        try {
+            val service = Intent(this, SleepManagerService::class.java)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(service)
+            else startService(service)
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun finishSetup() {
         if (!AppPreferences.isEnabled(this)) {
             Toast.makeText(
@@ -208,7 +298,8 @@ class MainActivity : ComponentActivity() {
         val hasAnyAction =
             AppPreferences.manageWifi(this) ||
                 AppPreferences.manageBluetooth(this) ||
-                AppPreferences.manageSyncthing(this)
+                AppPreferences.manageSyncthing(this) ||
+                AppPreferences.manageThorProtection(this)
 
         if (!hasAnyAction) {
             Toast.makeText(
@@ -226,6 +317,18 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(
                 this,
                 "Install the SleepManager compatibility helper first",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (
+            AppPreferences.manageThorProtection(this) &&
+            (!ThorLidMonitor.isSupported() || !isThorAdminActive())
+        ) {
+            Toast.makeText(
+                this,
+                "Enable AYN Thor closed-lid protection permission first",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -278,6 +381,9 @@ class MainActivity : ComponentActivity() {
         var syncthingEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageSyncthing(this))
         }
+        var thorProtectionEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageThorProtection(this))
+        }
 
         val helperInstalled = remember(refreshToken) {
             HelperController.isInstalled(this)
@@ -287,6 +393,12 @@ class MainActivity : ComponentActivity() {
         }
         val selectedTarget = remember(refreshToken) {
             SyncthingController.selectedTarget(this)
+        }
+        val thorProtectionSupported = remember(refreshToken) {
+            ThorLidMonitor.isSupported()
+        }
+        val thorAdminActive = remember(refreshToken) {
+            isThorAdminActive()
         }
 
         if (showTargetDialog) {
@@ -445,6 +557,38 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                if (thorProtectionSupported) {
+                    item {
+                        SectionTitle(
+                            title = "Device protection",
+                            subtitle = "Device-specific safeguards for sleep and wake."
+                        )
+                    }
+
+                    item {
+                        SettingsCard {
+                            SettingRow(
+                                icon = R.drawable.ic_shield,
+                                title = "AYN Thor closed-lid protection",
+                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed.",
+                                status = if (thorProtectionEnabled && thorAdminActive) {
+                                    "Protection ready"
+                                } else {
+                                    "Requires one-time Device Admin permission"
+                                },
+                                checked = thorProtectionEnabled && thorAdminActive,
+                                enabled = true,
+                                onCheckedChange = { enabled ->
+                                    setThorProtectionEnabled(enabled)
+                                    thorProtectionEnabled =
+                                        AppPreferences.manageThorProtection(this@MainActivity)
+                                    activityRefreshToken++
+                                }
+                            )
+                        }
+                    }
+                }
+
                 item {
                     SectionTitle(
                         title = "App integrations",
@@ -506,7 +650,8 @@ class MainActivity : ComponentActivity() {
                     BehaviorCard(
                         wifi = wifiEnabled && helperInstalled,
                         bluetooth = bluetoothEnabled && helperInstalled,
-                        syncthing = syncthingEnabled && selectedTarget != null
+                        syncthing = syncthingEnabled && selectedTarget != null,
+                        thorProtection = thorProtectionEnabled && thorAdminActive
                     )
                 }
 
@@ -756,12 +901,14 @@ private fun InfoCard(title: String, text: String) {
 private fun BehaviorCard(
     wifi: Boolean,
     bluetooth: Boolean,
-    syncthing: Boolean
+    syncthing: Boolean,
+    thorProtection: Boolean
 ) {
     val sleepLines = buildList {
         if (syncthing) add("Stop Syncthing‑Fork")
         if (wifi) add("Turn Wi‑Fi off")
         if (bluetooth) add("Turn Bluetooth off")
+        if (thorProtection) add("Protect AYN Thor against closed-lid wake-ups")
     }
 
     val wakeLines = buildList {
@@ -800,6 +947,14 @@ private fun BehaviorCard(
             if (wifi || bluetooth) {
                 Text(
                     "SleepManager restores only states it changed. If Wi‑Fi or Bluetooth was already off before sleep, it stays off after wake.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (thorProtection) {
+                Text(
+                    "AYN Thor: if the device wakes while the lid is still closed, SleepManager returns it to sleep without restoring normal wake actions.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
