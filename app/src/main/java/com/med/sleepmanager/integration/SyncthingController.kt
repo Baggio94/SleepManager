@@ -7,12 +7,14 @@ import android.util.Log
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.connector.SyncthingConnector
-import java.io.BufferedReader
-import java.io.BufferedWriter
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.InetSocketAddress
-import java.net.Socket
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 object SyncthingController {
     const val PACKAGE_CURRENT = "com.github.catfriend1.syncthingfork"
@@ -128,38 +130,65 @@ object SyncthingController {
     }
 
     private fun healthCheckDefaultGui(): Boolean =
+        healthCheck(
+            "http://$DEFAULT_GUI_HOST:$DEFAULT_GUI_PORT/rest/noauth/health"
+        ) ||
+            healthCheck(
+                "https://$DEFAULT_GUI_HOST:$DEFAULT_GUI_PORT/rest/noauth/health"
+            )
+
+    private fun healthCheck(urlString: String): Boolean =
         runCatching {
-            Socket().use { socket ->
-                socket.connect(
-                    InetSocketAddress(
-                        DEFAULT_GUI_HOST,
-                        DEFAULT_GUI_PORT
-                    ),
-                    HEALTH_TIMEOUT_MS
-                )
-                socket.soTimeout = HEALTH_TIMEOUT_MS
+            val connection =
+                URL(urlString).openConnection() as HttpURLConnection
 
-                val writer =
-                    BufferedWriter(
-                        OutputStreamWriter(socket.getOutputStream())
-                    )
-                writer.write(
-                    "GET /rest/noauth/health HTTP/1.1\r\n" +
-                        "Host: $DEFAULT_GUI_HOST:$DEFAULT_GUI_PORT\r\n" +
-                        "Connection: close\r\n\r\n"
-                )
-                writer.flush()
+            connection.connectTimeout = HEALTH_TIMEOUT_MS
+            connection.readTimeout = HEALTH_TIMEOUT_MS
+            connection.instanceFollowRedirects = false
+            connection.requestMethod = "GET"
 
-                val reader =
-                    BufferedReader(
-                        InputStreamReader(socket.getInputStream())
-                    )
-                val statusLine = reader.readLine()
-                    ?: return@runCatching false
+            if (connection is HttpsURLConnection) {
+                connection.sslSocketFactory =
+                    localSyncthingSslContext().socketFactory
+                connection.hostnameVerifier =
+                    javax.net.ssl.HostnameVerifier { hostname, _ ->
+                        hostname == DEFAULT_GUI_HOST ||
+                            hostname == "localhost"
+                    }
+            }
 
-                statusLine.contains(" 200 ")
+            try {
+                connection.responseCode == HttpURLConnection.HTTP_OK
+            } finally {
+                connection.disconnect()
             }
         }.getOrDefault(false)
+
+    private fun localSyncthingSslContext(): SSLContext {
+        val trustManager =
+            object : X509TrustManager {
+                override fun checkClientTrusted(
+                    chain: Array<out X509Certificate>?,
+                    authType: String?
+                ) = Unit
+
+                override fun checkServerTrusted(
+                    chain: Array<out X509Certificate>?,
+                    authType: String?
+                ) = Unit
+
+                override fun getAcceptedIssuers(): Array<X509Certificate> =
+                    emptyArray()
+            }
+
+        return SSLContext.getInstance("TLS").apply {
+            init(
+                null,
+                arrayOf<TrustManager>(trustManager),
+                SecureRandom()
+            )
+        }
+    }
 
     private fun send(
         context: Context,
