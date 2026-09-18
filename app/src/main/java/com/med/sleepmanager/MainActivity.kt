@@ -1530,7 +1530,7 @@ private fun CompactIntegrationRow(
 
             Switch(
                 checked = checked,
-                onCheckedChange = onCheckedChange,
+                onCheckedChange = feedbackChange(onCheckedChange),
                 enabled = enabled
             )
         }
@@ -2395,14 +2395,14 @@ private fun LastActivityCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
-                onClick = onViewLog,
+                onClick = feedbackClick(onViewLog),
                 modifier = Modifier.weight(1f)
             ) {
                 Text("View log")
             }
 
             OutlinedButton(
-                onClick = onCopyLog,
+                onClick = feedbackClick(onCopyLog),
                 modifier = Modifier.weight(1f)
             ) {
                 Text("Copy log")
