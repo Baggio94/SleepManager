@@ -4,8 +4,6 @@ SleepManager is a lightweight Android app for handhelds that manages selected ac
 
 Set it once, choose what should sleep, and let it run in the background.
 
-> **0.4.0-dev1 is a preview build.** It includes the new UI, Advanced rules, Tailscale support and other 0.4.0 features while final validation is still in progress.
-
 ## What it can do
 
 - **Wi-Fi** — turn it off during sleep and restore it only if SleepManager changed it.
@@ -166,4 +164,4 @@ helper/build/outputs/apk/debug/helper-debug.apk
 
 ## Releases
 
-See [CHANGELOG.md](CHANGELOG.md) for the full history and [RELEASE_NOTES.md](RELEASE_NOTES.md) for the current preview release notes.
+See [CHANGELOG.md](CHANGELOG.md) for the full history and [RELEASE_NOTES.md](RELEASE_NOTES.md) for the current release notes.
