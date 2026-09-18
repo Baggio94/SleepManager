@@ -1394,9 +1394,9 @@ private fun SettingRow(
 
             status?.let { currentStatus ->
                 val isActive =
-                    currentStatus.contains("ON") ||
-                        currentStatus.contains("RUNNING") ||
-                        currentStatus.contains("CONNECTED")
+                    currentStatus.endsWith(": ON") ||
+                        currentStatus.endsWith(": RUNNING") ||
+                        currentStatus.endsWith(": CONNECTED")
                 Text(
                     currentStatus,
                     style = MaterialTheme.typography.labelMedium,
