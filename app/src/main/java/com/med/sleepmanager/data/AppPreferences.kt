@@ -8,6 +8,7 @@ object AppPreferences {
     private const val KEY_WIFI = "wifi"
     private const val KEY_BLUETOOTH = "bluetooth"
     private const val KEY_SYNCTHING = "syncthing"
+    private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_SELECTED_SYNCTHING = "selected_syncthing"
     private const val KEY_LAST_EVENT = "last_event"
     private const val KEY_LAST_EVENT_TIME = "last_event_time"
@@ -30,6 +31,12 @@ object AppPreferences {
     fun manageSyncthing(context: Context) = prefs(context).getBoolean(KEY_SYNCTHING, true)
     fun setManageSyncthing(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_SYNCTHING, value).apply()
+
+    fun manageThorProtection(context: Context) =
+        prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
+
+    fun setManageThorProtection(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_THOR_PROTECTION, value).apply()
 
     fun getSelectedSyncthing(context: Context): String? =
         prefs(context).getString(KEY_SELECTED_SYNCTHING, null)

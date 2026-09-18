@@ -5,16 +5,46 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
     <path android:pathData="M0,0 H108 V108 H0 Z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="0"
-                android:startY="108"
-                android:endX="108"
-                android:endY="0"
-                android:startColor="#2B006E"
-                android:endColor="#2B78FF" />
+                android:startX="54"
+                android:startY="0"
+                android:endX="54"
+                android:endY="108"
+                android:startColor="#2466E8"
+                android:centerColor="#123A93"
+                android:endColor="#061537" />
+        </aapt:attr>
+    </path>
+
+    <!-- Upper-left soft glow -->
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="30"
+                android:centerY="16"
+                android:gradientRadius="82"
+                android:startColor="#6648D9FF"
+                android:centerColor="#2229A7FF"
+                android:endColor="#00061537" />
+        </aapt:attr>
+    </path>
+
+    <!-- Lower vignette -->
+    <path android:pathData="M0,46 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="54"
+                android:startY="46"
+                android:endX="54"
+                android:endY="108"
+                android:startColor="#00000000"
+                android:endColor="#4400061C" />
         </aapt:attr>
     </path>
 </vector>

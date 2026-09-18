@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -15,11 +17,14 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import com.med.sleepmanager.MainActivity
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
+import com.med.sleepmanager.protection.ThorLidMonitor
 
 class SleepManagerService : Service() {
     companion object {
@@ -27,6 +32,9 @@ class SleepManagerService : Service() {
         private const val CHANNEL_ID = "sleep_manager"
         private const val NOTIFICATION_ID = 5217
         private const val FOLLOW_DELAY_MS = 2500L
+        private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
+        private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
+        private const val THOR_LOCK_COOLDOWN_MS = 900L
 
         @Volatile
         var running: Boolean = false
@@ -41,6 +49,17 @@ class SleepManagerService : Service() {
     private var lastWakeWifiChanged = false
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
+    private var sleepActionsApplied = false
+
+    @Volatile
+    private var thorLidClosed = false
+
+    private var thorLidMonitor: ThorLidMonitor? = null
+    private var lastThorLockAt = 0L
+
+    private val thorAdminComponent by lazy {
+        ComponentName(this, ThorDeviceAdminReceiver::class.java)
+    }
 
     private val followRunnable = Runnable {
         val syncthing = AppPreferences.manageSyncthing(this)
@@ -58,6 +77,14 @@ class SleepManagerService : Service() {
                 syncthing = syncthing
             )
         )
+    }
+
+    private val thorCloseGuardRunnable = Runnable {
+        maybeReturnThorToSleep("close guard")
+    }
+
+    private val thorScreenOnRecheckRunnable = Runnable {
+        maybeReturnThorToSleep("closed-lid wake")
     }
 
     private val screenReceiver = object : BroadcastReceiver() {
@@ -123,6 +150,7 @@ class SleepManagerService : Service() {
         startForegroundCompat()
         registerScreenReceiver()
         registerHelperResultReceiver()
+        refreshThorLidMonitor()
         Log.i(TAG, "Service started")
         applyCurrentScreenState()
     }
@@ -132,13 +160,23 @@ class SleepManagerService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+
         if (!receiverRegistered) registerScreenReceiver()
         if (!helperResultReceiverRegistered) registerHelperResultReceiver()
+        refreshThorLidMonitor()
+
         return START_STICKY
     }
 
     private fun onScreenOff() {
         handler.removeCallbacks(followRunnable)
+        handler.removeCallbacks(thorScreenOnRecheckRunnable)
+
+        if (sleepActionsApplied) {
+            Log.i(TAG, "Screen OFF -> sleep actions already applied; skipping duplicate")
+            return
+        }
+        sleepActionsApplied = true
 
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
@@ -170,6 +208,18 @@ class SleepManagerService : Service() {
 
     private fun onScreenOn() {
         handler.removeCallbacks(followRunnable)
+
+        if (AppPreferences.manageThorProtection(this) && thorLidClosed) {
+            Log.i(TAG, "Screen ON while Thor lid is closed -> suppressing wake restore")
+            handler.removeCallbacks(thorScreenOnRecheckRunnable)
+            handler.postDelayed(
+                thorScreenOnRecheckRunnable,
+                THOR_SCREEN_ON_RECHECK_DELAY_MS
+            )
+            return
+        }
+
+        sleepActionsApplied = false
 
         val wifiManaged = AppPreferences.manageWifi(this)
         val bluetoothManaged = AppPreferences.manageBluetooth(this)
@@ -207,6 +257,111 @@ class SleepManagerService : Service() {
                     syncthing = false
                 )
             )
+        }
+    }
+
+    private fun refreshThorLidMonitor() {
+        if (!AppPreferences.manageThorProtection(this)) {
+            stopThorLidMonitor()
+            return
+        }
+
+        if (thorLidMonitor != null) return
+
+        val monitor = ThorLidMonitor(
+            onClosed = {
+                handler.post {
+                    thorLidClosed = true
+                    handler.removeCallbacks(thorCloseGuardRunnable)
+                    handler.postDelayed(
+                        thorCloseGuardRunnable,
+                        THOR_CLOSE_GUARD_DELAY_MS
+                    )
+                    Log.i(TAG, "Thor SW_LID -> CLOSED")
+                }
+            },
+            onOpened = {
+                handler.post {
+                    thorLidClosed = false
+                    handler.removeCallbacks(thorCloseGuardRunnable)
+                    handler.removeCallbacks(thorScreenOnRecheckRunnable)
+                    Log.i(TAG, "Thor SW_LID -> OPEN")
+                }
+            },
+            onError = { error ->
+                Log.e(TAG, "Thor lid monitor failed", error)
+                handler.post {
+                    AppPreferences.recordEvent(
+                        this,
+                        "AYN Thor protection unavailable"
+                    )
+                    stopThorLidMonitor()
+                }
+            }
+        )
+
+        if (monitor.start()) {
+            thorLidMonitor = monitor
+            Log.i(TAG, "Thor lid monitor started on ${ThorLidMonitor.findHallDevicePath()}")
+        } else {
+            Log.w(TAG, "No hall_switch input device found; Thor protection unavailable")
+        }
+    }
+
+    private fun stopThorLidMonitor() {
+        handler.removeCallbacks(thorCloseGuardRunnable)
+        handler.removeCallbacks(thorScreenOnRecheckRunnable)
+        thorLidClosed = false
+        thorLidMonitor?.stop()
+        thorLidMonitor = null
+    }
+
+    private fun maybeReturnThorToSleep(reason: String) {
+        if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (!powerManager.isInteractive) return
+
+        val now = SystemClock.elapsedRealtime()
+        val sinceLastLock = now - lastThorLockAt
+        if (sinceLastLock < THOR_LOCK_COOLDOWN_MS) {
+            // AYN Thor can briefly bounce awake again after lockNow(). Do not
+            // fire duplicate calls immediately, but always schedule a retry
+            // after the cooldown so a second closed-lid wake cannot remain awake.
+            handler.removeCallbacks(thorScreenOnRecheckRunnable)
+            handler.postDelayed(
+                thorScreenOnRecheckRunnable,
+                THOR_LOCK_COOLDOWN_MS - sinceLastLock + 100L
+            )
+            return
+        }
+
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
+        if (!dpm.isAdminActive(thorAdminComponent)) {
+            Log.w(TAG, "Thor protection skipped: Device Admin not active")
+            return
+        }
+
+        try {
+            lastThorLockAt = now
+            handler.removeCallbacks(followRunnable)
+            Log.i(TAG, "Thor protection -> lockNow() ($reason)")
+            AppPreferences.recordEvent(
+                this,
+                "Protection → AYN Thor returned to sleep"
+            )
+            dpm.lockNow()
+
+            // Verify again after the transition. If the Thor is asleep this is
+            // a no-op; if its controller caused another bounce while still
+            // closed, the same guarded path puts it back to sleep.
+            handler.removeCallbacks(thorScreenOnRecheckRunnable)
+            handler.postDelayed(
+                thorScreenOnRecheckRunnable,
+                THOR_LOCK_COOLDOWN_MS + 150L
+            )
+        } catch (t: Throwable) {
+            Log.e(TAG, "Unable to return Thor to sleep", t)
         }
     }
 
@@ -334,9 +489,24 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(followRunnable)
+        handler.removeCallbacks(thorCloseGuardRunnable)
+        handler.removeCallbacks(thorScreenOnRecheckRunnable)
+        stopThorLidMonitor()
+
         if (receiverRegistered) {
-            try { unregisterReceiver(screenReceiver) } catch (_: IllegalArgumentException) {}
+            try {
+                unregisterReceiver(screenReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
             receiverRegistered = false
+        }
+
+        if (helperResultReceiverRegistered) {
+            try {
+                unregisterReceiver(helperResultReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            helperResultReceiverRegistered = false
         }
 
         HelperController.restoreNow(this)
