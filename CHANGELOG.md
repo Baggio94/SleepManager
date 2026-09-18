@@ -2,6 +2,29 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.4.0 — 2026-09-19
+
+### Highlights
+
+- New modern UI with permanent side navigation, clearer states, Activity log and expanded About page.
+- Advanced sleep rules: grace period, custom delay, battery, charging, Battery Saver and schedule conditions.
+- Tailscale integration with state-aware disconnect/reconnect.
+- Improved Syncthing-Fork state detection and network-ready restore.
+- Persistent sleep/wake transactions that restore only what SleepManager actually changed.
+- Quick Settings tile for enabling or disabling SleepManager.
+- Standard Android haptic and click feedback throughout the UI.
+- AYN Thor closed-lid protection: if the Thor wakes while the lid is still closed, SleepManager puts it back to sleep instead of running the normal wake sequence.
+
+### Notes
+
+- Fresh installs default to **Immediate** grace period, **Custom delay OFF**, sleep actions OFF and Advanced conditions OFF.
+- Advanced conditions use **AND logic**.
+- SleepManager does not require root, Shizuku or ADB on the device.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
+
+---
+
 ## 0.4.0-dev1 — 2026-09-18 — Preview
 
 ### Highlights
