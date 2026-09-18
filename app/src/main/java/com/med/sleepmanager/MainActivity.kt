@@ -459,7 +459,8 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         Text("3. Wake the device normally, then reopen SleepManager.")
-                        Text("4. Last activity should show the wake result. Copy diagnostics should show Transaction → Active: false.")
+                        Text("4. Last activity and View log should show the wake result.")
+                        Text("Copy log includes the full transaction details if needed.")
                     }
                 },
                 confirmButton = {
