@@ -8,6 +8,7 @@ object AppPreferences {
     private const val KEY_WIFI = "wifi"
     private const val KEY_BLUETOOTH = "bluetooth"
     private const val KEY_SYNCTHING = "syncthing"
+    private const val KEY_TAILSCALE = "tailscale"
     private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_SLEEP_GRACE_MS = "sleep_grace_ms"
     private const val KEY_CUSTOM_DELAY_ENABLED = "custom_delay_enabled"
@@ -42,6 +43,12 @@ object AppPreferences {
     fun manageSyncthing(context: Context) = prefs(context).getBoolean(KEY_SYNCTHING, false)
     fun setManageSyncthing(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_SYNCTHING, value).apply()
+
+    fun manageTailscale(context: Context) =
+        prefs(context).getBoolean(KEY_TAILSCALE, false)
+
+    fun setManageTailscale(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_TAILSCALE, value).apply()
 
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
