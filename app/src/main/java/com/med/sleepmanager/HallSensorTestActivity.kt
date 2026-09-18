@@ -172,6 +172,7 @@ class HallSensorTestActivity : ComponentActivity() {
                             } else {
                                 (previous + "\n" + "$timestamp  SW_LID → $state")
                                     .lineSequence()
+                                    .toList()
                                     .takeLast(8)
                                     .joinToString("\n")
                             }
