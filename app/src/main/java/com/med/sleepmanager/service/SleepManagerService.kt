@@ -276,7 +276,6 @@ class SleepManagerService : Service() {
 
         cancelNetworkReadyWait()
         cancelSleepDelay()
-        cancelTailscaleVerification()
         handler.removeCallbacks(sleepRadioRunnable)
         pendingSleepWifi = false
         pendingSleepBluetooth = false
@@ -284,7 +283,7 @@ class SleepManagerService : Service() {
         sleepSkippedByConditions = false
         releaseSleepTransitionWakeLock()
 
-        resolvePendingTailscaleVerificationForWake()
+        prepareTailscaleVerificationForWake()
 
         val cycle = SleepCycleStore.current(this)
         val helperRestoreNeeded =
