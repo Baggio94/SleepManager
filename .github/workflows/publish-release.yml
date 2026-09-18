@@ -2,6 +2,8 @@ name: Publish stable release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -10,6 +12,7 @@ permissions:
 
 jobs:
   release:
+    if: github.ref_type == 'tag' || startsWith(github.event.head_commit.message, 'Release ')
     runs-on: ubuntu-latest
 
     env:
@@ -75,10 +78,10 @@ jobs:
               ;;
           esac
 
-          [ "$GITHUB_REF_NAME" = "v$VERSION_NAME" ] || {
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION_NAME" ]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match gradle.properties version v$VERSION_NAME."
             exit 1
-          }
+          fi
 
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=v$VERSION_NAME" >> "$GITHUB_ENV"
