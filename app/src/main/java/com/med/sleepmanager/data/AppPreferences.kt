@@ -20,7 +20,7 @@ object AppPreferences {
     fun setEnabled(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_ENABLED, value).apply()
 
-    fun manageWifi(context: Context) = prefs(context).getBoolean(KEY_WIFI, true)
+    fun manageWifi(context: Context) = prefs(context).getBoolean(KEY_WIFI, false)
     fun setManageWifi(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_WIFI, value).apply()
 
@@ -28,7 +28,7 @@ object AppPreferences {
     fun setManageBluetooth(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_BLUETOOTH, value).apply()
 
-    fun manageSyncthing(context: Context) = prefs(context).getBoolean(KEY_SYNCTHING, true)
+    fun manageSyncthing(context: Context) = prefs(context).getBoolean(KEY_SYNCTHING, false)
     fun setManageSyncthing(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_SYNCTHING, value).apply()
 
