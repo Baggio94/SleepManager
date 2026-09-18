@@ -617,7 +617,7 @@ class SleepManagerService : Service() {
             return
         }
 
-        if (!TailscaleController.hasAnyVpnTransport(this)) {
+        if (!TailscaleController.isConnected(this)) {
             SleepCycleStore.recordConnectorChange(
                 this,
                 TailscaleConnector.id,
@@ -746,7 +746,7 @@ class SleepManagerService : Service() {
             return
         }
 
-        if (TailscaleController.hasAnyVpnTransport(this)) {
+        if (TailscaleController.isConnected(this)) {
             SleepCycleStore.clearConnectorChange(this, TailscaleConnector.id)
             Log.i(TAG, "Tailscale reconnect verified")
 
