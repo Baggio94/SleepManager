@@ -442,6 +442,32 @@ class MainActivity : ComponentActivity() {
             isThorAdminActive()
         }
 
+        if (showTestDialog) {
+            AlertDialog(
+                onDismissRequest = { showTestDialog = false },
+                title = { Text("Test sleep / wake") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("1. Turn the screen off normally.")
+                        Text(
+                            if (sleepGraceMs > 0L) {
+                                "2. Leave it off for more than ${sleepGraceMs / 1000}s so the grace period can finish."
+                            } else {
+                                "2. Leave it off for a few seconds."
+                            }
+                        )
+                        Text("3. Wake the device normally, then reopen SleepManager.")
+                        Text("4. Last activity should show the wake result. Copy diagnostics should show Transaction → Active: false.")
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTestDialog = false }) {
+                        Text("Got it")
+                    }
+                }
+            )
+        }
+
         if (showTargetDialog) {
             SyncthingTargetDialog(
                 targets = targets,
