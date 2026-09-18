@@ -43,11 +43,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.OutlinedButton
@@ -93,6 +96,22 @@ private enum class AppSection {
     ACTIVITY_LOG,
     ABOUT
 }
+
+private val AppSection.label: String
+    get() = when (this) {
+        AppSection.HOME -> "Home"
+        AppSection.ADVANCED -> "Advanced settings"
+        AppSection.ACTIVITY_LOG -> "Activity log"
+        AppSection.ABOUT -> "About"
+    }
+
+private val AppSection.iconRes: Int
+    get() = when (this) {
+        AppSection.HOME -> R.drawable.ic_home
+        AppSection.ADVANCED -> R.drawable.ic_advanced
+        AppSection.ACTIVITY_LOG -> R.drawable.ic_activity_log
+        AppSection.ABOUT -> R.drawable.ic_info
+    }
 
 class MainActivity : ComponentActivity() {
 
@@ -633,15 +652,14 @@ class MainActivity : ComponentActivity() {
                         )
 
                         AppSection.values().forEach { section ->
-                            val label = when (section) {
-                                AppSection.HOME -> "Home"
-                                AppSection.ADVANCED -> "Advanced settings"
-                                AppSection.ACTIVITY_LOG -> "Activity log"
-                                AppSection.ABOUT -> "About"
-                            }
-
                             NavigationDrawerItem(
-                                label = { Text(label) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(section.iconRes),
+                                        contentDescription = null
+                                    )
+                                },
+                                label = { Text(section.label) },
                                 selected = currentSection == section,
                                 onClick = {
                                     currentSection = section
@@ -653,19 +671,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         ) {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
+            Row(modifier = Modifier.fillMaxSize()) {
+                CompactSideRail(
+                    currentSection = currentSection,
+                    onSectionSelected = { currentSection = it },
+                    onMenuClick = {
+                        drawerScope.launch { drawerState.open() }
+                    }
+                )
+
+                Scaffold(
+                    modifier = Modifier.weight(1f),
+                    containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     TopAppBar(
-                        navigationIcon = {
-                            TextButton(
-                                onClick = {
-                                    drawerScope.launch { drawerState.open() }
-                                }
-                            ) {
-                                Text("☰")
-                            }
-                        },
                         title = {
                             Column {
                                 Text(
@@ -1081,11 +1100,45 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-        }
+                }
+            }
         }
     }
     companion object {
         private const val STATUS_REFRESH_INTERVAL_MS = 1000L
+    }
+}
+
+@Composable
+private fun CompactSideRail(
+    currentSection: AppSection,
+    onSectionSelected: (AppSection) -> Unit,
+    onMenuClick: () -> Unit
+) {
+    NavigationRail(
+        modifier = Modifier.width(72.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        header = {
+            IconButton(onClick = onMenuClick) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_menu),
+                    contentDescription = "Open navigation"
+                )
+            }
+        }
+    ) {
+        AppSection.values().forEach { section ->
+            NavigationRailItem(
+                selected = currentSection == section,
+                onClick = { onSectionSelected(section) },
+                icon = {
+                    Icon(
+                        painter = painterResource(section.iconRes),
+                        contentDescription = section.label
+                    )
+                }
+            )
+        }
     }
 }
 
