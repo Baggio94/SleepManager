@@ -1,6 +1,6 @@
-# SleepManager 0.4.0-dev1
+# SleepManager 0.4.0
 
-A preview of the upcoming 0.4.0 release, focused on a simpler UI, smarter sleep rules and more reliable app integrations.
+SleepManager 0.4.0 focuses on a simpler UI, smarter sleep rules and more reliable app integrations.
 
 ## Highlights
 
@@ -72,6 +72,3 @@ On a fresh install:
 
 No root, Shizuku or ADB is required on the device.
 
-## Preview status
-
-This is a **development preview** of 0.4.0. The new features are implemented, but the full final regression pass on emulator and AYN Thor is still in progress before the stable 0.4.0 release.
