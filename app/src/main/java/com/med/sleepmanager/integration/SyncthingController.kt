@@ -139,24 +139,25 @@ object SyncthingController {
                 )
                 socket.soTimeout = HEALTH_TIMEOUT_MS
 
-                BufferedWriter(
-                    OutputStreamWriter(socket.getOutputStream())
-                ).use { writer ->
-                    writer.write(
-                        "GET /rest/noauth/health HTTP/1.1\r\n" +
-                            "Host: $DEFAULT_GUI_HOST:$DEFAULT_GUI_PORT\r\n" +
-                            "Connection: close\r\n\r\n"
+                val writer =
+                    BufferedWriter(
+                        OutputStreamWriter(socket.getOutputStream())
                     )
-                    writer.flush()
+                writer.write(
+                    "GET /rest/noauth/health HTTP/1.1\r\n" +
+                        "Host: $DEFAULT_GUI_HOST:$DEFAULT_GUI_PORT\r\n" +
+                        "Connection: close\r\n\r\n"
+                )
+                writer.flush()
 
+                val reader =
                     BufferedReader(
                         InputStreamReader(socket.getInputStream())
-                    ).use { reader ->
-                        val statusLine = reader.readLine()
-                            ?: return@runCatching false
-                        statusLine.contains(" 200 ")
-                    }
-                }
+                    )
+                val statusLine = reader.readLine()
+                    ?: return@runCatching false
+
+                statusLine.contains(" 200 ")
             }
         }.getOrDefault(false)
 
