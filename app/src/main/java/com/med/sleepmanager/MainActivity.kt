@@ -1299,7 +1299,7 @@ private fun SettingRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (enabled || !dimWhenDisabled) {
+            color = if (enabled) {
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
@@ -1308,10 +1308,10 @@ private fun SettingRow(
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = if (enabled || !dimWhenDisabled) {
+                tint = if (enabled) {
                     MaterialTheme.colorScheme.onSecondaryContainer
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                 },
                 modifier = Modifier
                     .padding(10.dp)
