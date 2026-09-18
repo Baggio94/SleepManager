@@ -450,16 +450,18 @@ class MainActivity : ComponentActivity() {
                 title = { Text("Test sleep / wake") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("1. Turn the screen off normally.")
+                        Text("1. Choose the sleep actions you want to test below.")
+                        Text("2. Enable SleepManager at the top of the app.")
+                        Text("3. Turn the screen off normally.")
                         Text(
                             if (sleepGraceMs > 0L) {
-                                "2. Leave it off for more than ${sleepGraceMs / 1000}s so the grace period can finish."
+                                "4. Leave it off for more than ${sleepGraceMs / 1000}s so the grace period can finish."
                             } else {
-                                "2. Leave it off for a few seconds."
+                                "4. Leave it off for a few seconds."
                             }
                         )
-                        Text("3. Wake the device normally, then reopen SleepManager.")
-                        Text("4. Last activity and View log should show the wake result.")
+                        Text("5. Wake the device normally, then reopen SleepManager.")
+                        Text("6. Last activity and View log should show the sleep / wake result.")
                         Text("Copy log includes the full transaction details if needed.")
                     }
                 },
