@@ -59,6 +59,22 @@ object SleepConditionEvaluator {
     }
 
     private fun currentBatteryPercent(context: Context): Int? {
+        val batteryIntent = context.registerReceiver(
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        )
+
+        if (batteryIntent != null) {
+            val level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+
+            if (level >= 0 && scale > 0) {
+                return ((level * 100f) / scale)
+                    .toInt()
+                    .coerceIn(0, 100)
+            }
+        }
+
         val batteryManager =
             context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
         val value = batteryManager?.getIntProperty(
