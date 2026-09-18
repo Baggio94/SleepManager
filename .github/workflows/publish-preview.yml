@@ -1,10 +1,12 @@
-name: Publish release
+name: Publish preview release
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - ".github/workflows/publish-preview.yml"
+    tags:
+      - "v*-dev*"
+      - "v*-beta*"
+      - "v*-rc*"
 
 permissions:
   contents: write
@@ -12,6 +14,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    env:
+      SLEEPMANAGER_STORE_PASSWORD: ${{ secrets.SLEEPMANAGER_KEYSTORE_PASSWORD }}
+      SLEEPMANAGER_KEY_ALIAS: ${{ secrets.SLEEPMANAGER_KEY_ALIAS }}
+      SLEEPMANAGER_KEY_PASSWORD: ${{ secrets.SLEEPMANAGER_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -26,99 +33,90 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platform-tools"             "platforms;android-36"             "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.0"
 
-      - name: Build APKs
-        run: gradle :app:assembleDebug :helper:assembleDebug
+      - name: Prepare stable signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SLEEPMANAGER_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$KEYSTORE_B64" ]             || [ -z "$SLEEPMANAGER_STORE_PASSWORD" ]             || [ -z "$SLEEPMANAGER_KEY_ALIAS" ]             || [ -z "$SLEEPMANAGER_KEY_PASSWORD" ]; then
+            echo "::error::Stable signing secrets are not fully configured."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/sleepmanager-signing.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "SLEEPMANAGER_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Read version
+        run: |
+          set -euo pipefail
+          VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)
+          [ -n "$VERSION_NAME" ] || {
+            echo "::error::Version name is missing."
+            exit 1
+          }
+
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$VERSION_NAME" >> "$GITHUB_ENV"
+
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match gradle.properties version v$VERSION_NAME."
+            exit 1
+          fi
+
+      - name: Build signed APKs
+        run: gradle :app:assembleRelease :helper:assembleRelease
+
+      - name: Verify package IDs and signatures
+        run: |
+          set -euo pipefail
+
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+
+          MAIN_APK="app/build/outputs/apk/release/app-release.apk"
+          HELPER_APK="helper/build/outputs/apk/release/helper-release.apk"
+
+          MAIN_PACKAGE=$("$AAPT" dump badging "$MAIN_APK"             | sed -n "s/^package: name='\([^']*\)'.*/\1/p"             | head -n 1)
+          HELPER_PACKAGE=$("$AAPT" dump badging "$HELPER_APK"             | sed -n "s/^package: name='\([^']*\)'.*/\1/p"             | head -n 1)
+
+          [ "$MAIN_PACKAGE" = "com.med.sleepmanager" ]
+          [ "$HELPER_PACKAGE" = "com.med.sleepmanager.helper" ]
+
+          MAIN_CERT=$("$APKSIGNER" verify --print-certs "$MAIN_APK"             | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+          HELPER_CERT=$("$APKSIGNER" verify --print-certs "$HELPER_APK"             | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+
+          EXPECTED_CERT=$(sed -n 's/^SLEEPMANAGER_SIGNING_SHA256=//p' gradle.properties             | tr '[:upper:]' '[:lower:]'             | tr -d ':')
+
+          [ "$MAIN_CERT" = "$HELPER_CERT" ]
+          [ "$MAIN_CERT" = "$EXPECTED_CERT" ]
 
       - name: Prepare release files
         run: |
+          set -euo pipefail
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/SleepManager-0.3.1-debug.apk
-          cp helper/build/outputs/apk/debug/helper-debug.apk dist/SleepManager-Helper-0.3.1-debug.apk
 
-      - name: Publish GitHub release
+          cp app/build/outputs/apk/release/app-release.apk             "dist/SleepManager-$VERSION_NAME.apk"
+          cp helper/build/outputs/apk/release/helper-release.apk             "dist/SleepManager-Helper-$VERSION_NAME.apk"
+
+      - name: Publish GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > release-notes.md <<'EOF'
-          # SleepManager 0.3.1
+          set -euo pipefail
 
-          SleepManager 0.3.1 adds AYN Thor closed-lid protection, improves sleep/wake robustness, and refreshes the app's visual identity.
-
-          ## What's new
-          - **AYN Thor closed-lid protection**
-            - Detects the Thor hardware lid switch directly.
-            - Suppresses normal wake restoration when the device wakes while the lid is still closed.
-            - Automatically returns the Thor to sleep after accidental trigger wake-ups.
-            - Handles repeated wake bounces while the lid remains closed.
-            - Finds the hall_switch input dynamically instead of relying on a fixed /dev/input/eventX path.
-            - Requires a one-time Android Device Admin permission only when this feature is enabled.
-          - **Refreshed SleepManager icon**
-            - More depth, richer gradients, highlights and sharper detail.
-            - Proper adaptive-icon foreground/background structure and monochrome themed-icon support.
-          - **New Thor protection icon**
-            - Android-friendly clamshell + lock icon for the closed-lid protection setting.
-
-          ## Fixed and improved
-          - Fixed re-enabling AYN Thor protection unexpectedly closing the SleepManager UI before the Device Admin confirmation screen appeared.
-          - Debounced duplicate SCREEN_OFF events so sleep actions are not sent twice during Thor wake bounces.
-          - Wake restoration remains suppressed until the Thor lid is actually opened.
-          - Existing Wi-Fi and Bluetooth previous-state restoration remains independent for every ON/OFF combination.
-          - Clarified compatibility: SleepManager supports **Android 9 / API 28 and newer**. The main app targets Android 16 / API 36.
-
-          ## Installation
-          1. Download and install `SleepManager-0.3.1-debug.apk`.
-          2. Install `SleepManager-Helper-0.3.1-debug.apk` if you want Wi-Fi or Bluetooth control.
-          3. Open SleepManager and enable the actions you want.
-          4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast**.
-          5. On AYN Thor, enabling closed-lid protection will request the required Device Admin permission.
-
-          The Helper has no launcher icon or UI and does not require root, Shizuku or ADB.
-
-          ## Sleep / wake behavior
-          - Screen OFF → Syncthing-Fork pauses, then selected radios turn off.
-          - Normal wake → selected radios restore to their previous state, then Syncthing-Fork resumes.
-          - Thor closed-lid accidental wake → normal wake actions are suppressed and the device is returned to sleep.
-          - When connectivity is managed, SleepManager currently waits 2.5 seconds before sending FOLLOW to Syncthing-Fork.
-
-          ## Validation
-          During 0.3.1 testing on AYN Thor:
-          - Wi-Fi/Bluetooth previous-state restoration passed all four starting combinations: ON/ON, ON/OFF, OFF/ON and OFF/OFF.
-          - Syncthing-Fork STOP/FOLLOW behavior remained correct.
-          - Closed-lid accidental trigger wake was detected and returned to sleep without duplicate sleep actions.
-
-          Airplane mode remains intentionally disabled until a safe no-ADB method is available.
-
-          See the README for the full setup and usage guide.
-          EOF
-
-          if gh release view v0.3.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit v0.3.1 \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "SleepManager 0.3.1" \
-              --notes-file release-notes.md \
-              --prerelease=false \
-              --latest
-            gh release upload v0.3.1 \
-              dist/SleepManager-0.3.1-debug.apk \
-              dist/SleepManager-Helper-0.3.1-debug.apk \
-              --repo "$GITHUB_REPOSITORY" \
-              --clobber
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG"               --repo "$GITHUB_REPOSITORY"               --title "SleepManager $VERSION_NAME"               --notes-file RELEASE_NOTES.md               --prerelease
           else
-            gh release create v0.3.1 \
-              dist/SleepManager-0.3.1-debug.apk \
-              dist/SleepManager-Helper-0.3.1-debug.apk \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "SleepManager 0.3.1" \
-              --notes-file release-notes.md \
-              --latest
+            gh release create "$RELEASE_TAG"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "SleepManager $VERSION_NAME"               --notes-file RELEASE_NOTES.md               --prerelease
           fi
+
+          gh release upload "$RELEASE_TAG"             "dist/SleepManager-$VERSION_NAME.apk"             "dist/SleepManager-Helper-$VERSION_NAME.apk"             --repo "$GITHUB_REPOSITORY"             --clobber
