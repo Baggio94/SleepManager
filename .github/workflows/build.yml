@@ -1,0 +1,131 @@
+name: Build signed SleepManager APKs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      SLEEPMANAGER_STORE_PASSWORD: ${{ secrets.SLEEPMANAGER_KEYSTORE_PASSWORD }}
+      SLEEPMANAGER_KEY_ALIAS: ${{ secrets.SLEEPMANAGER_KEY_ALIAS }}
+      SLEEPMANAGER_KEY_PASSWORD: ${{ secrets.SLEEPMANAGER_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.0"
+
+      - name: Prepare stable signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.SLEEPMANAGER_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$KEYSTORE_B64" ] \
+            || [ -z "$SLEEPMANAGER_STORE_PASSWORD" ] \
+            || [ -z "$SLEEPMANAGER_KEY_ALIAS" ] \
+            || [ -z "$SLEEPMANAGER_KEY_PASSWORD" ]; then
+            echo "::error::Stable signing secrets are not fully configured."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/sleepmanager-signing.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+
+          echo "SLEEPMANAGER_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
+      - name: Build signed release APKs
+        run: gradle :app:assembleRelease :helper:assembleRelease
+
+      - name: Verify package IDs and signatures
+        run: |
+          set -euo pipefail
+
+          AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+
+          MAIN_APK="app/build/outputs/apk/release/app-release.apk"
+          HELPER_APK="helper/build/outputs/apk/release/helper-release.apk"
+
+          MAIN_PACKAGE=$("$AAPT" dump badging "$MAIN_APK" \
+            | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+            | head -n 1)
+          HELPER_PACKAGE=$("$AAPT" dump badging "$HELPER_APK" \
+            | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+            | head -n 1)
+
+          [ "$MAIN_PACKAGE" = "com.med.sleepmanager" ] || {
+            echo "::error::Unexpected main package ID: $MAIN_PACKAGE"
+            exit 1
+          }
+
+          [ "$HELPER_PACKAGE" = "com.med.sleepmanager.helper" ] || {
+            echo "::error::Unexpected helper package ID: $HELPER_PACKAGE"
+            exit 1
+          }
+
+          MAIN_CERT=$("$APKSIGNER" verify --print-certs "$MAIN_APK" \
+            | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+          HELPER_CERT=$("$APKSIGNER" verify --print-certs "$HELPER_APK" \
+            | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+
+          [ -n "$MAIN_CERT" ] || {
+            echo "::error::Main APK is not signed."
+            exit 1
+          }
+
+          [ "$MAIN_CERT" = "$HELPER_CERT" ] || {
+            echo "::error::Main and Helper APKs use different signing certificates."
+            exit 1
+          }
+
+          echo "Package IDs verified."
+          echo "Main/Helper signing certificate verified: $MAIN_CERT"
+
+      - name: Prepare artifacts
+        run: |
+          set -euo pipefail
+
+          VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)
+          mkdir -p dist
+
+          cp app/build/outputs/apk/release/app-release.apk \
+            "dist/SleepManager-$VERSION_NAME.apk"
+          cp helper/build/outputs/apk/release/helper-release.apk \
+            "dist/SleepManager-Helper-$VERSION_NAME.apk"
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: SleepManager-${{ github.ref_name }}
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
