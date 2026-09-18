@@ -846,6 +846,7 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(sleepGraceRunnable)
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
         alarmManager?.cancel(sleepDelayPendingIntent())
+        alarmManager?.cancel(legacySleepDelayPendingIntent())
         sleepGracePending = false
         releaseSleepTransitionWakeLock()
     }
@@ -855,6 +856,15 @@ class SleepManagerService : Service() {
             this,
             SLEEP_DELAY_REQUEST_CODE,
             Intent(this, SleepDelayReceiver::class.java)
+                .setAction(ACTION_SLEEP_DELAY_ELAPSED),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+    private fun legacySleepDelayPendingIntent(): PendingIntent =
+        PendingIntent.getForegroundService(
+            this,
+            SLEEP_DELAY_REQUEST_CODE,
+            Intent(this, SleepManagerService::class.java)
                 .setAction(ACTION_SLEEP_DELAY_ELAPSED),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
