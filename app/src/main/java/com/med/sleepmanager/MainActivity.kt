@@ -57,8 +57,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
@@ -293,11 +295,12 @@ class MainActivity : ComponentActivity() {
         if (!enabled) {
             AppPreferences.setEnabled(this, false)
             stopService(Intent(this, SleepManagerService::class.java))
-            HelperController.restoreNow(this)
 
-            if (AppPreferences.manageSyncthing(this)) {
-                SyncthingController.sendFollow(this)
-            }
+            HelperController.restoreNow(this)
+            SleepCycleStore.markHelperRestored(this)
+
+            restoreSyncthingTransactionNow()
+            SleepCycleStore.completeIfRestored(this)
 
             AppPreferences.recordEvent(this, "SleepManager disabled")
             return
@@ -357,6 +360,19 @@ class MainActivity : ComponentActivity() {
                 "Unable to start: ${t.javaClass.simpleName}",
                 Toast.LENGTH_LONG
             ).show()
+        }
+    }
+
+    private fun restoreSyncthingTransactionNow() {
+        val change =
+            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
+                ?: return
+
+        val result = SyncthingConnector.wake(this, change.restoreToken)
+        SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
+
+        if (!result.success) {
+            AppPreferences.recordEvent(this, "Syncthing restore failed")
         }
     }
 
@@ -423,7 +439,14 @@ class MainActivity : ComponentActivity() {
                         previous != null &&
                         previous != target.packageName
                     ) {
-                        SyncthingController.sendFollowTo(this, previous)
+                        val change = SleepCycleStore.connectorChange(
+                            this,
+                            SyncthingConnector.id
+                        )
+                        if (change?.restoreToken == previous) {
+                            restoreSyncthingTransactionNow()
+                            SleepCycleStore.completeIfRestored(this)
+                        }
                     }
 
                     SyncthingController.select(this, target.packageName)
@@ -613,7 +636,8 @@ class MainActivity : ComponentActivity() {
                                 AppPreferences.setManageSyncthing(this@MainActivity, it)
 
                                 if (!it && managerEnabled) {
-                                    SyncthingController.sendFollow(this@MainActivity)
+                                    restoreSyncthingTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
                                 }
                             }
                         )
