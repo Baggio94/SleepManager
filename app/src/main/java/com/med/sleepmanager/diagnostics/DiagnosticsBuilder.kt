@@ -45,54 +45,54 @@ object DiagnosticsBuilder {
 
         return buildString {
             appendLine("SleepManager diagnostics")
-            appendLine("Generated: \${formatter.format(Date())}")
+            appendLine("Generated: ${formatter.format(Date())}")
             appendLine()
             appendLine("App")
-            appendLine("- Version: \$versionName (\$versionCode)")
-            appendLine("- Enabled: \${AppPreferences.isEnabled(context)}")
-            appendLine("- Service running: \${SleepManagerService.running}")
-            appendLine("- Sleep grace: \${AppPreferences.sleepGraceMs(context)} ms")
+            appendLine("- Version: $versionName ($versionCode)")
+            appendLine("- Enabled: ${AppPreferences.isEnabled(context)}")
+            appendLine("- Service running: ${SleepManagerService.running}")
+            appendLine("- Sleep grace: ${AppPreferences.sleepGraceMs(context)} ms")
             appendLine()
             appendLine("Device")
-            appendLine("- Model: \${Build.MANUFACTURER} \${Build.MODEL}")
-            appendLine("- Android: \${Build.VERSION.RELEASE} (SDK \${Build.VERSION.SDK_INT})")
-            appendLine("- Thor hall support: \${ThorLidMonitor.isSupported()}")
+            appendLine("- Model: ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("- Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+            appendLine("- Thor hall support: ${ThorLidMonitor.isSupported()}")
             appendLine()
             appendLine("Selected actions")
-            appendLine("- Wi-Fi: \${AppPreferences.manageWifi(context)}")
-            appendLine("- Bluetooth: \${AppPreferences.manageBluetooth(context)}")
-            appendLine("- Syncthing-Fork: \${AppPreferences.manageSyncthing(context)}")
-            appendLine("- Thor protection: \${AppPreferences.manageThorProtection(context)}")
+            appendLine("- Wi-Fi: ${AppPreferences.manageWifi(context)}")
+            appendLine("- Bluetooth: ${AppPreferences.manageBluetooth(context)}")
+            appendLine("- Syncthing-Fork: ${AppPreferences.manageSyncthing(context)}")
+            appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
             appendLine()
             appendLine("Current state")
-            appendLine("- Wi-Fi: \${formatState(wifiState)}")
-            appendLine("- Bluetooth: \${formatState(bluetoothState)}")
-            appendLine("- Helper: \${if (helperVersion != null) "installed • \$helperVersion" else "not installed"}")
+            appendLine("- Wi-Fi: ${formatState(wifiState)}")
+            appendLine("- Bluetooth: ${formatState(bluetoothState)}")
+            appendLine("- Helper: ${if (helperVersion != null) "installed • $helperVersion" else "not installed"}")
             appendLine(
                 "- Syncthing target: " +
-                    if (syncthing != null) "\${syncthing.displayName} • \${syncthing.packageName}"
+                    if (syncthing != null) "${syncthing.displayName} • ${syncthing.packageName}"
                     else "not detected"
             )
             appendLine()
             appendLine("Transaction")
-            appendLine("- Active: \${cycle.active}")
-            appendLine("- Cycle id: \${cycle.cycleId}")
-            appendLine("- Helper expected: \${cycle.helperExpected}")
-            appendLine("- Helper sleep requested: \${cycle.helperSleepRequested}")
-            appendLine("- Helper restored: \${cycle.helperRestored}")
-            appendLine("- Wi-Fi managed: \${cycle.wifiManaged}")
-            appendLine("- Bluetooth managed: \${cycle.bluetoothManaged}")
-            appendLine("- Syncthing restore pending: \$syncthingPending")
+            appendLine("- Active: ${cycle.active}")
+            appendLine("- Cycle id: ${cycle.cycleId}")
+            appendLine("- Helper expected: ${cycle.helperExpected}")
+            appendLine("- Helper sleep requested: ${cycle.helperSleepRequested}")
+            appendLine("- Helper restored: ${cycle.helperRestored}")
+            appendLine("- Wi-Fi managed: ${cycle.wifiManaged}")
+            appendLine("- Bluetooth managed: ${cycle.bluetoothManaged}")
+            appendLine("- Syncthing restore pending: $syncthingPending")
 
             val events = EventHistoryStore.recent(context)
             appendLine()
-            appendLine("Recent activity (\${events.size})")
+            appendLine("Recent activity (${events.size})")
             if (events.isEmpty()) {
                 appendLine("- none")
             } else {
                 events.forEach { event ->
                     appendLine(
-                        "- \${formatter.format(Date(event.timestamp))} • \${event.message}"
+                        "- ${formatter.format(Date(event.timestamp))} • ${event.message}"
                     )
                 }
             }
