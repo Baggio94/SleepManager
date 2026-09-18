@@ -9,9 +9,7 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.widget.Toast
 import com.med.sleepmanager.data.AppPreferences
-import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
-import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
@@ -98,23 +96,11 @@ class SleepManagerTileService : TileService() {
 
     private fun disableManager() {
         AppPreferences.setEnabled(this, false)
-        stopService(Intent(this, SleepManagerService::class.java))
 
-        HelperController.restoreNow(this)
-        SleepCycleStore.markHelperRestored(this)
-
-        val change = SleepCycleStore.connectorChange(this, SyncthingConnector.id)
-        if (change != null) {
-            val result = SyncthingConnector.wake(this, change.restoreToken)
-            if (result.success) {
-                SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
-            } else {
-                AppPreferences.recordEvent(this, "Syncthing restore pending")
-            }
-        }
-
-        SleepCycleStore.completeIfRestored(this)
-        AppPreferences.recordEvent(this, "SleepManager disabled • Quick Settings")
+        val service = Intent(this, SleepManagerService::class.java)
+            .setAction(SleepManagerService.ACTION_DISABLE_AND_RESTORE)
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(service)
+        else startService(service)
     }
 
     private fun updateTile() {
