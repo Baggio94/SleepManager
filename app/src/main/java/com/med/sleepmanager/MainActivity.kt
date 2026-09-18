@@ -1116,7 +1116,7 @@ private fun CompactSideRail(
     onMenuClick: () -> Unit
 ) {
     NavigationRail(
-        modifier = Modifier.width(72.dp),
+        modifier = Modifier.width(64.dp),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         header = {
             IconButton(onClick = onMenuClick) {
@@ -1485,7 +1485,7 @@ private fun CompactIntegrationRow(
                 status?.let {
                     val active = it == "RUNNING" || it == "CONNECTED"
                     Text(
-                        "Current state: $it",
+                        "State: $it",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (active) {
@@ -1560,26 +1560,36 @@ private fun SleepGraceSelector(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            items(options.size) { index ->
-                val (label, value) = options[index]
+            options.forEach { (label, value) ->
                 FilterChip(
                     selected = !customDelayEnabled && valueMs == value,
                     onClick = { onChange(value) },
                     enabled = !customDelayEnabled,
-                    label = { Text(label) }
+                    modifier = Modifier.weight(1f),
+                    label = {
+                        Text(
+                            label,
+                            maxLines = 1
+                        )
+                    }
                 )
             }
 
-            item {
-                FilterChip(
-                    selected = customDelayEnabled,
-                    onClick = onCustom,
-                    label = { Text("Custom") }
-                )
-            }
+            FilterChip(
+                selected = customDelayEnabled,
+                onClick = onCustom,
+                modifier = Modifier.weight(1f),
+                label = {
+                    Text(
+                        "Custom",
+                        maxLines = 1
+                    )
+                }
+            )
         }
 
         if (customDelayEnabled) {
