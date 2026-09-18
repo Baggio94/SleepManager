@@ -66,12 +66,12 @@ object AppPreferences {
         prefs(context).edit().putBoolean(KEY_CUSTOM_DELAY_ENABLED, value).apply()
 
     fun customDelayMs(context: Context): Long {
-        val value = prefs(context).getLong(KEY_CUSTOM_DELAY_MS, 30_000L)
-        return if (value in CUSTOM_DELAY_VALUES) value else 30_000L
+        val value = prefs(context).getLong(KEY_CUSTOM_DELAY_MS, 60_000L)
+        return if (value in CUSTOM_DELAY_VALUES) value else 60_000L
     }
 
     fun setCustomDelayMs(context: Context, value: Long) {
-        val safeValue = if (value in CUSTOM_DELAY_VALUES) value else 30_000L
+        val safeValue = if (value in CUSTOM_DELAY_VALUES) value else 60_000L
         prefs(context).edit().putLong(KEY_CUSTOM_DELAY_MS, safeValue).apply()
     }
 
@@ -135,7 +135,7 @@ object AppPreferences {
     const val BATTERY_SAVER_OFF = "off"
 
     private val CUSTOM_DELAY_VALUES =
-        setOf(30_000L, 60_000L, 120_000L, 300_000L, 600_000L)
+        setOf(60_000L, 300_000L, 600_000L, 1_800_000L)
     private val BATTERY_SAVER_MODES =
         setOf(BATTERY_SAVER_IGNORE, BATTERY_SAVER_ON, BATTERY_SAVER_OFF)
 
