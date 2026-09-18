@@ -1,6 +1,7 @@
 package com.med.sleepmanager
 
 import android.app.TimePickerDialog
+import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
@@ -155,6 +156,7 @@ class MainActivity : ComponentActivity() {
     private var syncthingStateProbeRunning = false
     private var helperStateReceiverRegistered = false
     private var pendingThorAdminEnable = false
+    private var pendingExactAlarmEnable = false
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -252,6 +254,27 @@ class MainActivity : ComponentActivity() {
             !isThorAdminActive()
         ) {
             AppPreferences.setManageThorProtection(this, false)
+            activityRefreshToken++
+        }
+
+        if (pendingExactAlarmEnable) {
+            pendingExactAlarmEnable = false
+            val granted = canScheduleExactAlarms()
+            if (granted) {
+                AppPreferences.setCustomDelayEnabled(this, true)
+                AppPreferences.setSleepGraceMs(this, 0L)
+                Toast.makeText(
+                    this,
+                    "Precise custom delay enabled",
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(
+                    this,
+                    "Precise timing permission is required for Custom delay",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             activityRefreshToken++
         }
 
@@ -467,6 +490,43 @@ class MainActivity : ComponentActivity() {
             SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
         } else {
             AppPreferences.recordEvent(this, "Syncthing restore pending")
+        }
+    }
+
+    private fun canScheduleExactAlarms(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return true
+        }
+
+        val alarmManager =
+            getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                ?: return false
+
+        return alarmManager.canScheduleExactAlarms()
+    }
+
+    private fun requestExactAlarmAccess() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+
+        pendingExactAlarmEnable = true
+
+        val intent =
+            Intent(
+                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:$packageName")
+            )
+
+        runCatching {
+            startActivity(intent)
+        }.onFailure {
+            pendingExactAlarmEnable = false
+            Toast.makeText(
+                this,
+                "Open Alarms & reminders and allow SleepManager",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -1057,16 +1117,26 @@ class MainActivity : ComponentActivity() {
                                 scheduleEnabled = scheduleEnabled,
                                 scheduleStartMinutes = scheduleStartMinutes,
                                 scheduleEndMinutes = scheduleEndMinutes,
-                                onCustomDelayEnabledChange = {
-                                    customDelayEnabled = it
-                                    AppPreferences.setCustomDelayEnabled(this@MainActivity, it)
-
-                                    if (!it) {
-                                        sleepGraceMs = 0L
-                                        AppPreferences.setSleepGraceMs(
+                                onCustomDelayEnabledChange = { enabled ->
+                                    if (
+                                        enabled &&
+                                        !canScheduleExactAlarms()
+                                    ) {
+                                        requestExactAlarmAccess()
+                                    } else {
+                                        customDelayEnabled = enabled
+                                        AppPreferences.setCustomDelayEnabled(
                                             this@MainActivity,
-                                            0L
+                                            enabled
                                         )
+
+                                        if (!enabled) {
+                                            sleepGraceMs = 0L
+                                            AppPreferences.setSleepGraceMs(
+                                                this@MainActivity,
+                                                0L
+                                            )
+                                        }
                                     }
                                 },
                                 onCustomDelayChange = {
