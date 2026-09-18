@@ -61,6 +61,7 @@ class SleepManagerService : Service() {
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
     private var sleepActionsApplied = false
+    private var sleepSkippedByConditions = false
 
     private var pendingSleepWifi = false
     private var pendingSleepBluetooth = false
@@ -271,6 +272,7 @@ class SleepManagerService : Service() {
         pendingSleepWifi = false
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
+        sleepSkippedByConditions = false
         releaseSleepTransitionWakeLock()
 
         val cycle = SleepCycleStore.current(this)
@@ -399,6 +401,7 @@ class SleepManagerService : Service() {
 
         val conditions = SleepConditionEvaluator.evaluate(this)
         if (!conditions.met) {
+            sleepSkippedByConditions = true
             val reason = conditions.failedReasons.joinToString(" · ")
             Log.i(TAG, "Sleep actions skipped -> $reason")
             AppPreferences.recordEvent(
@@ -407,6 +410,8 @@ class SleepManagerService : Service() {
             )
             return
         }
+
+        sleepSkippedByConditions = false
 
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
@@ -644,7 +649,7 @@ class SleepManagerService : Service() {
             if (syncthingChange != null) {
                 waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
             } else {
-                if (!helperRestoreNeeded) {
+                if (!helperRestoreNeeded && !sleepSkippedByConditions) {
                     AppPreferences.recordEvent(
                         this,
                         buildWakeSummary(
@@ -663,6 +668,8 @@ class SleepManagerService : Service() {
         } else {
             SleepCycleStore.completeIfRestored(this)
         }
+
+        sleepSkippedByConditions = false
     }
 
     private fun waitForNetworkAndRestoreSyncthing(restoreToken: String?) {
