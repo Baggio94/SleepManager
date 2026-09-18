@@ -13,7 +13,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.net.Uri
 import android.text.format.DateFormat
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -1382,92 +1384,94 @@ private fun CompactIntegrationRow(
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = if (enabled) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = null,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
+            Surface(
+                shape = CircleShape,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.secondaryContainer
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier
-                    .padding(9.dp)
-                    .size(22.dp)
-            )
-        }
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                version,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            status?.let {
-                val active = it == "RUNNING" || it == "CONNECTED"
-                Text(
-                    "● $it",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (active) {
-                        MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+            ) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = if (enabled) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    },
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(22.dp)
                 )
             }
 
-            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    onOpen?.let { open ->
-                        TextButton(
-                            onClick = open,
-                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
-                        ) {
-                            Text("Open ›")
-                        }
-                    }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    version,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                    if (secondaryActionLabel != null && onSecondaryAction != null) {
-                        TextButton(
-                            onClick = onSecondaryAction,
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                        ) {
-                            Text(secondaryActionLabel)
+                status?.let {
+                    val active = it == "RUNNING" || it == "CONNECTED"
+                    Text(
+                        "Current state: $it",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (active) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
+                    )
+                }
+            }
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled
+            )
+        }
+
+        if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 70.dp, end = 16.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                onOpen?.let { open ->
+                    OutlinedButton(onClick = open) {
+                        Text("Open")
+                    }
+                }
+
+                if (secondaryActionLabel != null && onSecondaryAction != null) {
+                    TextButton(onClick = onSecondaryAction) {
+                        Text(secondaryActionLabel)
                     }
                 }
             }
         }
-
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
-        )
     }
 }
 @Composable
@@ -1860,6 +1864,32 @@ private fun AboutPage(context: Context) {
             context.packageManager.getPackageInfo(context.packageName, 0)
         }.getOrNull()
     }
+    val helperVersion = remember {
+        runCatching {
+            context.packageManager
+                .getPackageInfo(HelperController.PACKAGE, 0)
+                .versionName
+        }.getOrNull()
+    }
+
+    fun openUrl(url: String) {
+        runCatching {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            )
+        }
+    }
+
+    fun openAppInfo() {
+        runCatching {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${context.packageName}")
+                )
+            )
+        }
+    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1872,23 +1902,147 @@ private fun AboutPage(context: Context) {
         SettingsCard {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "How it works",
+                    "What SleepManager does",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "SleepManager applies only the sleep actions you select, remembers what it changed, and restores only those changes on a real wake.",
+                    "Automatically applies the sleep actions you choose when the screen turns off, then restores only the states SleepManager actually changed on wake.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    "Advanced conditions use AND logic: every enabled condition must be true before sleep actions are applied.",
+                    "Grace periods, advanced conditions, Syncthing‑Fork and Tailscale integrations, transaction-safe restore, and activity logs are built around the same rule: change only what is necessary.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        SectionTitle(
+            title = "App details",
+            subtitle = "Version and compatibility information."
+        )
+
+        SettingsCard {
+            AboutInfoRow(
+                label = "SleepManager",
+                value = packageInfo?.versionName ?: "Unknown"
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            AboutInfoRow(
+                label = "Compatibility helper",
+                value = helperVersion ?: "Not installed"
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            AboutInfoRow(
+                label = "Android",
+                value = "${Build.VERSION.RELEASE} • API ${Build.VERSION.SDK_INT}"
+            )
+        }
+
+        SectionTitle(
+            title = "Support & project",
+            subtitle = "Useful links for troubleshooting and development."
+        )
+
+        SettingsCard {
+            AboutActionRow(
+                title = "Source code",
+                subtitle = "View SleepManager on GitHub",
+                actionLabel = "Open",
+                onClick = {
+                    openUrl("https://github.com/Baggio94/SleepManager")
+                }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            AboutActionRow(
+                title = "Report an issue",
+                subtitle = "Open the GitHub issue tracker",
+                actionLabel = "Open",
+                onClick = {
+                    openUrl("https://github.com/Baggio94/SleepManager/issues")
+                }
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            AboutActionRow(
+                title = "Android app info",
+                subtitle = "Permissions, battery and storage settings",
+                actionLabel = "Open",
+                onClick = { openAppInfo() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutInfoRow(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun AboutActionRow(
+    title: String,
+    subtitle: String,
+    actionLabel: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        OutlinedButton(onClick = onClick) {
+            Text(actionLabel)
         }
     }
 }
