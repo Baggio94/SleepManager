@@ -1,5 +1,6 @@
 package com.med.sleepmanager.service
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -27,6 +28,7 @@ import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.network.NetworkReadyGate
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
+import com.med.sleepmanager.rules.SleepConditionEvaluator
 
 class SleepManagerService : Service() {
     companion object {
@@ -41,6 +43,9 @@ class SleepManagerService : Service() {
         private const val THOR_LOCK_COOLDOWN_MS = 900L
         const val ACTION_DISABLE_AND_RESTORE =
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
+        private const val ACTION_SLEEP_DELAY_ELAPSED =
+            "com.med.sleepmanager.action.SLEEP_DELAY_ELAPSED"
+        private const val SLEEP_DELAY_REQUEST_CODE = 5218
 
         @Volatile
         var running: Boolean = false
@@ -78,7 +83,7 @@ class SleepManagerService : Service() {
 
     private val sleepGraceRunnable = Runnable {
         sleepGracePending = false
-        Log.i(TAG, "Sleep grace elapsed -> applying sleep actions")
+        Log.i(TAG, "Sleep delay elapsed -> applying sleep actions")
         performFreshSleepActions()
     }
 
@@ -229,6 +234,24 @@ class SleepManagerService : Service() {
             return START_NOT_STICKY
         }
 
+        if (intent?.action == ACTION_SLEEP_DELAY_ELAPSED) {
+            if (!AppPreferences.isEnabled(this)) {
+                cancelSleepDelay()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (powerManager?.isInteractive == false && !SleepCycleStore.isActive(this)) {
+                sleepGracePending = false
+                Log.i(TAG, "Custom sleep delay elapsed -> evaluating advanced rules")
+                performFreshSleepActions()
+            } else {
+                cancelSleepDelay()
+            }
+            return START_STICKY
+        }
+
         if (!AppPreferences.isEnabled(this)) {
             stopSelf()
             return START_NOT_STICKY
@@ -245,8 +268,7 @@ class SleepManagerService : Service() {
         disableRestoreRequested = true
 
         cancelNetworkReadyWait()
-        handler.removeCallbacks(sleepGraceRunnable)
-        sleepGracePending = false
+        cancelSleepDelay()
         handler.removeCallbacks(sleepRadioRunnable)
         pendingSleepWifi = false
         pendingSleepBluetooth = false
@@ -357,18 +379,14 @@ class SleepManagerService : Service() {
             return
         }
         if (sleepGracePending) {
-            Log.i(TAG, "Screen OFF -> sleep grace already pending")
+            Log.i(TAG, "Screen OFF -> sleep delay already pending")
             return
         }
 
-        val sleepGraceMs = AppPreferences.sleepGraceMs(this)
-        if (sleepGraceMs > 0L) {
-            sleepGracePending = true
-            acquireSleepTransitionWakeLock(
-                sleepGraceMs + SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
-            )
-            handler.postDelayed(sleepGraceRunnable, sleepGraceMs)
-            Log.i(TAG, "Screen OFF -> sleep grace scheduled for ${sleepGraceMs}ms")
+        val sleepDelayMs = AppPreferences.effectiveSleepDelayMs(this)
+        if (sleepDelayMs > 0L) {
+            scheduleSleepDelay(sleepDelayMs)
+            Log.i(TAG, "Screen OFF -> sleep delay scheduled for ${sleepDelayMs}ms")
             return
         }
 
@@ -380,6 +398,17 @@ class SleepManagerService : Service() {
 
         handler.removeCallbacks(sleepRadioRunnable)
         releaseSleepTransitionWakeLock()
+
+        val conditions = SleepConditionEvaluator.evaluate(this)
+        if (!conditions.met) {
+            val reason = conditions.failedReasons.joinToString(" · ")
+            Log.i(TAG, "Sleep actions skipped -> $reason")
+            AppPreferences.recordEvent(
+                this,
+                "Sleep skipped → $reason"
+            )
+            return
+        }
 
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
@@ -470,6 +499,43 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun scheduleSleepDelay(delayMs: Long) {
+        cancelSleepDelay()
+        sleepGracePending = true
+
+        if (delayMs <= 10_000L) {
+            acquireSleepTransitionWakeLock(
+                delayMs + SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
+            )
+            handler.postDelayed(sleepGraceRunnable, delayMs)
+            return
+        }
+
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        alarmManager?.setAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + delayMs,
+            sleepDelayPendingIntent()
+        )
+    }
+
+    private fun cancelSleepDelay() {
+        handler.removeCallbacks(sleepGraceRunnable)
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        alarmManager?.cancel(sleepDelayPendingIntent())
+        sleepGracePending = false
+        releaseSleepTransitionWakeLock()
+    }
+
+    private fun sleepDelayPendingIntent(): PendingIntent =
+        PendingIntent.getForegroundService(
+            this,
+            SLEEP_DELAY_REQUEST_CODE,
+            Intent(this, SleepManagerService::class.java)
+                .setAction(ACTION_SLEEP_DELAY_ELAPSED),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
     private fun acquireSleepTransitionWakeLock(
         timeoutMs: Long = SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
     ) {
@@ -512,10 +578,8 @@ class SleepManagerService : Service() {
         }
 
         if (sleepGracePending) {
-            handler.removeCallbacks(sleepGraceRunnable)
-            sleepGracePending = false
-            releaseSleepTransitionWakeLock()
-            Log.i(TAG, "Sleep grace cancelled by wake")
+            cancelSleepDelay()
+            Log.i(TAG, "Sleep delay cancelled by wake")
         }
 
         handler.removeCallbacks(sleepRadioRunnable)
@@ -905,8 +969,12 @@ class SleepManagerService : Service() {
         cancelNetworkReadyWait()
         pendingNetworkRestoreToken = null
         disableRestoreRequested = false
-        handler.removeCallbacks(sleepGraceRunnable)
-        sleepGracePending = false
+        if (!AppPreferences.isEnabled(this)) {
+            cancelSleepDelay()
+        } else {
+            handler.removeCallbacks(sleepGraceRunnable)
+            sleepGracePending = false
+        }
         handler.removeCallbacks(sleepRadioRunnable)
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
