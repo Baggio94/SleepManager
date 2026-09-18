@@ -10,8 +10,8 @@ android {
         applicationId = "com.med.sleepmanager.helper"
         minSdk = 28
         targetSdk = 28
-        versionCode = 302
-        versionName = "0.3.0-dev3"
+        versionCode = 310
+        versionName = "0.3.1"
     }
 
     compileOptions {
