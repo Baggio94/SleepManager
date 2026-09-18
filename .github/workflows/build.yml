@@ -107,8 +107,23 @@ jobs:
             exit 1
           }
 
+          EXPECTED_CERT=$(sed -n 's/^SLEEPMANAGER_SIGNING_SHA256=//p' gradle.properties \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr -d ':')
+
+          [ -n "$EXPECTED_CERT" ] || {
+            echo "::error::Expected release certificate fingerprint is missing."
+            exit 1
+          }
+
+          [ "$MAIN_CERT" = "$EXPECTED_CERT" ] || {
+            echo "::error::Unexpected release signing certificate: $MAIN_CERT"
+            echo "::error::Expected: $EXPECTED_CERT"
+            exit 1
+          }
+
           echo "Package IDs verified."
-          echo "Main/Helper signing certificate verified: $MAIN_CERT"
+          echo "Pinned release signing certificate verified: $MAIN_CERT"
 
       - name: Prepare artifacts
         run: |
