@@ -334,7 +334,7 @@ class MainActivity : ComponentActivity() {
         // to lose focus. Do not treat that internal permission flow like the
         // user pressing Home, otherwise the SleepManager task is removed before
         // the confirmation screen can be shown.
-        if (pendingThorAdminEnable) {
+        if (pendingThorAdminEnable || pendingExactAlarmEnable) {
             return
         }
 
