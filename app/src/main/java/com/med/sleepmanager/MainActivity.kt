@@ -546,6 +546,19 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                if (!setupComplete) {
+                    item {
+                        OnboardingCard(
+                            helperInstalled = helperInstalled,
+                            helperVersion = helperVersion,
+                            syncthingTarget = selectedTarget,
+                            syncthingEnabled = syncthingEnabled,
+                            managerEnabled = managerEnabled,
+                            onShowTest = { showTestDialog = true }
+                        )
+                    }
+                }
+
                 item {
                     SectionTitle(
                         title = "When device sleeps",
@@ -739,7 +752,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                if (managerEnabled) {
+                if (managerEnabled && !setupComplete) {
                     item {
                         Button(
                             onClick = { finishSetup() },
