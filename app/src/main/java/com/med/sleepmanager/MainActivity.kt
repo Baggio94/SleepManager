@@ -198,9 +198,17 @@ class MainActivity : ComponentActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
 
+        // Opening Android's Device Admin confirmation also causes the Activity
+        // to lose focus. Do not treat that internal permission flow like the
+        // user pressing Home, otherwise the SleepManager task is removed before
+        // the confirmation screen can be shown.
+        if (pendingThorAdminEnable) {
+            return
+        }
+
         // SleepManager's foreground service is independent from the Activity.
-        // When the user leaves via Home / gesture navigation, remove only the UI task.
-        // The automation service keeps running in the background.
+        // When the user genuinely leaves via Home / gesture navigation, remove
+        // only the UI task. The automation service keeps running in background.
         if (AppPreferences.isEnabled(this)) {
             finishAndRemoveTask()
         }
