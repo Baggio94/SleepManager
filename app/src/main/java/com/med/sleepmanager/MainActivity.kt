@@ -1,5 +1,6 @@
 package com.med.sleepmanager
 
+import android.app.TimePickerDialog
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.ClipData
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -40,6 +42,11 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -53,6 +60,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +80,14 @@ import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
+
+private enum class AppSection {
+    HOME,
+    ADVANCED,
+    ACTIVITY_LOG,
+    ABOUT
+}
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -369,6 +385,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun showTimePicker(
+        initialMinutes: Int,
+        onSelected: (Int) -> Unit
+    ) {
+        val hour = initialMinutes / 60
+        val minute = initialMinutes % 60
+
+        TimePickerDialog(
+            this,
+            { _, selectedHour, selectedMinute ->
+                onSelected(selectedHour * 60 + selectedMinute)
+            },
+            hour,
+            minute,
+            true
+        ).show()
+    }
+
     private fun copyDiagnostics() {
         val diagnostics = DiagnosticsBuilder.build(
             context = this,
@@ -400,7 +434,9 @@ class MainActivity : ComponentActivity() {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
-        var showLogDialog by remember { mutableStateOf(false) }
+        var currentSection by remember { mutableStateOf(AppSection.HOME) }
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        val drawerScope = rememberCoroutineScope()
 
         var managerEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.isEnabled(this))
@@ -420,6 +456,36 @@ class MainActivity : ComponentActivity() {
         var sleepGraceMs by remember(refreshToken) {
             mutableStateOf(AppPreferences.sleepGraceMs(this))
         }
+        var customDelayEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.customDelayEnabled(this))
+        }
+        var customDelayMs by remember(refreshToken) {
+            mutableStateOf(AppPreferences.customDelayMs(this))
+        }
+        var batteryConditionEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.batteryConditionEnabled(this))
+        }
+        var batteryBelowPercent by remember(refreshToken) {
+            mutableStateOf(AppPreferences.batteryBelowPercent(this))
+        }
+        var notChargingOnly by remember(refreshToken) {
+            mutableStateOf(AppPreferences.notChargingOnly(this))
+        }
+        var batterySaverMode by remember(refreshToken) {
+            mutableStateOf(AppPreferences.batterySaverMode(this))
+        }
+        var scheduleEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.scheduleEnabled(this))
+        }
+        var scheduleStartMinutes by remember(refreshToken) {
+            mutableStateOf(AppPreferences.scheduleStartMinutes(this))
+        }
+        var scheduleEndMinutes by remember(refreshToken) {
+            mutableStateOf(AppPreferences.scheduleEndMinutes(this))
+        }
+        val effectiveSleepDelayMs =
+            if (customDelayEnabled) customDelayMs else sleepGraceMs
+
         val setupComplete = remember(refreshToken) {
             AppPreferences.isSetupComplete(this)
         }
@@ -455,8 +521,8 @@ class MainActivity : ComponentActivity() {
                         Text("2. Enable SleepManager at the top of the app.")
                         Text("3. Turn the screen off normally.")
                         Text(
-                            if (sleepGraceMs > 0L) {
-                                "4. Leave it off for more than ${sleepGraceMs / 1000}s so the grace period can finish."
+                            if (effectiveSleepDelayMs > 0L) {
+                                "4. Leave it off for more than ${formatDuration(effectiveSleepDelayMs)} so the sleep delay can finish."
                             } else {
                                 "4. Leave it off for a few seconds."
                             }
@@ -471,13 +537,6 @@ class MainActivity : ComponentActivity() {
                         Text("Got it")
                     }
                 }
-            )
-        }
-
-        if (showLogDialog) {
-            ActivityLogDialog(
-                context = this@MainActivity,
-                onDismiss = { showLogDialog = false }
             )
         }
 
