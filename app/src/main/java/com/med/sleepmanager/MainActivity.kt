@@ -81,13 +81,14 @@ import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
 
+import kotlinx.coroutines.launch
+
 private enum class AppSection {
     HOME,
     ADVANCED,
     ACTIVITY_LOG,
     ABOUT
 }
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -586,7 +587,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
 
-                        AppSection.entries.forEach { section ->
+                        AppSection.values().forEach { section ->
                             val label = when (section) {
                                 AppSection.HOME -> "Home"
                                 AppSection.ADVANCED -> "Advanced"
@@ -882,7 +883,29 @@ class MainActivity : ComponentActivity() {
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
-                        sleepGraceMs = effectiveSleepDelayMs
+                        sleepGraceMs = effectiveSleepDelayMs,
+                        advancedConditions = buildList {
+                            if (batteryConditionEnabled) {
+                                add("Battery below ${batteryBelowPercent}%")
+                            }
+                            if (notChargingOnly) {
+                                add("Device is not charging")
+                            }
+                            when (batterySaverMode) {
+                                AppPreferences.BATTERY_SAVER_ON ->
+                                    add("Battery Saver is ON")
+                                AppPreferences.BATTERY_SAVER_OFF ->
+                                    add("Battery Saver is OFF")
+                            }
+                            if (scheduleEnabled) {
+                                add(
+                                    "Time is between " +
+                                        formatTime(scheduleStartMinutes) +
+                                        " and " +
+                                        formatTime(scheduleEndMinutes)
+                                )
+                            }
+                        }
                     )
                 }
 
@@ -1726,15 +1749,20 @@ private fun BehaviorCard(
     bluetooth: Boolean,
     syncthing: Boolean,
     thorProtection: Boolean,
-    sleepGraceMs: Long
+    sleepGraceMs: Long,
+    advancedConditions: List<String>
 ) {
+    val hasSleepAction = wifi || bluetooth || syncthing
+
     val sleepLines = buildList {
-        if (sleepGraceMs > 0L && (wifi || bluetooth || syncthing)) {
-            add("Wait ${sleepGraceMs / 1000}s before applying sleep actions")
+        if (sleepGraceMs > 0L && hasSleepAction) {
+            add("Wait ${formatDuration(sleepGraceMs)} before applying sleep actions")
         }
+        advancedConditions.forEach { add("Only if $it") }
         if (syncthing) add("Stop Syncthing‑Fork")
         if (wifi) add("Turn Wi‑Fi off")
         if (bluetooth) add("Turn Bluetooth off")
+        if (!hasSleepAction) add("No sleep actions selected")
         if (thorProtection) add("Protect AYN Thor against closed-lid wake-ups")
     }
 
@@ -1763,7 +1791,7 @@ private fun BehaviorCard(
 
             BehaviorGroup(
                 title = "When screen turns OFF",
-                lines = sleepLines.ifEmpty { listOf("No sleep actions selected") }
+                lines = sleepLines
             )
 
             BehaviorGroup(
