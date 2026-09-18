@@ -7,7 +7,9 @@ import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
+import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
 import java.text.SimpleDateFormat
@@ -40,6 +42,10 @@ object DiagnosticsBuilder {
         val cycle = SleepCycleStore.current(context)
         val syncthingPending =
             SleepCycleStore.hasConnectorChange(context, SyncthingConnector.id)
+        val tailscalePending =
+            SleepCycleStore.connectorChange(context, TailscaleConnector.id)
+        val tailscaleVersion = TailscaleController.versionName(context)
+        val anyVpnActive = TailscaleController.hasAnyVpnTransport(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -65,6 +71,7 @@ object DiagnosticsBuilder {
             appendLine("- Wi-Fi: ${AppPreferences.manageWifi(context)}")
             appendLine("- Bluetooth: ${AppPreferences.manageBluetooth(context)}")
             appendLine("- Syncthing-Fork: ${AppPreferences.manageSyncthing(context)}")
+            appendLine("- Tailscale: ${AppPreferences.manageTailscale(context)}")
             appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
             appendLine()
             appendLine("Advanced conditions")
@@ -85,6 +92,12 @@ object DiagnosticsBuilder {
                     if (syncthing != null) "${syncthing.displayName} • ${syncthing.packageName}"
                     else "not detected"
             )
+            appendLine(
+                "- Tailscale: " +
+                    if (tailscaleVersion != null) "installed • $tailscaleVersion"
+                    else "not installed"
+            )
+            appendLine("- Any VPN transport active: $anyVpnActive")
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
@@ -95,6 +108,10 @@ object DiagnosticsBuilder {
             appendLine("- Wi-Fi managed: ${cycle.wifiManaged}")
             appendLine("- Bluetooth managed: ${cycle.bluetoothManaged}")
             appendLine("- Syncthing restore pending: $syncthingPending")
+            appendLine(
+                "- Tailscale transaction: " +
+                    (tailscalePending?.restoreToken ?: "none")
+            )
 
             val events = EventHistoryStore.recent(context)
             appendLine()
