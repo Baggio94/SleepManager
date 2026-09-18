@@ -863,16 +863,22 @@ class SleepManagerService : Service() {
 
         sleepActionsApplied = false
 
+        if (isTailscaleSleepVerificationPending()) {
+            prepareTailscaleVerificationForWake()
+        }
+
         val cycle = SleepCycleStore.current(this)
         val helperRestoreNeeded =
             cycle.active &&
                 cycle.helperExpected &&
                 !cycle.helperRestored
+        val networkRestoreNeeded = hasPendingNetworkConnectorRestore()
 
         Log.i(
             TAG,
             "Screen ON -> restoring cycle=${cycle.cycleId} active=${cycle.active} " +
-                "helperRestoreNeeded=$helperRestoreNeeded"
+                "helperRestoreNeeded=$helperRestoreNeeded " +
+                "networkRestoreNeeded=$networkRestoreNeeded"
         )
 
         lastWakeWifiManaged = false
@@ -880,19 +886,8 @@ class SleepManagerService : Service() {
         lastWakeBluetoothManaged = false
         lastWakeBluetoothChanged = false
 
-        val syncthingChange =
-            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
-
-        // Restoration must follow the persisted sleep transaction, not today's
-        // UI switches. The user may change options while the device is asleep.
-        // If Helper changed a radio for this cycle, let Helper restore that
-        // exact previous state before evaluating network readiness.
-        pendingNetworkRestoreToken =
-            if (helperRestoreNeeded && syncthingChange != null) {
-                syncthingChange.restoreToken
-            } else {
-                null
-            }
+        pendingNetworkRestoreAfterHelper =
+            helperRestoreNeeded && networkRestoreNeeded
 
         val helperSent = if (helperRestoreNeeded) {
             HelperController.sendWake(this)
@@ -903,7 +898,7 @@ class SleepManagerService : Service() {
         if (!helperSent) {
             lastWakeWifiManaged = false
             lastWakeBluetoothManaged = false
-            pendingNetworkRestoreToken = null
+            pendingNetworkRestoreAfterHelper = false
 
             if (helperRestoreNeeded) {
                 Log.w(
@@ -916,10 +911,14 @@ class SleepManagerService : Service() {
                 )
             }
 
-            if (syncthingChange != null) {
-                waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
+            if (networkRestoreNeeded) {
+                waitForNetworkAndRestorePendingConnectors()
             } else {
-                if (!helperRestoreNeeded && !sleepSkippedByConditions) {
+                if (
+                    !helperRestoreNeeded &&
+                    !sleepSkippedByConditions &&
+                    !SleepCycleStore.hasPendingConnectorChanges(this)
+                ) {
                     AppPreferences.recordEvent(
                         this,
                         buildWakeSummary(
@@ -932,17 +931,25 @@ class SleepManagerService : Service() {
                     )
                 }
                 SleepCycleStore.completeIfRestored(this)
+                finishDisableRestoreIfRequested()
             }
-        } else if (syncthingChange != null) {
-            Log.i(TAG, "Syncthing restore waiting for Helper wake result")
+        } else if (networkRestoreNeeded) {
+            Log.i(TAG, "Connector restore waiting for Helper wake result")
         } else {
             SleepCycleStore.completeIfRestored(this)
+            finishDisableRestoreIfRequested()
         }
 
         sleepSkippedByConditions = false
     }
 
-    private fun waitForNetworkAndRestoreSyncthing(restoreToken: String?) {
+    private fun waitForNetworkAndRestorePendingConnectors() {
+        if (!hasPendingNetworkConnectorRestore()) {
+            SleepCycleStore.completeIfRestored(this)
+            finishDisableRestoreIfRequested()
+            return
+        }
+
         cancelNetworkReadyWait()
 
         networkReadyGate = NetworkReadyGate(
@@ -963,31 +970,32 @@ class SleepManagerService : Service() {
                     TAG,
                     "Network ready result=$result while device is not in a real wake; restore deferred"
                 )
-            } else {
-                Log.i(TAG, "Network ready result=$result -> restoring Syncthing")
+                return@NetworkReadyGate
+            }
 
-                val wakeResult = SyncthingConnector.wake(this, restoreToken)
+            Log.i(TAG, "Network ready result=$result -> restoring pending connectors")
+
+            var restoreFailed = false
+            var tailscaleVerificationScheduled = false
+
+            val syncthingChange =
+                SleepCycleStore.connectorChange(this, SyncthingConnector.id)
+            if (syncthingChange != null) {
+                val wakeResult =
+                    SyncthingConnector.wake(
+                        this,
+                        syncthingChange.restoreToken
+                    )
 
                 if (wakeResult.success) {
-                    SleepCycleStore.clearConnectorChange(this, SyncthingConnector.id)
-                } else {
-                    Log.w(
-                        TAG,
-                        "Syncthing restore failed; preserving pending connector transaction"
+                    SleepCycleStore.clearConnectorChange(
+                        this,
+                        SyncthingConnector.id
                     )
-                }
 
-                if (disableRestoreRequested) {
-                    if (!wakeResult.success) {
+                    if (!disableRestoreRequested) {
                         AppPreferences.recordEvent(
                             this,
-                            "Disable → Syncthing restore pending"
-                        )
-                    }
-                } else {
-                    AppPreferences.recordEvent(
-                        this,
-                        if (wakeResult.success) {
                             buildWakeSummary(
                                 wifiManaged = lastWakeWifiManaged,
                                 wifiChanged = lastWakeWifiChanged,
@@ -995,14 +1003,66 @@ class SleepManagerService : Service() {
                                 bluetoothChanged = lastWakeBluetoothChanged,
                                 syncthing = true
                             )
+                        )
+                    }
+                } else {
+                    restoreFailed = true
+                    Log.w(
+                        TAG,
+                        "Syncthing restore failed; preserving pending connector transaction"
+                    )
+                    AppPreferences.recordEvent(
+                        this,
+                        if (disableRestoreRequested) {
+                            "Disable → Syncthing restore pending"
                         } else {
                             "Wake → Syncthing restore pending"
                         }
                     )
                 }
+            }
 
+            val tailscaleChange =
+                SleepCycleStore.connectorChange(this, TailscaleConnector.id)
+            if (
+                tailscaleChange?.restoreToken ==
+                TailscaleConnector.TOKEN_RESTORE
+            ) {
+                val wakeResult =
+                    TailscaleConnector.wake(
+                        this,
+                        tailscaleChange.restoreToken
+                    )
+
+                if (wakeResult.success) {
+                    Log.i(
+                        TAG,
+                        "Tailscale CONNECT sent -> waiting for VPN verification"
+                    )
+                    tailscaleVerificationScheduled = true
+                    scheduleTailscaleWakeVerification()
+                } else {
+                    restoreFailed = true
+                    Log.w(
+                        TAG,
+                        "Tailscale reconnect request failed; preserving transaction"
+                    )
+                    AppPreferences.recordEvent(
+                        this,
+                        if (disableRestoreRequested) {
+                            "Disable → Tailscale restore pending"
+                        } else {
+                            "Wake → Tailscale restore pending"
+                        }
+                    )
+                }
+            }
+
+            if (!tailscaleVerificationScheduled) {
                 SleepCycleStore.completeIfRestored(this)
-                finishDisableRestoreIfRequested(forceStop = !wakeResult.success)
+                finishDisableRestoreIfRequested(
+                    forceStop = disableRestoreRequested && restoreFailed
+                )
             }
         }.also { it.start() }
     }
