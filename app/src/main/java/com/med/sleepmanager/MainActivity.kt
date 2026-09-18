@@ -1195,7 +1195,7 @@ private fun DiagnosticsCard(
                 events.forEach { event ->
                     val time = DateFormat.getTimeFormat(context).format(Date(event.timestamp))
                     Text(
-                        "\$time • \${event.message}",
+                        "$time • ${event.message}",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
