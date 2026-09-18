@@ -377,9 +377,9 @@ class MainActivity : ComponentActivity() {
         val clipboard =
             getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         clipboard?.setPrimaryClip(
-            ClipData.newPlainText("SleepManager diagnostics", diagnostics)
+            ClipData.newPlainText("SleepManager log", diagnostics)
         )
-        Toast.makeText(this, "Diagnostics copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Log copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun ensureServiceRunning() {
