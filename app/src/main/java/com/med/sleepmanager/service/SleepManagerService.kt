@@ -24,7 +24,9 @@ import com.med.sleepmanager.MainActivity
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
+import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.network.NetworkReadyGate
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
@@ -37,6 +39,8 @@ class SleepManagerService : Service() {
         private const val NOTIFICATION_ID = 5217
         private const val NETWORK_READY_TIMEOUT_MS = 15000L
         private const val SYNCTHING_STOP_GRACE_MS = 1000L
+        private const val TAILSCALE_VERIFY_INTERVAL_MS = 500L
+        private const val TAILSCALE_VERIFY_MAX_ATTEMPTS = 8
         private const val SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS = 3000L
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
@@ -69,7 +73,9 @@ class SleepManagerService : Service() {
     private var sleepGracePending = false
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
-    private var pendingNetworkRestoreToken: String? = null
+    private var pendingNetworkRestoreAfterHelper = false
+    private var tailscaleSleepVerifyAttempts = 0
+    private var tailscaleWakeVerifyAttempts = 0
     private var disableRestoreRequested = false
 
     @Volatile
@@ -99,6 +105,14 @@ class SleepManagerService : Service() {
 
         Log.i(TAG, "Syncthing STOP grace elapsed -> applying radio sleep")
         applySleepConnectivity(wifi, bluetooth, syncthing)
+    }
+
+    private val tailscaleSleepVerifyRunnable = Runnable {
+        verifyTailscaleSleepDisconnect()
+    }
+
+    private val tailscaleWakeVerifyRunnable = Runnable {
+        verifyTailscaleWakeReconnect()
     }
 
     private val thorCloseGuardRunnable = Runnable {
