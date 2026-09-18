@@ -8,11 +8,11 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.med.sleepmanager"
+        applicationId = "com.med.sleepmanager.halltest"
         minSdk = 28
         targetSdk = 36
-        versionCode = 213
-        versionName = "0.2.12-halltest1"
+        versionCode = 214
+        versionName = "0.2.12-halltest2"
     }
 
     buildFeatures {
