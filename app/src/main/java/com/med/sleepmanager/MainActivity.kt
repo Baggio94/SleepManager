@@ -2073,13 +2073,8 @@ private fun AboutPage(context: Context) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Automatically applies the sleep actions you choose when the screen turns off, then restores only the states SleepManager actually changed on wake.",
+                    "Runs your chosen sleep actions when the screen turns off, then restores only what SleepManager changed.",
                     style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    "Grace periods, advanced conditions, Syncthing‑Fork and Tailscale integrations, transaction-safe restore, and activity logs are built around the same rule: change only what is necessary.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
