@@ -895,15 +895,12 @@ class MainActivity : ComponentActivity() {
                             icon = R.drawable.ic_tailscale,
                             title = "Tailscale",
                             subtitle = if (tailscaleInstalled) {
-                                "Disconnect during sleep. Restore only when SleepManager verifies it changed the VPN."
+                                "Tailscale • " +
+                                    (tailscaleVersion?.substringBefore("-") ?: "Installed")
                             } else {
                                 "Tailscale not detected"
                             },
-                            status = if (tailscaleInstalled && tailscaleVersion != null) {
-                                "Installed • $tailscaleVersion"
-                            } else {
-                                null
-                            },
+                            status = null,
                             checked = tailscaleEnabled && tailscaleInstalled,
                             enabled = tailscaleInstalled,
                             dimWhenDisabled = false,
