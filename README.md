@@ -4,7 +4,7 @@
 
 SleepManager automatically puts selected Android services into a lower-power state when the screen turns off, then restores them when the device wakes.
 
-> Current version: **0.2.12**
+> Development version: **0.3.0**
 
 ## Features
 
@@ -14,13 +14,14 @@ SleepManager automatically puts selected Android services into a lower-power sta
 - **Previous-state restoration** — if Wi-Fi or Bluetooth was already off before sleep, SleepManager leaves it off after wake.
 - **Reboot persistence** — restarts the automation after boot when SleepManager was enabled.
 - **Live status** — shows current radio state, active behavior and the last sleep/wake activity.
+- **AYN Thor closed-lid protection** — detects accidental wake-ups while the lid is still closed and immediately returns the device to sleep.
 
 ## Installation
 
 1. Open the [latest SleepManager release](https://github.com/Baggio94/SleepManager/releases/latest).
 2. Download:
-   - `SleepManager-0.2.12-debug.apk`
-   - `SleepManager-Helper-0.2.12-debug.apk`
+   - `SleepManager-0.3.0-debug.apk`
+   - `SleepManager-Helper-0.3.0-debug.apk`
 3. Install **SleepManager first**.
 4. Install the **Helper APK** if you want SleepManager to control Wi-Fi and/or Bluetooth.
 5. Open SleepManager and choose the actions you want it to manage.
@@ -99,6 +100,19 @@ Bluetooth · Unchanged
 Syncthing · Resumed
 ```
 
+## AYN Thor closed-lid protection
+
+On AYN Thor, SleepManager can monitor the hardware lid switch directly.
+
+When enabled:
+
+1. Closing the lid arms the protection.
+2. If a trigger or other input causes the Thor to wake while the lid is still closed, normal wake restoration is suppressed.
+3. SleepManager immediately returns the Thor to sleep.
+4. Opening the lid disarms the protection and normal wake behavior resumes.
+
+The feature requires a one-time Android **Device Admin** permission so SleepManager can call the system lock/sleep action. It does not require root, Shizuku or ADB.
+
 ## Airplane mode
 
 Airplane mode is visible in the UI but intentionally disabled for now.
@@ -118,7 +132,7 @@ The Helper:
 - requires no ADB
 - accepts commands only from SleepManager through a signature-protected permission
 
-The main app targets **Android 16 / API 36**. The compatibility helper targets API 28 to retain access to the older public Wi-Fi/Bluetooth toggle APIs on supported devices.
+SleepManager supports **Android 9 / API 28 and newer**. The main app targets **Android 16 / API 36**, which means it is tested against and opts into Android 16 runtime behavior; Android 16 is not the minimum supported version. The compatibility helper also has a minimum API of 28, but intentionally targets API 28 to retain access to the older public Wi-Fi/Bluetooth toggle APIs on supported devices.
 
 ## Build from source
 
