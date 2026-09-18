@@ -306,21 +306,6 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val hasAnyAction =
-            AppPreferences.manageWifi(this) ||
-                AppPreferences.manageBluetooth(this) ||
-                AppPreferences.manageSyncthing(this) ||
-                AppPreferences.manageThorProtection(this)
-
-        if (!hasAnyAction) {
-            Toast.makeText(
-                this,
-                "Enable at least one sleep action first",
-                Toast.LENGTH_SHORT
-            ).show()
-            return
-        }
-
         val helperNeeded =
             AppPreferences.manageWifi(this) || AppPreferences.manageBluetooth(this)
 
