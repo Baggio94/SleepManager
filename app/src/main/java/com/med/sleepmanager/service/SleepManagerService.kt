@@ -314,7 +314,18 @@ class SleepManagerService : Service() {
         if (!powerManager.isInteractive) return
 
         val now = SystemClock.elapsedRealtime()
-        if (now - lastThorLockAt < THOR_LOCK_COOLDOWN_MS) return
+        val sinceLastLock = now - lastThorLockAt
+        if (sinceLastLock < THOR_LOCK_COOLDOWN_MS) {
+            // AYN Thor can briefly bounce awake again after lockNow(). Do not
+            // fire duplicate calls immediately, but always schedule a retry
+            // after the cooldown so a second closed-lid wake cannot remain awake.
+            handler.removeCallbacks(thorScreenOnRecheckRunnable)
+            handler.postDelayed(
+                thorScreenOnRecheckRunnable,
+                THOR_LOCK_COOLDOWN_MS - sinceLastLock + 100L
+            )
+            return
+        }
 
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
         if (!dpm.isAdminActive(thorAdminComponent)) {
@@ -331,6 +342,15 @@ class SleepManagerService : Service() {
                 "Protection → AYN Thor returned to sleep"
             )
             dpm.lockNow()
+
+            // Verify again after the transition. If the Thor is asleep this is
+            // a no-op; if its controller caused another bounce while still
+            // closed, the same guarded path puts it back to sleep.
+            handler.removeCallbacks(thorScreenOnRecheckRunnable)
+            handler.postDelayed(
+                thorScreenOnRecheckRunnable,
+                THOR_LOCK_COOLDOWN_MS + 150L
+            )
         } catch (t: Throwable) {
             Log.e(TAG, "Unable to return Thor to sleep", t)
         }
