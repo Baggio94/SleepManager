@@ -52,7 +52,7 @@ object SyncthingController {
         send(context, selectedTarget(context)?.packageName, ".action.FOLLOW", "FOLLOW")
 
     fun sendFollowTo(context: Context, packageName: String) =
-        send(context, packageName, ".action.FOLLOW", "FOLLOW(target changed)")
+        send(context, packageName, ".action.FOLLOW", "FOLLOW")
 
     fun open(context: Context): Boolean {
         val target = selectedTarget(context) ?: return false
