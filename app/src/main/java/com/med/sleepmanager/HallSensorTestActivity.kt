@@ -56,6 +56,8 @@ class HallSensorTestActivity : ComponentActivity() {
     private val liveLidState = mutableStateOf("NOT STARTED")
     private val liveHistory = mutableStateOf("No SW_LID events captured yet")
     private val sleepTestStatus = mutableStateOf("Device Admin status not checked")
+    private val protectionStatus = mutableStateOf("Protection not started")
+    private val protectionLog = mutableStateOf("No protection events yet")
 
     @Volatile
     private var monitorRunning = false
@@ -256,9 +258,37 @@ class HallSensorTestActivity : ComponentActivity() {
         }, 500)
     }
 
+    private fun refreshProtectionUi() {
+        protectionStatus.value = if (ThorProtectionPrefs.isRunning(this)) {
+            "RUNNING — automatic closed-lid protection is active"
+        } else {
+            "STOPPED — protection is not running"
+        }
+        protectionLog.value = ThorProtectionPrefs.getLog(this)
+    }
+
+    private fun startAutomaticProtection() {
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        if (!dpm.isAdminActive(deviceAdminComponent())) {
+            protectionStatus.value = "NOT READY — enable Device Admin first"
+            return
+        }
+
+        ThorProtectionPrefs.clearLog(this)
+        startForegroundService(Intent(this, ThorClosedLidProtectionService::class.java))
+        protectionStatus.value = "STARTING…"
+        mainHandler.postDelayed({ refreshProtectionUi() }, 600)
+    }
+
+    private fun stopAutomaticProtection() {
+        stopService(Intent(this, ThorClosedLidProtectionService::class.java))
+        mainHandler.postDelayed({ refreshProtectionUi() }, 400)
+    }
+
     override fun onResume() {
         super.onResume()
         refreshDeviceAdminStatus()
+        refreshProtectionUi()
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -450,6 +480,80 @@ class HallSensorTestActivity : ComponentActivity() {
                     ) {
                         Text("Test force sleep")
                     }
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "Step 4 — Automatic closed-lid protection",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Start the protection while the Thor is open. Close it and immediately press L2 or R2 to reproduce the bug. If the Thor stays interactive while the lid is still closed, this test service should automatically call lockNow() and put it back to sleep.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Button(
+                        onClick = { startAutomaticProtection() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Start automatic protection")
+                    }
+                }
+
+                item {
+                    ResultCard(
+                        title = "Automatic protection",
+                        value = protectionStatus.value
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = { refreshProtectionUi() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Refresh protection log")
+                    }
+                }
+
+                item {
+                    ResultCard(
+                        title = "Protection event log",
+                        value = protectionLog.value
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = { stopAutomaticProtection() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Stop automatic protection")
+                    }
+                }
+
+                item {
+                    Text(
+                        "Test sequence: Thor open → Start automatic protection → close lid → immediately press a trigger → wait 5 seconds → reopen the lid. After reopening, the event log should show SW_LID → CLOSED and, if the bug was caught, PROTECTION → lockNow().",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
