@@ -76,6 +76,13 @@ android {
         }
     }
 
+    lint {
+        // Intentional: the compatibility Helper must target API 28 so Android
+        // still permits the legacy Wi-Fi/Bluetooth control APIs it exists to use.
+        // It is a sideloaded companion APK, not a Google Play app.
+        disable += "ExpiredTargetSdkVersion"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
