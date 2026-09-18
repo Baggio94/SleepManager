@@ -301,15 +301,12 @@ class MainActivity : ComponentActivity() {
     private fun setManagerEnabled(enabled: Boolean) {
         if (!enabled) {
             AppPreferences.setEnabled(this, false)
-            stopService(Intent(this, SleepManagerService::class.java))
 
-            HelperController.restoreNow(this)
-            SleepCycleStore.markHelperRestored(this)
+            val service = Intent(this, SleepManagerService::class.java)
+                .setAction(SleepManagerService.ACTION_DISABLE_AND_RESTORE)
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(service)
+            else startService(service)
 
-            restoreSyncthingTransactionNow()
-            SleepCycleStore.completeIfRestored(this)
-
-            AppPreferences.recordEvent(this, "SleepManager disabled")
             SleepManagerTileService.requestRefresh(this)
             return
         }
