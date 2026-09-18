@@ -39,6 +39,8 @@ class SleepManagerService : Service() {
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val THOR_LOCK_COOLDOWN_MS = 900L
+        const val ACTION_DISABLE_AND_RESTORE =
+            "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
 
         @Volatile
         var running: Boolean = false
@@ -62,6 +64,7 @@ class SleepManagerService : Service() {
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
     private var pendingNetworkRestoreToken: String? = null
+    private var disableRestoreRequested = false
 
     @Volatile
     private var thorLidClosed = false
@@ -118,6 +121,10 @@ class SleepManagerService : Service() {
             val wifiChanged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_CHANGED, false)
             val bluetoothManaged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_MANAGED, false)
             val bluetoothChanged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_CHANGED, false)
+            val restoreSuccess = intent.getBooleanExtra(
+                HelperController.EXTRA_RESTORE_SUCCESS,
+                true
+            )
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
@@ -143,11 +150,25 @@ class SleepManagerService : Service() {
                     lastWakeBluetoothManaged = bluetoothManaged
                     lastWakeBluetoothChanged = bluetoothChanged
 
+                    val restoreToken = pendingNetworkRestoreToken
+
+                    if (!restoreSuccess) {
+                        Log.w(TAG, "Helper restore failed; preserving sleep transaction")
+                        AppPreferences.recordEvent(
+                            this@SleepManagerService,
+                            if (disableRestoreRequested) {
+                                "Disable → Helper restore pending"
+                            } else {
+                                "Wake → Helper restore pending"
+                            }
+                        )
+                        finishDisableRestoreIfRequested(forceStop = true)
+                        return
+                    }
+
                     if (SleepCycleStore.isActive(this@SleepManagerService)) {
                         SleepCycleStore.markHelperRestored(this@SleepManagerService)
                     }
-
-                    val restoreToken = pendingNetworkRestoreToken
                     pendingNetworkRestoreToken = null
 
                     if (
@@ -163,7 +184,9 @@ class SleepManagerService : Service() {
                         )
                         waitForNetworkAndRestoreSyncthing(restoreToken)
                     } else {
-                        if (!SleepCycleStore.hasConnectorChange(
+                        if (
+                            !disableRestoreRequested &&
+                            !SleepCycleStore.hasConnectorChange(
                                 this@SleepManagerService,
                                 SyncthingConnector.id
                             )
@@ -181,6 +204,7 @@ class SleepManagerService : Service() {
                         }
 
                         SleepCycleStore.completeIfRestored(this@SleepManagerService)
+                        finishDisableRestoreIfRequested()
                     }
                 }
             }
@@ -200,6 +224,11 @@ class SleepManagerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISABLE_AND_RESTORE) {
+            beginDisableAndRestore()
+            return START_NOT_STICKY
+        }
+
         if (!AppPreferences.isEnabled(this)) {
             stopSelf()
             return START_NOT_STICKY
@@ -210,6 +239,72 @@ class SleepManagerService : Service() {
         refreshThorLidMonitor()
 
         return START_STICKY
+    }
+
+    private fun beginDisableAndRestore() {
+        disableRestoreRequested = true
+
+        cancelNetworkReadyWait()
+        handler.removeCallbacks(sleepGraceRunnable)
+        sleepGracePending = false
+        handler.removeCallbacks(sleepRadioRunnable)
+        pendingSleepWifi = false
+        pendingSleepBluetooth = false
+        pendingSleepSyncthing = false
+        releaseSleepTransitionWakeLock()
+
+        val cycle = SleepCycleStore.current(this)
+        val helperRestoreNeeded =
+            cycle.active &&
+                cycle.helperExpected &&
+                !cycle.helperRestored
+        val syncthingChange =
+            SleepCycleStore.connectorChange(this, SyncthingConnector.id)
+
+        pendingNetworkRestoreToken =
+            if (helperRestoreNeeded && syncthingChange != null) {
+                syncthingChange.restoreToken
+            } else {
+                null
+            }
+
+        if (helperRestoreNeeded) {
+            val sent = HelperController.restoreNow(this)
+            if (sent) {
+                Log.i(TAG, "Disable requested -> waiting for Helper restore result")
+                return
+            }
+
+            Log.w(TAG, "Disable requested -> Helper restore could not be sent")
+            AppPreferences.recordEvent(this, "Disable → Helper restore pending")
+            finishDisableRestoreIfRequested(forceStop = true)
+            return
+        }
+
+        if (syncthingChange != null) {
+            waitForNetworkAndRestoreSyncthing(syncthingChange.restoreToken)
+            return
+        }
+
+        SleepCycleStore.completeIfRestored(this)
+        finishDisableRestoreIfRequested()
+    }
+
+    private fun finishDisableRestoreIfRequested(forceStop: Boolean = false) {
+        if (!disableRestoreRequested) return
+
+        if (!forceStop && SleepCycleStore.isActive(this)) {
+            return
+        }
+
+        disableRestoreRequested = false
+        pendingNetworkRestoreToken = null
+
+        if (!forceStop) {
+            AppPreferences.recordEvent(this, "SleepManager disabled")
+        }
+
+        stopSelf()
     }
 
     private fun onScreenOff() {
@@ -545,7 +640,13 @@ class SleepManagerService : Service() {
 
                 AppPreferences.recordEvent(
                     this,
-                    if (wakeResult.success) {
+                    if (disableRestoreRequested) {
+                        if (wakeResult.success) {
+                            "SleepManager disabled"
+                        } else {
+                            "Disable → Syncthing restore pending"
+                        }
+                    } else if (wakeResult.success) {
                         buildWakeSummary(
                             wifiManaged = lastWakeWifiManaged,
                             wifiChanged = lastWakeWifiChanged,
@@ -559,6 +660,7 @@ class SleepManagerService : Service() {
                 )
 
                 SleepCycleStore.completeIfRestored(this)
+                finishDisableRestoreIfRequested(forceStop = !wakeResult.success)
             }
         }.also { it.start() }
     }
@@ -799,6 +901,7 @@ class SleepManagerService : Service() {
     override fun onDestroy() {
         cancelNetworkReadyWait()
         pendingNetworkRestoreToken = null
+        disableRestoreRequested = false
         handler.removeCallbacks(sleepGraceRunnable)
         sleepGracePending = false
         handler.removeCallbacks(sleepRadioRunnable)
