@@ -153,6 +153,9 @@ class SleepManagerService : Service() {
                 HelperController.EXTRA_RESTORE_SUCCESS,
                 true
             )
+            val helperStatus =
+                intent.getStringExtra(HelperController.EXTRA_STATUS)
+                    ?: HelperController.STATUS_OK
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
@@ -179,7 +182,19 @@ class SleepManagerService : Service() {
                     lastWakeBluetoothChanged = bluetoothChanged
 
                     if (!restoreSuccess) {
-                        Log.w(TAG, "Helper restore failed; preserving sleep transaction")
+                        Log.w(
+                            TAG,
+                            "Helper restore failed status=$helperStatus; preserving sleep transaction"
+                        )
+                        SleepCycleStore.markRestoreProblem(
+                            this@SleepManagerService,
+                            when (helperStatus) {
+                                HelperController.STATUS_NO_ACTIVE_CYCLE ->
+                                    "Compatibility Helper no longer has the pending sleep state."
+                                else ->
+                                    "Compatibility Helper could not restore Wi-Fi / Bluetooth."
+                            }
+                        )
                         AppPreferences.recordEvent(
                             this@SleepManagerService,
                             if (disableRestoreRequested) {
@@ -326,6 +341,10 @@ class SleepManagerService : Service() {
 
             pendingNetworkRestoreAfterHelper = false
             Log.w(TAG, "Disable requested -> Helper restore could not be sent")
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "Compatibility Helper is unavailable, so Wi-Fi / Bluetooth cannot be restored."
+            )
             AppPreferences.recordEvent(this, "Disable → Helper restore pending")
             finishDisableRestoreIfRequested(forceStop = true)
             return
@@ -1094,6 +1113,10 @@ class SleepManagerService : Service() {
                         }
                     } else {
                         restoreFailed = true
+                        SleepCycleStore.markRestoreProblem(
+                            this,
+                            "Syncthing restore is still pending: ${wakeResult.detail}."
+                        )
                         Log.w(
                             TAG,
                             "Syncthing restore failed; preserving pending connector transaction"
@@ -1133,6 +1156,10 @@ class SleepManagerService : Service() {
                         scheduleTailscaleWakeVerification()
                     } else {
                         restoreFailed = true
+                        SleepCycleStore.markRestoreProblem(
+                            this,
+                            "Tailscale restore is still pending: ${wakeResult.detail}."
+                        )
                         Log.w(
                             TAG,
                             "Tailscale reconnect request failed; preserving transaction"
