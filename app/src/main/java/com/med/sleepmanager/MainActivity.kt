@@ -76,9 +76,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
@@ -92,6 +95,7 @@ import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
+import java.util.Locale
 
 import kotlinx.coroutines.launch
 
@@ -548,6 +552,17 @@ class MainActivity : ComponentActivity() {
         ).show()
     }
 
+    private fun openProjectReleases() {
+        runCatching {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://github.com/Baggio94/SleepManager/releases")
+                )
+            )
+        }
+    }
+
     private fun copyDiagnostics() {
         val diagnostics = DiagnosticsBuilder.build(
             context = this,
@@ -666,6 +681,12 @@ class MainActivity : ComponentActivity() {
         val thorAdminActive = remember(refreshToken) {
             isThorAdminActive()
         }
+        val batteryDashboard = remember(refreshToken) {
+            BatterySleepStore.dashboard(this)
+        }
+        val restoreProblem = remember(refreshToken) {
+            SleepCycleStore.restoreProblem(this)
+        }
 
         if (showTestDialog) {
             AlertDialog(
@@ -714,7 +735,11 @@ class MainActivity : ComponentActivity() {
                             this,
                             SyncthingConnector.id
                         )
-                        if (change?.restoreToken == previous) {
+                        if (
+                            SyncthingConnector.restoreTargetPackage(
+                                change?.restoreToken
+                            ) == previous
+                        ) {
                             restoreSyncthingTransactionNow()
                             SleepCycleStore.completeIfRestored(this)
                         }
@@ -831,6 +856,28 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                item {
+                    BatteryDashboardCard(
+                        dashboard = batteryDashboard
+                    )
+                }
+
+                restoreProblem?.let { problem ->
+                    item {
+                        PendingRestoreCard(
+                            problem = problem,
+                            onForget = {
+                                SleepCycleStore.clear(this@MainActivity)
+                                AppPreferences.recordEvent(
+                                    this@MainActivity,
+                                    "Recovery → pending restore forgotten"
+                                )
+                                activityRefreshToken++
+                            }
+                        )
+                    }
+                }
+
                 if (!setupComplete) {
                     item {
                         OnboardingCard(
@@ -841,6 +888,7 @@ class MainActivity : ComponentActivity() {
                             tailscaleInstalled = tailscaleInstalled,
                             tailscaleVersion = tailscaleVersion,
                             managerEnabled = managerEnabled,
+                            onGetHelper = { openProjectReleases() },
                             onShowTest = { showTestDialog = true }
                         )
                     }
@@ -913,7 +961,9 @@ class MainActivity : ComponentActivity() {
                     AnimatedVisibility(visible = !helperInstalled) {
                         InfoCard(
                             title = "Compatibility helper not installed",
-                            text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to."
+                            text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.",
+                            actionLabel = "Get Helper",
+                            onAction = { openProjectReleases() }
                         )
                     }
                 }
@@ -1215,7 +1265,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     companion object {
-        private const val STATUS_REFRESH_INTERVAL_MS = 1000L
+        private const val STATUS_REFRESH_INTERVAL_MS = 3000L
     }
 }
 
@@ -1261,6 +1311,7 @@ private fun OnboardingCard(
     tailscaleInstalled: Boolean,
     tailscaleVersion: String?,
     managerEnabled: Boolean,
+    onGetHelper: () -> Unit,
     onShowTest: () -> Unit
 ) {
     Card(
@@ -1288,6 +1339,12 @@ private fun OnboardingCard(
                 },
                 style = MaterialTheme.typography.bodySmall
             )
+
+            if (!helperInstalled) {
+                TextButton(onClick = feedbackClick(onGetHelper)) {
+                    Text("Get Helper")
+                }
+            }
 
             Text(
                 syncthingTarget?.let { "✓ ${it.displayName} detected" }
@@ -1530,7 +1587,10 @@ private fun SettingRow(
         Switch(
             checked = checked,
             onCheckedChange = feedbackChange(onCheckedChange),
-            enabled = enabled
+            enabled = enabled,
+            modifier = Modifier.semantics {
+                contentDescription = "$title toggle"
+            }
         )
     }
 }
@@ -1964,7 +2024,10 @@ private fun AdvancedToggleRow(
 
         Switch(
             checked = checked,
-            onCheckedChange = feedbackChange(onCheckedChange)
+            onCheckedChange = feedbackChange(onCheckedChange),
+            modifier = Modifier.semantics {
+                contentDescription = "$title toggle"
+            }
         )
     }
 }
@@ -2234,7 +2297,12 @@ private fun formatTime(minutes: Int): String {
 }
 
 @Composable
-private fun InfoCard(title: String, text: String) {
+private fun InfoCard(
+    title: String,
+    text: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
@@ -2255,6 +2323,12 @@ private fun InfoCard(title: String, text: String) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
+
+            if (actionLabel != null && onAction != null) {
+                TextButton(onClick = feedbackClick(onAction)) {
+                    Text(actionLabel)
+                }
+            }
         }
     }
 }
