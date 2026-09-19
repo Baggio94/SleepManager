@@ -2,6 +2,21 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.4.1 — 2026-09-19
+
+### UI polish
+
+- Compact App integrations layout while keeping the same functionality.
+- Integration icons match the Wi-Fi/Bluetooth action icon sizing.
+- Restored the outlined Open action style.
+- AYN Thor closed-lid protection is shown above Grace period.
+- Settings cards now consistently use the full available width.
+- Minor wording cleanup around Grace period and About.
+
+The 0.4.0 release notes otherwise remain unchanged.
+
+---
+
 ## 0.4.0 — 2026-09-19
 
 ### Highlights
