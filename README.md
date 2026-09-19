@@ -1,6 +1,6 @@
 # SleepManager
 
-SleepManager is a lightweight Android app for Android handhelds, phones, and tablets that manages selected actions when the screen turns off and restores them when the device wakes.
+SleepManager is a lightweight Android app for handhelds, phones, and tablets that manages selected actions when the screen turns off and restores them when the device wakes.
 
 Set it once, choose what should sleep, and let it run in the background.
 
