@@ -102,11 +102,38 @@ class SleepManagerService : Service() {
     private val sleepRadioRunnable = Runnable {
         val wifi = pendingSleepWifi
         val bluetooth = pendingSleepBluetooth
-        val syncthing = pendingSleepSyncthing
+        var syncthing = pendingSleepSyncthing
 
         pendingSleepWifi = false
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
+
+        if (syncthing) {
+            val change =
+                SleepCycleStore.connectorChange(
+                    this,
+                    SyncthingConnector.id
+                )
+            if (
+                SyncthingConnector.verifyStopAfterGrace(
+                    change?.restoreToken
+                ) == false
+            ) {
+                SleepCycleStore.clearConnectorChange(
+                    this,
+                    SyncthingConnector.id
+                )
+                syncthing = false
+                Log.w(
+                    TAG,
+                    "Syncthing still running after STOP; restore token discarded"
+                )
+                AppPreferences.recordEvent(
+                    this,
+                    "Sleep → Syncthing STOP not confirmed"
+                )
+            }
+        }
 
         Log.i(TAG, "Syncthing STOP grace elapsed -> applying radio sleep")
         applySleepConnectivity(wifi, bluetooth, syncthing)
