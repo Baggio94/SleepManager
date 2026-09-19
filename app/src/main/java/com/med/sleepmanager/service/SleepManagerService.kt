@@ -32,6 +32,7 @@ import com.med.sleepmanager.network.NetworkReadyGate
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.rules.SleepConditionEvaluator
+import com.med.sleepmanager.rules.SleepWakePolicy
 
 class SleepManagerService : Service() {
     companion object {
@@ -956,7 +957,15 @@ class SleepManagerService : Service() {
     private fun onScreenOn() {
         cancelNetworkReadyWait()
 
-        if (AppPreferences.manageThorProtection(this) && thorLidClosed) {
+        val wakeDecision =
+            SleepWakePolicy.onScreenOn(
+                thorProtectionEnabled =
+                    AppPreferences.manageThorProtection(this),
+                lidClosed = thorLidClosed,
+                sleepDelayPending = sleepGracePending
+            )
+
+        if (wakeDecision.suppressWake) {
             Log.i(TAG, "Screen ON while Thor lid is closed -> suppressing wake restore")
             handler.removeCallbacks(thorScreenOnRecheckRunnable)
             handler.postDelayed(
@@ -968,7 +977,7 @@ class SleepManagerService : Service() {
 
         BatterySleepStore.finishSession(this)
 
-        if (sleepGracePending) {
+        if (wakeDecision.cancelSleepDelay) {
             cancelSleepDelay()
             Log.i(TAG, "Sleep delay cancelled by wake")
         }
