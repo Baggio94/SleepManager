@@ -9,7 +9,7 @@ Set it once, choose what should sleep, and let it run in the background.
 - **Wi-Fi** — turn it off during sleep and restore it only if SleepManager changed it.
 - **Bluetooth** — same behavior as Wi-Fi.
 - **Syncthing-Fork** — pause it during sleep and resume it after the network is ready again.
-- **Tailscale** — disconnects Tailscale during sleep if it is connected, then reconnects it on wake only if SleepManager was the one that disconnected it.
+- **Tailscale** — disconnects Tailscale during sleep if it is connected, then reconnects it on wake.
 - **AYN Thor closed-lid protection** — protects against unwanted wake-ups while the lid is still closed.
 - **Grace period** — Immediate, 5 seconds, 10 seconds, or a longer custom delay.
 - **Advanced conditions** — run sleep actions only when your enabled conditions are all true.
