@@ -2,6 +2,33 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.0-beta1 — 2026-09-19 — Preview
+
+### Highlights
+
+- New Home battery dashboard with current level, last-sleep drain, duration, drain rate and 7-day average.
+- Sleep battery sessions survive AYN Thor closed-lid false wakes and exclude charging sessions from averages.
+- Current Thor Hall-switch state is queried when closed-lid protection starts, with persisted fallback state for service recovery.
+- Service startup ordering is hardened so screen state is applied only after the start request has been validated.
+- Main ↔ Helper sleep/restore protocol is now idempotent and critical Helper state is persisted synchronously.
+- Pending restore failures can be surfaced to the user and manually forgotten when recovery is impossible.
+- Syncthing STOP is verified when its pre-sleep running state can be confirmed.
+- Visible status polling is reduced and Helper setup has a direct download shortcut.
+- Initial automated regression tests cover closed-lid false wakes during Grace period.
+
+### Notes
+
+- This is a beta build intended for real-device validation before stable 0.5.x.
+- Package IDs and the permanent release signing identity are unchanged, so updates preserve existing app data.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full beta summary.
+
+---
+
+# Changelog
+
+Release notes are organized by version and focus on user-visible behavior first.
+
 ## 0.4.1 — 2026-09-19
 
 ### UI polish
