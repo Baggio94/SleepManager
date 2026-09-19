@@ -86,10 +86,24 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=v$VERSION_NAME" >> "$GITHUB_ENV"
 
+      - name: Check whether release already exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "RELEASE_EXISTS=true" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_EXISTS=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Build signed APKs
+        if: env.RELEASE_EXISTS != 'true'
         run: gradle :app:assembleRelease :helper:assembleRelease
 
       - name: Verify package IDs and signatures
+        if: env.RELEASE_EXISTS != 'true'
         run: |
           set -euo pipefail
 
@@ -121,6 +135,7 @@ jobs:
           [ "$MAIN_CERT" = "$EXPECTED_CERT" ]
 
       - name: Prepare release files
+        if: env.RELEASE_EXISTS != 'true'
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -136,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if [ "$RELEASE_EXISTS" = "true" ]; then
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "SleepManager $VERSION_NAME" \
@@ -149,10 +164,9 @@ jobs:
               --title "SleepManager $VERSION_NAME" \
               --notes-file RELEASE_NOTES.md \
               --latest
-          fi
 
-          gh release upload "$RELEASE_TAG" \
-            "dist/SleepManager-$VERSION_NAME.apk" \
-            "dist/SleepManager-Helper-$VERSION_NAME.apk" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+            gh release upload "$RELEASE_TAG" \
+              "dist/SleepManager-$VERSION_NAME.apk" \
+              "dist/SleepManager-Helper-$VERSION_NAME.apk" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
