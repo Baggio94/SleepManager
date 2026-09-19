@@ -1478,6 +1478,222 @@ private fun StatusCard(
 }
 
 @Composable
+private fun BatteryDashboardCard(
+    dashboard: BatterySleepStore.Dashboard
+) {
+    val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
+    val last = dashboard.lastSession
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_battery),
+                        contentDescription = "Battery",
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .size(26.dp)
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Battery",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        currentText,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Text(
+                    when {
+                        dashboard.currentCharging -> "Charging"
+                        dashboard.sessionActive -> "Sleep tracking"
+                        else -> "Awake"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            if (last == null) {
+                Text(
+                    "No completed sleep session yet. SleepManager will measure battery drain from screen-off to the next real wake.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Last sleep",
+                        value =
+                            "−${last.drainPercent}% • ${formatSleepSessionDuration(last.durationMs)}"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Drain",
+                        value =
+                            if (last.chargedDuringSleep) {
+                                "Charging during sleep"
+                            } else {
+                                last.drainPerHour?.let {
+                                    "${formatDrainRate(it)}% / h"
+                                } ?: "—"
+                            }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "7-day average",
+                        value =
+                            dashboard.averageDrainPerHour?.let {
+                                "${formatDrainRate(it)}% / h"
+                            } ?: "Not enough data"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Samples",
+                        value = dashboard.averageSessionCount.toString()
+                    )
+                }
+
+                if (last.chargedDuringSleep) {
+                    Text(
+                        "Sessions with charging are excluded from the 7-day drain average.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    last.drainMah?.let {
+                        Text(
+                            "Measured charge used: ${String.format(Locale.US, "%.0f", it)} mAh",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BatteryMetric(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun PendingRestoreCard(
+    problem: String,
+    onForget: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Pending restore needs attention",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                problem,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Text(
+                "SleepManager keeps the transaction instead of pretending the restore succeeded.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            OutlinedButton(
+                onClick = feedbackClick(onForget)
+            ) {
+                Text("Forget pending restore")
+            }
+        }
+    }
+}
+
+private fun formatSleepSessionDuration(durationMs: Long): String {
+    val totalMinutes = (durationMs / 60_000L).coerceAtLeast(0L)
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return when {
+        hours > 0L && minutes > 0L -> "${hours}h ${minutes}m"
+        hours > 0L -> "${hours}h"
+        totalMinutes > 0L -> "${totalMinutes}m"
+        else -> "<1m"
+    }
+}
+
+private fun formatDrainRate(value: Double): String =
+    when {
+        value < 0.01 -> "<0.01"
+        value < 1.0 -> String.format(Locale.US, "%.2f", value)
+        else -> String.format(Locale.US, "%.1f", value)
+    }
+
+@Composable
 private fun SectionTitle(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
