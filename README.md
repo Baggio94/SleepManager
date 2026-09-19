@@ -10,12 +10,11 @@ Set it once, choose what should sleep, and let it run in the background.
 - **Bluetooth** — same behavior as Wi-Fi.
 - **Syncthing-Fork** — pause it during sleep and resume it after the network is ready again.
 - **Tailscale** — disconnect it during sleep and reconnect it only if SleepManager verified that it disconnected it.
+- **AYN Thor closed-lid protection** — protects against unwanted wake-ups while the lid is still closed.
 - **Grace period** — Immediate, 5 seconds, 10 seconds, or a longer custom delay.
 - **Advanced conditions** — run sleep actions only when your enabled conditions are all true.
 - **Activity log** — see recent sleep/wake actions and copy a diagnostic log when needed.
 - **Quick Settings tile** — quickly enable or disable SleepManager.
-- **AYN Thor closed-lid protection** — protects against unwanted wake-ups while the lid is still closed.
-- **Haptic + click feedback** — buttons and options use Android's standard feedback and follow the device's own sound/haptic settings.
 
 SleepManager does not require root, Shizuku or ADB on the device.
 
