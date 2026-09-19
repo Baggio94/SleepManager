@@ -867,6 +867,7 @@ class MainActivity : ComponentActivity() {
                         PendingRestoreCard(
                             problem = problem,
                             onForget = {
+                                HelperController.forgetPendingState(this@MainActivity)
                                 SleepCycleStore.clear(this@MainActivity)
                                 AppPreferences.recordEvent(
                                     this@MainActivity,
