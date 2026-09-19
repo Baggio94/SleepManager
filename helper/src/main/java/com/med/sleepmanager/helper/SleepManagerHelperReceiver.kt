@@ -14,6 +14,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val ACTION_WAKE = "com.med.sleepmanager.helper.action.WAKE"
         private const val ACTION_RESTORE = "com.med.sleepmanager.helper.action.RESTORE"
         private const val ACTION_QUERY = "com.med.sleepmanager.helper.action.QUERY_STATE"
+        private const val ACTION_FORGET_STATE = "com.med.sleepmanager.helper.action.FORGET_STATE"
         private const val ACTION_STATE = "com.med.sleepmanager.helper.action.STATE"
         private const val ACTION_RESULT = "com.med.sleepmanager.helper.action.RESULT"
         private const val MAIN_PACKAGE = "com.med.sleepmanager"
@@ -58,6 +59,13 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             )
             ACTION_WAKE, ACTION_RESTORE -> restore(context)
             ACTION_QUERY -> reportCurrentState(context)
+            ACTION_FORGET_STATE -> {
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .commit()
+                Log.i(TAG, "Pending Helper state forgotten")
+            }
         }
     }
 
