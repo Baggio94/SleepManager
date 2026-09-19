@@ -69,7 +69,6 @@ On a fresh install:
 3. Open SleepManager and choose the actions you want.
 4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast**.
 5. For AYN Thor protection, enable the option and grant the one-time Device Admin permission.
-6. Enable **SleepManager**, then tap **Finish setup**.
 
 No root, Shizuku or ADB is required on the device.
 
