@@ -107,7 +107,8 @@ class ThorLidMonitor(
             }
         }
 
-        fun readCurrentLidClosed(devicePath: String = findHallDevicePath() ?: return null): Boolean? {
+        fun readCurrentLidClosed(devicePath: String? = findHallDevicePath()): Boolean? {
+            val resolvedPath = devicePath ?: return null
             val getevent = File("/system/bin/getevent")
             if (!getevent.canExecute()) return null
 
@@ -115,7 +116,7 @@ class ThorLidMonitor(
                 val process = ProcessBuilder(
                     getevent.absolutePath,
                     "-S",
-                    devicePath
+                    resolvedPath
                 )
                     .redirectErrorStream(true)
                     .start()
