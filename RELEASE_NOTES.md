@@ -1,6 +1,6 @@
-# SleepManager 0.4.0
+# SleepManager 0.4.1
 
-SleepManager 0.4.0 focuses on a simpler UI, smarter sleep rules and more reliable app integrations.
+SleepManager 0.4.1 focuses on a simpler UI, smarter sleep rules and more reliable app integrations.
 
 ## Highlights
 
