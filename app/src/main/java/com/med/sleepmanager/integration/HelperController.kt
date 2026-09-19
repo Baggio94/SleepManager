@@ -28,6 +28,11 @@ object HelperController {
     const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
     const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
     const val EXTRA_RESTORE_SUCCESS = "restore_success"
+    const val EXTRA_STATUS = "status"
+    const val STATUS_OK = "OK"
+    const val STATUS_ALREADY_SLEEPING = "ALREADY_SLEEPING"
+    const val STATUS_NO_ACTIVE_CYCLE = "NO_ACTIVE_CYCLE"
+    const val STATUS_RESTORE_FAILED = "RESTORE_FAILED"
     const val PHASE_SLEEP = "sleep"
     const val PHASE_WAKE = "wake"
 
