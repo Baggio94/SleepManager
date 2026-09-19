@@ -13,6 +13,7 @@ object SleepCycleStore {
     private const val KEY_HELPER_RESTORED = "helper_restored"
     private const val KEY_WIFI_MANAGED = "wifi_managed"
     private const val KEY_BLUETOOTH_MANAGED = "bluetooth_managed"
+    private const val KEY_RESTORE_PROBLEM = "restore_problem"
     private const val CONNECTOR_PREFIX = "connector."
     private const val CONNECTOR_CHANGED_SUFFIX = ".changed"
 
@@ -124,6 +125,19 @@ object SleepCycleStore {
                 key.endsWith(CONNECTOR_CHANGED_SUFFIX) &&
                 value == true
         }
+
+    fun markRestoreProblem(context: Context, message: String) {
+        prefs(context).edit()
+            .putString(KEY_RESTORE_PROBLEM, message)
+            .commit()
+    }
+
+    fun restoreProblem(context: Context): String? =
+        prefs(context).getString(KEY_RESTORE_PROBLEM, null)
+
+    fun clearRestoreProblem(context: Context) {
+        prefs(context).edit().remove(KEY_RESTORE_PROBLEM).commit()
+    }
 
     fun completeIfRestored(context: Context): Boolean {
         val snapshot = current(context)
