@@ -22,6 +22,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.med.sleepmanager.MainActivity
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.TailscaleController
@@ -80,6 +81,7 @@ class SleepManagerService : Service() {
     private var tailscaleWakeVerifyAttempts = 0
     private var tailscaleVerificationNeedsWakeRestore = false
     private var disableRestoreRequested = false
+    private var initialScreenStateApplied = false
 
     @Volatile
     private var thorLidClosed = false
@@ -131,6 +133,9 @@ class SleepManagerService : Service() {
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> onScreenOff()
                 Intent.ACTION_SCREEN_ON -> onScreenOn()
+                Intent.ACTION_POWER_CONNECTED -> BatterySleepStore.noteCharging(
+                    this@SleepManagerService
+                )
             }
         }
     }
@@ -236,7 +241,6 @@ class SleepManagerService : Service() {
         registerHelperResultReceiver()
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
-        applyCurrentScreenState()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -269,6 +273,11 @@ class SleepManagerService : Service() {
         if (!receiverRegistered) registerScreenReceiver()
         if (!helperResultReceiverRegistered) registerHelperResultReceiver()
         refreshThorLidMonitor()
+
+        if (!initialScreenStateApplied) {
+            initialScreenStateApplied = true
+            applyCurrentScreenState()
+        }
 
         return START_STICKY
     }
@@ -349,6 +358,7 @@ class SleepManagerService : Service() {
     }
 
     private fun onScreenOff() {
+        BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
         pendingNetworkRestoreAfterHelper = false
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
@@ -910,6 +920,8 @@ class SleepManagerService : Service() {
             return
         }
 
+        BatterySleepStore.finishSession(this)
+
         if (sleepGracePending) {
             cancelSleepDelay()
             Log.i(TAG, "Sleep delay cancelled by wake")
@@ -1160,10 +1172,27 @@ class SleepManagerService : Service() {
 
         if (thorLidMonitor != null) return
 
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val currentLidState = ThorLidMonitor.readCurrentLidClosed()
+        thorLidClosed =
+            currentLidState
+                ?: if (powerManager?.isInteractive == false) {
+                    AppPreferences.lastKnownThorLidClosed(this) ?: false
+                } else {
+                    false
+                }
+        currentLidState?.let {
+            AppPreferences.setLastKnownThorLidClosed(this, it)
+        }
+
         val monitor = ThorLidMonitor(
             onClosed = {
                 handler.post {
                     thorLidClosed = true
+                    AppPreferences.setLastKnownThorLidClosed(
+                        this@SleepManagerService,
+                        true
+                    )
                     handler.removeCallbacks(thorCloseGuardRunnable)
                     handler.postDelayed(
                         thorCloseGuardRunnable,
@@ -1175,6 +1204,10 @@ class SleepManagerService : Service() {
             onOpened = {
                 handler.post {
                     thorLidClosed = false
+                    AppPreferences.setLastKnownThorLidClosed(
+                        this@SleepManagerService,
+                        false
+                    )
                     handler.removeCallbacks(thorCloseGuardRunnable)
                     handler.removeCallbacks(thorScreenOnRecheckRunnable)
                     Log.i(TAG, "Thor SW_LID -> OPEN")
@@ -1317,6 +1350,7 @@ class SleepManagerService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_POWER_CONNECTED)
         }
         if (Build.VERSION.SDK_INT >= 33) {
             registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
