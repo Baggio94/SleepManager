@@ -115,25 +115,40 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         val wifiWasOn = safeWifiState(wifiManager)
         val bluetoothWasOn = safeBluetoothState(bluetooth)
 
-        var wifiChanged = false
-        var bluetoothChanged = false
+        val wifiChangeExpected = manageWifi && wifiWasOn
+        val bluetoothChangeExpected = manageBluetooth && bluetoothWasOn
 
-        if (manageWifi && wifiWasOn) {
-            wifiChanged = setWifi(wifiManager, false)
-        }
-
-        if (manageBluetooth && bluetoothWasOn) {
-            bluetoothChanged = setBluetooth(bluetooth, false)
-        }
-
+        // Persist the recovery intent before touching system radios. If the
+        // process dies after a toggle but before the final result is written,
+        // restore() still knows which previous state must be recovered.
         prefs.edit()
             .putBoolean(KEY_CYCLE_ACTIVE, true)
             .putBoolean(KEY_WIFI_PREVIOUS, wifiWasOn)
-            .putBoolean(KEY_WIFI_CHANGED, wifiChanged)
+            .putBoolean(KEY_WIFI_CHANGED, wifiChangeExpected)
             .putBoolean(KEY_BT_PREVIOUS, bluetoothWasOn)
-            .putBoolean(KEY_BT_CHANGED, bluetoothChanged)
+            .putBoolean(KEY_BT_CHANGED, bluetoothChangeExpected)
             .putBoolean(KEY_WIFI_MANAGED, manageWifi)
             .putBoolean(KEY_BT_MANAGED, manageBluetooth)
+            .commit()
+
+        val wifiChanged =
+            if (wifiChangeExpected) {
+                setWifi(wifiManager, false)
+            } else {
+                false
+            }
+
+        val bluetoothChanged =
+            if (bluetoothChangeExpected) {
+                setBluetooth(bluetooth, false)
+            } else {
+                false
+            }
+
+        // Replace the recovery intent with the actual system-call result.
+        prefs.edit()
+            .putBoolean(KEY_WIFI_CHANGED, wifiChanged)
+            .putBoolean(KEY_BT_CHANGED, bluetoothChanged)
             .commit()
 
         Log.i(
