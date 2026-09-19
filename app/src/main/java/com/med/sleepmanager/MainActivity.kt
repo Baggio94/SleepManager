@@ -1919,7 +1919,10 @@ private fun CompactIntegrationRow(
         Switch(
             checked = checked,
             onCheckedChange = feedbackChange(onCheckedChange),
-            enabled = enabled
+            enabled = enabled,
+            modifier = Modifier.semantics {
+                contentDescription = "$title toggle"
+            }
         )
     }
 }
