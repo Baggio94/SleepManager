@@ -965,6 +965,7 @@ class MainActivity : ComponentActivity() {
                             syncthingEnabled = syncthingEnabled,
                             tailscaleInstalled = tailscaleInstalled,
                             tailscaleVersion = tailscaleVersion,
+                            jamesDspTarget = jamesDspTarget,
                             managerEnabled = managerEnabled,
                             onGetHelper = { openProjectReleases() },
                             onShowTest = { showTestDialog = true }
@@ -1465,6 +1466,7 @@ private fun OnboardingCard(
     syncthingEnabled: Boolean,
     tailscaleInstalled: Boolean,
     tailscaleVersion: String?,
+    jamesDspTarget: JamesDspController.Target?,
     managerEnabled: Boolean,
     onGetHelper: () -> Unit,
     onShowTest: () -> Unit
@@ -1525,6 +1527,15 @@ private fun OnboardingCard(
                 } else {
                     "• Tailscale not detected — optional."
                 },
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            Text(
+                jamesDspTarget?.let { target ->
+                    "✓ JamesDSP" +
+                        (target.versionName?.let { " • $it" } ?: "") +
+                        " detected"
+                } ?: "• JamesDSP not detected — optional.",
                 style = MaterialTheme.typography.bodySmall
             )
 
@@ -1876,7 +1887,7 @@ private fun BatteryDashboardCard(
                     averageDrainPerHour = stats.averageDrainPerHour,
                     averageDrainMahPerHour = stats.averageDrainMahPerHour,
                     modifier = Modifier
-                        .weight(1f, fill = false)
+                        .weight(1f)
                         .widthIn(max = 280.dp)
                 )
 
@@ -1898,7 +1909,6 @@ private fun BatteryDashboardCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.weight(0.35f))
             }
 
             HorizontalDivider(

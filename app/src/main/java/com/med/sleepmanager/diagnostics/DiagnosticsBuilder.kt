@@ -6,8 +6,10 @@ import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.protection.ThorLidMonitor
@@ -47,6 +49,9 @@ object DiagnosticsBuilder {
         val tailscalePending =
             SleepCycleStore.connectorChange(context, TailscaleConnector.id)
         val tailscaleVersion = TailscaleController.versionName(context)
+        val jamesDsp = JamesDspController.selectedTarget(context)
+        val jamesDspPending =
+            SleepCycleStore.connectorChange(context, JamesDspConnector.id)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -73,6 +78,7 @@ object DiagnosticsBuilder {
             appendLine("- Bluetooth: ${AppPreferences.manageBluetooth(context)}")
             appendLine("- Syncthing-Fork: ${AppPreferences.manageSyncthing(context)}")
             appendLine("- Tailscale: ${AppPreferences.manageTailscale(context)}")
+            appendLine("- JamesDSP: ${AppPreferences.manageJamesDsp(context)}")
             appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
             appendLine()
             appendLine("Advanced conditions")
@@ -110,6 +116,17 @@ object DiagnosticsBuilder {
                         null -> "unknown"
                     }
             )
+            appendLine(
+                "- JamesDSP: " +
+                    if (jamesDsp != null) {
+                        "installed" +
+                            (jamesDsp.versionName?.let { " • $it" } ?: "") +
+                            " • ${jamesDsp.packageName}"
+                    } else {
+                        "not installed"
+                    }
+            )
+            appendLine("- JamesDSP power state: unknown (not queryable)")
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
@@ -123,6 +140,10 @@ object DiagnosticsBuilder {
             appendLine(
                 "- Tailscale transaction: " +
                     (tailscalePending?.restoreToken ?: "none")
+            )
+            appendLine(
+                "- JamesDSP transaction: " +
+                    (jamesDspPending?.restoreToken ?: "none")
             )
 
             val events = EventHistoryStore.recent(context)
