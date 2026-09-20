@@ -211,6 +211,7 @@ class MainActivity : ComponentActivity() {
     private var pendingExactAlarmEnable = false
     private var pendingExternalNavigation = false
     private var pendingUpdateInstallPath: String? = null
+    private var openUpdatesOnLaunch = false
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -271,6 +272,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openUpdatesOnLaunch =
+            intent?.getBooleanExtra(EXTRA_OPEN_UPDATES, false) == true
         UpdateCheckScheduler.sync(this)
         UpdateChecker.checkIfDueAsync(this, notify = true)
         enableEdgeToEdge(
@@ -777,7 +780,11 @@ class MainActivity : ComponentActivity() {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
-        var currentSection by rememberSaveable { mutableStateOf(AppSection.HOME) }
+        var currentSection by rememberSaveable {
+            mutableStateOf(
+                if (openUpdatesOnLaunch) AppSection.ABOUT else AppSection.HOME
+            )
+        }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
         val statsListState = rememberLazyListState()
@@ -1616,6 +1623,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     companion object {
+        const val EXTRA_OPEN_UPDATES = "com.med.sleepmanager.extra.OPEN_UPDATES"
         private const val STATUS_REFRESH_INTERVAL_MS = 3000L
         private const val UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE = 5222
     }
