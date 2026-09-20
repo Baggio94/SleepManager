@@ -2107,12 +2107,15 @@ private fun InteractiveBatteryGauge(
         label = "Charging alpha"
     )
 
-    val bodyShape = RoundedCornerShape(18.dp)
-    val innerShape = RoundedCornerShape(12.dp)
+    val compactBatteryLayout = LocalConfiguration.current.screenWidthDp < 600
+    val gaugeHeight = if (compactBatteryLayout) 66.dp else 74.dp
+    val terminalHeight = if (compactBatteryLayout) 30.dp else 34.dp
+    val bodyShape = RoundedCornerShape(if (compactBatteryLayout) 18.dp else 20.dp)
+    val innerShape = RoundedCornerShape(if (compactBatteryLayout) 12.dp else 14.dp)
 
     Row(
         modifier = modifier
-            .height(66.dp)
+            .height(gaugeHeight)
             .testTag("battery_gauge")
             .clickable(onClick = onGaugeClick)
             .semantics {
@@ -2193,7 +2196,7 @@ private fun InteractiveBatteryGauge(
             modifier = Modifier
                 .padding(start = 4.dp)
                 .width(10.dp)
-                .height(30.dp)
+                .height(terminalHeight)
                 .clip(RoundedCornerShape(0.dp, 6.dp, 6.dp, 0.dp))
                 .background(levelColor)
         )
