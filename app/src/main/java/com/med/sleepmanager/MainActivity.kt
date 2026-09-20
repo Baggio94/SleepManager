@@ -27,7 +27,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -85,6 +89,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -865,7 +870,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 Text(
                                     when (currentSection) {
-                                        AppSection.HOME -> "Smart sleep automation"
+                                        AppSection.HOME -> "Quiet on sleep. Ready on wake."
                                         AppSection.ADVANCED -> "Custom delay and sleep conditions"
                                         AppSection.STATS -> "Sleep and battery measurements"
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
@@ -910,7 +915,8 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     BatteryDashboardCard(
-                        dashboard = batteryDashboard
+                        dashboard = batteryDashboard,
+                        stats = batteryStats
                     )
                 }
 
@@ -1783,7 +1789,8 @@ private fun formatStandbyEstimate(hours: Double): String {
 
 @Composable
 private fun BatteryDashboardCard(
-    dashboard: BatterySleepStore.Dashboard
+    dashboard: BatterySleepStore.Dashboard,
+    stats: BatterySleepStore.Stats
 ) {
     val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
     val last = dashboard.lastSession
@@ -1799,43 +1806,41 @@ private fun BatteryDashboardCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_battery),
-                        contentDescription = "Battery",
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .padding(10.dp)
-                            .size(26.dp)
-                    )
-                }
+            Text(
+                "Battery",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Battery",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                InteractiveBatteryGauge(
+                    percent = dashboard.currentPercent,
+                    currentChargeMah = stats.currentChargeMah,
+                    estimatedCapacityMah = stats.estimatedCapacityMah,
+                    estimatedHoursRemaining = stats.estimatedHoursRemaining,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Column(
+                    horizontalAlignment = Alignment.End
+                ) {
                     Text(
                         currentText,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                }
 
-                if (dashboard.currentCharging) {
-                    Text(
-                        "Charging",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    if (dashboard.currentCharging) {
+                        Text(
+                            "Charging",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -1920,6 +1925,105 @@ private fun BatteryDashboardCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun InteractiveBatteryGauge(
+    percent: Int?,
+    currentChargeMah: Double?,
+    estimatedCapacityMah: Double?,
+    estimatedHoursRemaining: Double?,
+    modifier: Modifier = Modifier
+) {
+    var showStandby by remember { mutableStateOf(false) }
+    val level = (percent ?: 0).coerceIn(0, 100)
+    val animatedLevel by animateFloatAsState(
+        targetValue = level / 100f,
+        label = "Battery level"
+    )
+    val shape = RoundedCornerShape(16.dp)
+
+    val chargeText =
+        if (currentChargeMah != null && estimatedCapacityMah != null) {
+            "${formatMah(currentChargeMah)} / ~${formatMah(estimatedCapacityMah)} mAh"
+        } else {
+            "Charge data unavailable"
+        }
+
+    val standbyText =
+        estimatedHoursRemaining?.let {
+            "Estimated standby • ${formatStandbyEstimate(it)}"
+        } ?: "Estimated standby • Not enough data"
+
+    val onGaugeClick = feedbackClick {
+        showStandby = !showStandby
+    }
+
+    Row(
+        modifier = modifier
+            .height(62.dp)
+            .clickable(onClick = onGaugeClick)
+            .semantics {
+                contentDescription =
+                    "Battery ${percent?.let { "$it percent" } ?: "level unavailable"}. " +
+                        if (showStandby) {
+                            "$standbyText. Tap for charge information."
+                        } else {
+                            "$chargeText. Tap for standby estimate."
+                        }
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = shape
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedLevel)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                    )
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Crossfade(
+                    targetState = showStandby,
+                    label = "Battery info"
+                ) { standby ->
+                    Text(
+                        text = if (standby) standbyText else chargeText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .width(7.dp)
+                .height(26.dp)
+                .clip(RoundedCornerShape(0.dp, 5.dp, 5.dp, 0.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        )
     }
 }
 
@@ -2674,7 +2778,7 @@ private fun AboutPage(context: Context) {
     ) {
         InfoCard(
             title = "SleepManager",
-            text = "Version ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
+            text = "Quiet on sleep. Ready on wake.\nVersion ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
         )
 
         SettingsCard {
