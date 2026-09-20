@@ -1516,6 +1516,12 @@ private fun OnboardingCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Text(
+                "Sleep statistics start automatically. Complete a sleep session of at least 10 minutes without charging to build averages and standby estimates.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             TextButton(onClick = feedbackClick(onShowTest)) {
                 Text("How to test sleep / wake")
             }
@@ -1875,9 +1881,41 @@ private fun BatteryDashboardCard(
             )
 
             if (last == null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Last sleep",
+                        value = "—"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Drain",
+                        value = "—"
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "7-day average",
+                        value = "—"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Samples",
+                        value = "0"
+                    )
+                }
+
                 Text(
-                    "No completed sleep session yet. SleepManager will measure battery drain from screen-off to the next real wake.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Sleep statistics will appear after your first sleep session of at least 10 minutes without charging.",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
@@ -1934,7 +1972,7 @@ private fun BatteryDashboardCard(
                     }
                     last.durationMs < 10L * 60L * 1000L -> {
                         Text(
-                            "Sessions under 10 minutes are shown here but excluded from the 7-day average.",
+                            "Complete a sleep session of at least 10 minutes to start building sleep averages.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
