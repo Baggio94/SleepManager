@@ -57,7 +57,7 @@ object UpdateNotifier {
 
         val notification =
             Notification.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_info)
+                .setSmallIcon(R.drawable.ic_notification_sleepmanager)
                 .setContentTitle("SleepManager update available")
                 .setContentText("Version ${update.versionName} is ready to install.")
                 .setStyle(
