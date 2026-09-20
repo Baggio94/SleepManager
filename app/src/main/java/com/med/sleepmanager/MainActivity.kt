@@ -131,6 +131,7 @@ private fun <T> feedbackChange(action: (T) -> Unit): (T) -> Unit {
 private enum class AppSection {
     HOME,
     ADVANCED,
+    STATS,
     ACTIVITY_LOG,
     ABOUT
 }
@@ -139,6 +140,7 @@ private val AppSection.label: String
     get() = when (this) {
         AppSection.HOME -> "Home"
         AppSection.ADVANCED -> "Advanced settings"
+        AppSection.STATS -> "Stats"
         AppSection.ACTIVITY_LOG -> "Activity log"
         AppSection.ABOUT -> "About"
     }
@@ -147,6 +149,7 @@ private val AppSection.iconRes: Int
     get() = when (this) {
         AppSection.HOME -> R.drawable.ic_home
         AppSection.ADVANCED -> R.drawable.ic_advanced
+        AppSection.STATS -> R.drawable.ic_battery
         AppSection.ACTIVITY_LOG -> R.drawable.ic_activity_log
         AppSection.ABOUT -> R.drawable.ic_info
     }
@@ -706,6 +709,9 @@ class MainActivity : ComponentActivity() {
         val batteryDashboard = remember(refreshToken) {
             BatterySleepStore.dashboard(this)
         }
+        val batteryStats = remember(refreshToken) {
+            BatterySleepStore.stats(this)
+        }
         val restoreProblem = remember(refreshToken) {
             SleepCycleStore.restoreProblem(this)
         }
@@ -829,6 +835,7 @@ class MainActivity : ComponentActivity() {
                                     when (currentSection) {
                                         AppSection.HOME -> "SleepManager"
                                         AppSection.ADVANCED -> "Advanced"
+                                        AppSection.STATS -> "Stats"
                                         AppSection.ACTIVITY_LOG -> "Activity log"
                                         AppSection.ABOUT -> "About"
                                     },
@@ -838,6 +845,7 @@ class MainActivity : ComponentActivity() {
                                     when (currentSection) {
                                         AppSection.HOME -> "Smart sleep automation"
                                         AppSection.ADVANCED -> "Custom delay and sleep conditions"
+                                        AppSection.STATS -> "Sleep and battery measurements"
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
                                         AppSection.ABOUT -> "App information"
                                     },
@@ -1094,45 +1102,6 @@ class MainActivity : ComponentActivity() {
                         )
 
                         CompactIntegrationRow(
-                            icon = R.drawable.ic_equalizer,
-                            title = "JamesDSP",
-                            version = jamesDspTarget?.let { target ->
-                                buildString {
-                                    append(target.displayName)
-                                    target.versionName?.let { version ->
-                                        append(" • ")
-                                        append(version)
-                                    }
-                                }
-                            } ?: "Not detected",
-                            status = null,
-                            checked = jamesDspEnabled && jamesDspTarget != null,
-                            enabled = jamesDspTarget != null,
-                            onCheckedChange = {
-                                jamesDspEnabled = it
-                                AppPreferences.setManageJamesDsp(
-                                    this@MainActivity,
-                                    it
-                                )
-
-                                if (!it && managerEnabled) {
-                                    restoreJamesDspTransactionNow()
-                                    SleepCycleStore.completeIfRestored(this@MainActivity)
-                                }
-                            },
-                            onOpen = if (jamesDspTarget != null) {
-                                { JamesDspController.open(this@MainActivity) }
-                            } else {
-                                null
-                            }
-                        )
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = 64.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-
-                        CompactIntegrationRow(
                             icon = R.drawable.ic_tailscale,
                             title = "Tailscale",
                             version = if (tailscaleInstalled) {
@@ -1158,6 +1127,37 @@ class MainActivity : ComponentActivity() {
                             },
                             onOpen = if (tailscaleInstalled) {
                                 { TailscaleController.open(this@MainActivity) }
+                            } else {
+                                null
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        CompactIntegrationRow(
+                            icon = R.drawable.ic_equalizer,
+                            title = "JamesDSP",
+                            version = jamesDspTarget?.versionName ?: "Not detected",
+                            status = null,
+                            checked = jamesDspEnabled && jamesDspTarget != null,
+                            enabled = jamesDspTarget != null,
+                            onCheckedChange = {
+                                jamesDspEnabled = it
+                                AppPreferences.setManageJamesDsp(
+                                    this@MainActivity,
+                                    it
+                                )
+
+                                if (!it && managerEnabled) {
+                                    restoreJamesDspTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
+                                }
+                            },
+                            onOpen = if (jamesDspTarget != null) {
+                                { JamesDspController.open(this@MainActivity) }
                             } else {
                                 null
                             }
@@ -1303,6 +1303,14 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
+                            )
+                        }
+                    }
+
+                    AppSection.STATS -> {
+                        item {
+                            BatteryStatsPage(
+                                stats = batteryStats
                             )
                         }
                     }
@@ -1540,6 +1548,204 @@ private fun StatusCard(
     }
 }
 
+
+@Composable
+private fun BatteryStatsPage(
+    stats: BatterySleepStore.Stats
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        StatsCard(title = "Battery") {
+            StatsGrid(
+                metrics = listOf(
+                    "Current" to (stats.currentPercent?.let { "$it%" } ?: "—"),
+                    "Estimated capacity" to (
+                        stats.estimatedCapacityMah?.let {
+                            "~${formatMah(it)} mAh"
+                        } ?: "Unavailable"
+                    ),
+                    "Current charge" to (
+                        stats.currentChargeMah?.let {
+                            "${formatMah(it)} mAh"
+                        } ?: "Unavailable"
+                    )
+                )
+            )
+        }
+
+        StatsCard(title = "Sleep efficiency") {
+            StatsGrid(
+                metrics = listOf(
+                    "7-day drain" to (
+                        stats.averageDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "Not enough data"
+                    ),
+                    "Charge drain" to (
+                        stats.averageDrainMahPerHour?.let {
+                            "${formatMahRate(it)} mAh / h"
+                        } ?: "Unavailable"
+                    ),
+                    "Deep sleep" to (
+                        stats.averageDeepSleepPercent?.let {
+                            "${formatPercentOneDecimal(it)}%"
+                        } ?: "Collecting data"
+                    ),
+                    "Measured sleep" to formatSleepSessionDuration(
+                        stats.totalMeasuredSleepMs
+                    )
+                )
+            )
+        }
+
+        StatsCard(title = "Standby estimate") {
+            StatsGrid(
+                metrics = listOf(
+                    "From current battery" to (
+                        stats.estimatedHoursRemaining?.let {
+                            formatStandbyEstimate(it)
+                        } ?: "Not enough data"
+                    ),
+                    "From 100%" to (
+                        stats.estimatedHoursFromFull?.let {
+                            formatStandbyEstimate(it)
+                        } ?: "Not enough data"
+                    ),
+                    "Best drain" to (
+                        stats.bestDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "—"
+                    ),
+                    "Worst drain" to (
+                        stats.worstDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "—"
+                    )
+                )
+            )
+            Text(
+                "Standby estimates use the measured 7-day sleep average and are only indicative.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        stats.lastSession?.let { last ->
+            StatsCard(title = "Last sleep") {
+                StatsGrid(
+                    metrics = listOf(
+                        "Duration" to formatSleepSessionDuration(last.durationMs),
+                        "Battery used" to "−${last.drainPercent}%",
+                        "Charge used" to (
+                            last.drainMah?.let {
+                                "${formatMah(it)} mAh"
+                            } ?: if (last.chargedDuringSleep) {
+                                "Charging during sleep"
+                            } else {
+                                "Unavailable"
+                            }
+                        ),
+                        "Deep sleep" to (
+                            last.deepSleepPercent?.let {
+                                "${formatPercentOneDecimal(it)}%"
+                            } ?: "Collecting data"
+                        )
+                    )
+                )
+            }
+        }
+
+        StatsCard(title = "Measurement") {
+            Text(
+                "${stats.averageSessionCount} eligible sleep session" +
+                    if (stats.averageSessionCount == 1) "." else "s.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                "Sessions shorter than 10 minutes or containing charging are excluded from averages. Capacity is an estimate when Android does not expose a readable full-capacity value.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatsGrid(
+    metrics: List<Pair<String, String>>
+) {
+    metrics.chunked(2).forEach { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            row.forEach { pair ->
+                BatteryMetric(
+                    modifier = Modifier.weight(1f),
+                    label = pair.first,
+                    value = pair.second
+                )
+            }
+            if (row.size == 1) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+private fun formatMah(value: Double): String =
+    String.format(Locale.US, "%.0f", value)
+
+private fun formatMahRate(value: Double): String =
+    if (value < 10.0) {
+        String.format(Locale.US, "%.1f", value)
+    } else {
+        String.format(Locale.US, "%.0f", value)
+    }
+
+private fun formatPercentOneDecimal(value: Double): String =
+    String.format(Locale.US, "%.1f", value)
+
+private fun formatStandbyEstimate(hours: Double): String {
+    if (!hours.isFinite() || hours <= 0.0) return "—"
+
+    val totalHours = hours.toLong().coerceAtLeast(1L)
+    val days = totalHours / 24L
+    val remainderHours = totalHours % 24L
+    return when {
+        days > 0L && remainderHours > 0L -> "${days}d ${remainderHours}h"
+        days > 0L -> "${days}d"
+        else -> "${totalHours}h"
+    }
+}
+
 @Composable
 private fun BatteryDashboardCard(
     dashboard: BatterySleepStore.Dashboard
@@ -1589,15 +1795,13 @@ private fun BatteryDashboardCard(
                     )
                 }
 
-                Text(
-                    when {
-                        dashboard.currentCharging -> "Charging"
-                        dashboard.sessionActive -> "Sleep tracking"
-                        else -> "Awake"
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (dashboard.currentCharging) {
+                    Text(
+                        "Charging",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             HorizontalDivider(
