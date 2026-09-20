@@ -102,6 +102,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
@@ -1400,6 +1401,7 @@ private fun CompactSideRail(
         modifier = Modifier
             .width(64.dp)
             .fillMaxHeight()
+            .testTag("compact_side_rail")
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
         NavigationRail(
@@ -2080,6 +2082,7 @@ private fun InteractiveBatteryGauge(
     Row(
         modifier = modifier
             .height(66.dp)
+            .testTag("battery_gauge")
             .clickable(onClick = onGaugeClick)
             .semantics {
                 contentDescription =
@@ -2420,6 +2423,7 @@ private fun CompactIntegrationRow(
         ) {
             Text(
                 title,
+                modifier = Modifier.testTag("integration_title_$title"),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
