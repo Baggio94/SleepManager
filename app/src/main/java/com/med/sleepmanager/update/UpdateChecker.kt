@@ -31,8 +31,6 @@ object UpdateChecker {
         "https://api.github.com/repos/Baggio94/SleepManager/releases/latest"
     private const val RELEASE_MANIFEST =
         "https://github.com/Baggio94/SleepManager/releases/latest/download/update.json"
-    private const val UPDATER_V2_TEST_MANIFEST =
-        "https://github.com/Baggio94/SleepManager/releases/download/v0.5.2-updater-test/update.json"
     private const val CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L
     private const val CONNECT_TIMEOUT_MS = 8000
     private const val READ_TIMEOUT_MS = 8000
@@ -68,13 +66,6 @@ object UpdateChecker {
         )
         cacheRelease(appContext, update)
         UpdateNotifier.notifyIfNeeded(appContext, update)
-        return update
-    }
-
-    fun loadUpdaterV2Test(context: Context): UpdateInfo {
-        val appContext = context.applicationContext
-        val update = fetchReleaseManifest(UPDATER_V2_TEST_MANIFEST)
-        cacheRelease(appContext, update)
         return update
     }
 
