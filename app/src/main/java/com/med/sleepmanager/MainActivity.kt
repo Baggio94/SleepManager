@@ -111,6 +111,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.med.sleepmanager.BuildConfig
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
@@ -3355,6 +3356,28 @@ private fun AboutPage(
                         onClick = onRequestNotificationPermission
                     )
                 }
+            }
+
+            if (BuildConfig.VERSION_NAME.contains("-dev")) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                AboutActionRow(
+                    title = "Simulate update",
+                    subtitle = "Developer test: pretend SleepManager 0.5.2 is available.",
+                    actionLabel = "Simulate",
+                    onClick = {
+                        val simulated =
+                            UpdateChecker.simulateAvailableUpdate(
+                                context = context,
+                                versionName = "0.5.2"
+                            )
+                        updateCheckMessage =
+                            "Simulated SleepManager ${simulated.versionName} update."
+                        onUpdateStateChanged()
+                    }
+                )
             }
         }
 

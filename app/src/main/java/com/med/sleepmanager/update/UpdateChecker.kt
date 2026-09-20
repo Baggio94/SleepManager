@@ -41,6 +41,24 @@ object UpdateChecker {
         }
     }
 
+    fun simulateAvailableUpdate(
+        context: Context,
+        versionName: String = "0.5.2"
+    ): UpdateInfo {
+        val appContext = context.applicationContext
+        val update = UpdateInfo(
+            versionName = versionName,
+            releaseUrl = "https://github.com/Baggio94/SleepManager/releases"
+        )
+        AppPreferences.setLatestRelease(
+            appContext,
+            update.versionName,
+            update.releaseUrl
+        )
+        UpdateNotifier.notifyIfNeeded(appContext, update)
+        return update
+    }
+
     fun checkIfDueAsync(context: Context, notify: Boolean) {
         val appContext = context.applicationContext
         Thread {
