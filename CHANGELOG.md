@@ -2,6 +2,29 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.0 — 2026-09-20
+
+### Highlights
+
+- Added sleep battery statistics with last-session drain, duration, drain rate, 7-day averages and measured mAh when available.
+- Added JamesDSP sleep/wake control for O2P JamesDSP Manager and RootlessJamesDSP.
+- JamesDSP management is explicitly **OFF during sleep / ON while awake** because JamesDSP does not expose a reliable public power-state query.
+- Strengthened AYN Thor Hall-state startup and closed-lid recovery.
+- Hardened service startup, Helper idempotency and persistent restore transactions.
+- Added pending-restore recovery and clearer diagnostics.
+- Improved Syncthing-Fork STOP verification when its running state can be confirmed.
+- Added responsive UI regression coverage and multiple handheld/phone layout refinements.
+
+### Notes
+
+- Stable version code is **501**, allowing direct updates from the 0.5.0 beta.
+- Package IDs and the permanent signing certificate remain unchanged.
+- No root, Shizuku or ADB is required on the device.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
+
+---
+
 ## 0.5.0-beta1 — 2026-09-19 — Preview
 
 ### Highlights
@@ -24,10 +47,6 @@ Release notes are organized by version and focus on user-visible behavior first.
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full beta summary.
 
 ---
-
-# Changelog
-
-Release notes are organized by version and focus on user-visible behavior first.
 
 ## 0.4.1 — 2026-09-19
 
