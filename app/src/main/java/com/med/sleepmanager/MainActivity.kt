@@ -52,6 +52,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -888,7 +889,8 @@ class MainActivity : ComponentActivity() {
                                 IconButton(
                                     onClick = feedbackClick {
                                         drawerScope.launch { drawerState.open() }
-                                    }
+                                    },
+                                    modifier = Modifier.offset(y = (-12).dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_menu),
@@ -1441,7 +1443,10 @@ private fun CompactSideRail(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             windowInsets = WindowInsets(0, 0, 0, 0),
             header = {
-                IconButton(onClick = feedbackClick(onMenuClick)) {
+                IconButton(
+                    onClick = feedbackClick(onMenuClick),
+                    modifier = Modifier.offset(y = (-12).dp)
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_menu),
                         contentDescription = "Open navigation"
