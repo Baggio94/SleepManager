@@ -30,7 +30,10 @@ object AppPreferences {
     private const val KEY_AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
     private const val KEY_LAST_UPDATE_CHECK_ATTEMPT = "last_update_check_attempt"
     private const val KEY_LATEST_RELEASE_VERSION = "latest_release_version"
+    private const val KEY_LATEST_RELEASE_VERSION_CODE = "latest_release_version_code"
     private const val KEY_LATEST_RELEASE_URL = "latest_release_url"
+    private const val KEY_LATEST_RELEASE_APK_URL = "latest_release_apk_url"
+    private const val KEY_LATEST_RELEASE_SHA256 = "latest_release_sha256"
     private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "last_notified_update_version"
 
     private fun prefs(context: Context) =
@@ -218,12 +221,47 @@ object AppPreferences {
     fun latestReleaseVersion(context: Context): String? =
         prefs(context).getString(KEY_LATEST_RELEASE_VERSION, null)
 
+    fun latestReleaseVersionCode(context: Context): Long? =
+        prefs(context)
+            .getLong(KEY_LATEST_RELEASE_VERSION_CODE, -1L)
+            .takeIf { it >= 0L }
+
     fun latestReleaseUrl(context: Context): String? =
         prefs(context).getString(KEY_LATEST_RELEASE_URL, null)
 
-    fun setLatestRelease(context: Context, version: String, url: String) =
+    fun latestReleaseApkUrl(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_RELEASE_APK_URL, null)
+
+    fun latestReleaseSha256(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_RELEASE_SHA256, null)
+
+    fun setLatestRelease(
+        context: Context,
+        version: String,
+        versionCode: Long?,
+        url: String,
+        apkUrl: String?,
+        sha256: String?
+    ) =
         prefs(context).edit()
             .putString(KEY_LATEST_RELEASE_VERSION, version)
+            .apply {
+                if (versionCode != null) {
+                    putLong(KEY_LATEST_RELEASE_VERSION_CODE, versionCode)
+                } else {
+                    remove(KEY_LATEST_RELEASE_VERSION_CODE)
+                }
+                if (apkUrl != null) {
+                    putString(KEY_LATEST_RELEASE_APK_URL, apkUrl)
+                } else {
+                    remove(KEY_LATEST_RELEASE_APK_URL)
+                }
+                if (sha256 != null) {
+                    putString(KEY_LATEST_RELEASE_SHA256, sha256)
+                } else {
+                    remove(KEY_LATEST_RELEASE_SHA256)
+                }
+            }
             .putString(KEY_LATEST_RELEASE_URL, url)
             .apply()
 
