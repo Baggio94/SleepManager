@@ -3525,6 +3525,38 @@ private fun AboutPage(
                         onUpdateStateChanged()
                     }
                 )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                AboutActionRow(
+                    title = "Test V2 updater",
+                    subtitle = "Load the signed 0.5.2 updater-test prerelease and run the real installer flow.",
+                    actionLabel = if (updateCheckRunning) "Loading…" else "Load",
+                    enabled = !updateCheckRunning && !updateDownloadRunning,
+                    onClick = {
+                        updateCheckRunning = true
+                        updateCheckMessage = "Loading signed updater test release…"
+                        updateScope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    UpdateChecker.loadUpdaterV2Test(context)
+                                }
+                            }
+                            result.onSuccess { update ->
+                                UpdateNotifier.notifyIfNeeded(context, update)
+                                updateCheckMessage =
+                                    "Updater V2 test ${update.versionName} loaded."
+                            }.onFailure {
+                                updateCheckMessage =
+                                    "Updater V2 test release is not available yet."
+                            }
+                            updateCheckRunning = false
+                            onUpdateStateChanged()
+                        }
+                    }
+                )
             }
         }
 
