@@ -26,6 +26,7 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.network.NetworkReadyGate
@@ -515,6 +516,9 @@ class SleepManagerService : Service() {
         val tailscale =
             AppPreferences.manageTailscale(this) &&
                 TailscaleConnector.isInstalled(this)
+        val jamesDsp =
+            AppPreferences.manageJamesDsp(this) &&
+                JamesDspConnector.isInstalled(this)
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
 
@@ -527,7 +531,7 @@ class SleepManagerService : Service() {
         Log.i(
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
-                "syncthing=$syncthing tailscale=$tailscale"
+                "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp"
         )
 
         val syncthingResult = if (syncthing) {
@@ -558,6 +562,20 @@ class SleepManagerService : Service() {
                 this,
                 TailscaleConnector.id,
                 TailscaleConnector.TOKEN_VERIFY_DISCONNECT
+            )
+        }
+
+        val jamesDspResult = if (jamesDsp) {
+            JamesDspConnector.sleep(this)
+        } else {
+            null
+        }
+
+        if (jamesDspResult?.changed == true) {
+            SleepCycleStore.recordConnectorChange(
+                this,
+                JamesDspConnector.id,
+                jamesDspResult.restoreToken
             )
         }
 
@@ -774,6 +792,40 @@ class SleepManagerService : Service() {
         tailscaleSleepVerifyAttempts = 0
         tailscaleWakeVerifyAttempts = 0
         tailscaleVerificationNeedsWakeRestore = false
+    }
+
+    private fun restorePendingJamesDsp() {
+        val change =
+            SleepCycleStore.connectorChange(this, JamesDspConnector.id)
+                ?: return
+
+        val wakeResult =
+            JamesDspConnector.wake(this, change.restoreToken)
+
+        if (wakeResult.success) {
+            SleepCycleStore.clearConnectorChange(this, JamesDspConnector.id)
+            if (!disableRestoreRequested) {
+                AppPreferences.recordEvent(
+                    this,
+                    "Wake → JamesDSP restored"
+                )
+            }
+            Log.i(TAG, "JamesDSP power ON sent")
+        } else {
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "JamesDSP restore is still pending: ${wakeResult.detail}."
+            )
+            AppPreferences.recordEvent(
+                this,
+                if (disableRestoreRequested) {
+                    "Disable → JamesDSP restore pending"
+                } else {
+                    "Wake → JamesDSP restore pending"
+                }
+            )
+            Log.w(TAG, "JamesDSP restore failed; preserving transaction")
+        }
     }
 
     private fun hasPendingNetworkConnectorRestore(): Boolean {
@@ -993,6 +1045,8 @@ class SleepManagerService : Service() {
         if (isTailscaleSleepVerificationPending()) {
             prepareTailscaleVerificationForWake()
         }
+
+        restorePendingJamesDsp()
 
         var cycle = SleepCycleStore.current(this)
         if (

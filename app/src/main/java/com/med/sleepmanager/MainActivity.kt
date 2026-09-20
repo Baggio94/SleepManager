@@ -86,8 +86,10 @@ import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
@@ -497,6 +499,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreJamesDspTransactionNow() {
+        val change =
+            SleepCycleStore.connectorChange(this, JamesDspConnector.id)
+                ?: return
+
+        val result = JamesDspConnector.wake(this, change.restoreToken)
+
+        if (result.success) {
+            SleepCycleStore.clearConnectorChange(this, JamesDspConnector.id)
+        } else {
+            AppPreferences.recordEvent(this, "JamesDSP restore pending")
+        }
+    }
+
     private fun canScheduleExactAlarms(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return true
@@ -615,6 +631,9 @@ class MainActivity : ComponentActivity() {
         var tailscaleEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageTailscale(this))
         }
+        var jamesDspEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageJamesDsp(this))
+        }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
@@ -674,6 +693,9 @@ class MainActivity : ComponentActivity() {
         }
         val tailscaleVersion = remember(refreshToken) {
             TailscaleController.versionName(this)
+        }
+        val jamesDspTarget = remember(refreshToken) {
+            JamesDspController.selectedTarget(this)
         }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
@@ -1072,6 +1094,45 @@ class MainActivity : ComponentActivity() {
                         )
 
                         CompactIntegrationRow(
+                            icon = R.drawable.ic_equalizer,
+                            title = "JamesDSP",
+                            version = jamesDspTarget?.let { target ->
+                                buildString {
+                                    append(target.displayName)
+                                    target.versionName?.let { version ->
+                                        append(" • ")
+                                        append(version)
+                                    }
+                                }
+                            } ?: "Not detected",
+                            status = null,
+                            checked = jamesDspEnabled && jamesDspTarget != null,
+                            enabled = jamesDspTarget != null,
+                            onCheckedChange = {
+                                jamesDspEnabled = it
+                                AppPreferences.setManageJamesDsp(
+                                    this@MainActivity,
+                                    it
+                                )
+
+                                if (!it && managerEnabled) {
+                                    restoreJamesDspTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
+                                }
+                            },
+                            onOpen = if (jamesDspTarget != null) {
+                                { JamesDspController.open(this@MainActivity) }
+                            } else {
+                                null
+                            }
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        CompactIntegrationRow(
                             icon = R.drawable.ic_tailscale,
                             title = "Tailscale",
                             version = if (tailscaleInstalled) {
@@ -1109,6 +1170,7 @@ class MainActivity : ComponentActivity() {
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
                         tailscale = tailscaleEnabled && tailscaleInstalled,
+                        jamesDsp = jamesDspEnabled && jamesDspTarget != null,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
@@ -2559,12 +2621,13 @@ private fun BehaviorCard(
     bluetooth: Boolean,
     syncthing: Boolean,
     tailscale: Boolean,
+    jamesDsp: Boolean,
     thorProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasSleepAction = wifi || bluetooth || syncthing || tailscale
+    val hasSleepAction = wifi || bluetooth || syncthing || tailscale || jamesDsp
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
@@ -2573,6 +2636,7 @@ private fun BehaviorCard(
         advancedConditions.forEach { add("Only if $it") }
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
+        if (jamesDsp) add("Power off JamesDSP")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -2584,6 +2648,7 @@ private fun BehaviorCard(
         if (bluetooth) add("Restore Bluetooth")
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
+        if (jamesDsp) add("Restore JamesDSP")
     }
 
     val compactSleepSummary = buildList {
@@ -2592,6 +2657,7 @@ private fun BehaviorCard(
         if (bluetooth) add("Bluetooth")
         if (syncthing) add("Syncthing")
         if (tailscale) add("Tailscale")
+        if (jamesDsp) add("JamesDSP")
         if (advancedConditions.isNotEmpty()) {
             add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
         }

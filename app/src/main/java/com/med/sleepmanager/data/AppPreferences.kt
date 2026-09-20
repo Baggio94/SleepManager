@@ -9,6 +9,7 @@ object AppPreferences {
     private const val KEY_BLUETOOTH = "bluetooth"
     private const val KEY_SYNCTHING = "syncthing"
     private const val KEY_TAILSCALE = "tailscale"
+    private const val KEY_JAMES_DSP = "james_dsp"
     private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_THOR_LID_CLOSED_LAST_KNOWN = "thor_lid_closed_last_known"
     private const val KEY_THOR_LID_STATE_KNOWN = "thor_lid_state_known"
@@ -51,6 +52,12 @@ object AppPreferences {
 
     fun setManageTailscale(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_TAILSCALE, value).apply()
+
+    fun manageJamesDsp(context: Context) =
+        prefs(context).getBoolean(KEY_JAMES_DSP, false)
+
+    fun setManageJamesDsp(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_JAMES_DSP, value).apply()
 
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
