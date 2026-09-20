@@ -1144,10 +1144,10 @@ class MainActivity : ComponentActivity() {
                                 ?: if (selectedTarget != null) "Installed" else "Not detected",
                             status = if (selectedTarget != null) {
                                 when (currentSyncthingState) {
-                                    SyncthingController.RuntimeState.RUNNING -> "RUNNING"
-                                    SyncthingController.RuntimeState.STOPPED -> "STOPPED"
-                                    SyncthingController.RuntimeState.UNKNOWN -> "UNKNOWN"
-                                    null -> "CHECKING…"
+                                    SyncthingController.RuntimeState.RUNNING -> "Running"
+                                    SyncthingController.RuntimeState.STOPPED -> "Stopped"
+                                    SyncthingController.RuntimeState.UNKNOWN -> "Unknown"
+                                    null -> "Checking…"
                                 }
                             } else {
                                 null
@@ -1193,8 +1193,8 @@ class MainActivity : ComponentActivity() {
                             },
                             status = if (tailscaleInstalled) {
                                 currentTailscaleConnected?.let {
-                                    if (it) "CONNECTED" else "DISCONNECTED"
-                                } ?: "CHECKING…"
+                                    if (it) "Connected" else "Disconnected"
+                                } ?: "Checking…"
                             } else {
                                 null
                             },
@@ -2477,7 +2477,7 @@ private fun CompactIntegrationRow(
                 )
 
                 status?.let {
-                    val active = it == "RUNNING" || it == "CONNECTED"
+                    val active = it == "Running" || it == "Connected"
                     Text(
                         "•",
                         style = MaterialTheme.typography.bodyMedium,
