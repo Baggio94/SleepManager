@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.net.Uri
 import android.text.format.DateFormat
+import android.util.Log
 import android.provider.Settings
 import android.widget.Toast
 import android.view.HapticFeedbackConstants
@@ -624,6 +625,10 @@ class MainActivity : ComponentActivity() {
             syncthingState = currentSyncthingState,
             tailscaleConnected = currentTailscaleConnected
         )
+        diagnostics.lineSequence().forEach { line ->
+            Log.i("SleepManagerDiagnostics", line)
+        }
+
         val clipboard =
             getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         clipboard?.setPrimaryClip(
