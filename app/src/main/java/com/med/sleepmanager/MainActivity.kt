@@ -96,6 +96,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -338,6 +339,17 @@ class MainActivity : ComponentActivity() {
 
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
         statusRefreshRunnable.run()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            activityRefreshToken++
+        }
     }
 
     override fun onPause() {
@@ -673,7 +685,7 @@ class MainActivity : ComponentActivity() {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
-        var currentSection by remember { mutableStateOf(AppSection.HOME) }
+        var currentSection by rememberSaveable { mutableStateOf(AppSection.HOME) }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
         val statsListState = rememberLazyListState()
