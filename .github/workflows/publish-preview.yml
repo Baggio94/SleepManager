@@ -3,8 +3,6 @@ name: Publish preview release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - "test/updater-v2-*"
     tags:
       - "v*-dev*"
       - "v*-beta*"
@@ -15,7 +13,6 @@ permissions:
 
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag' || github.event.before != '0000000000000000000000000000000000000000'
     runs-on: ubuntu-latest
 
     env:
