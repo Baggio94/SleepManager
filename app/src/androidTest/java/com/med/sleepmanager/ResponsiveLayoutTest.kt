@@ -58,7 +58,7 @@ class ResponsiveLayoutTest {
             densityDpi = 320
         )
 
-        composeRule.onNodeWithText("SleepManager").assertIsDisplayed()
+        composeRule.onNodeWithTag("top_app_title").assertIsDisplayed()
         composeRule.onNodeWithTag("compact_side_rail").assertIsDisplayed()
         assertBatteryShape()
         assertIntegrationsReadable()
@@ -72,7 +72,7 @@ class ResponsiveLayoutTest {
             densityDpi = 320
         )
 
-        composeRule.onNodeWithText("SleepManager").assertIsDisplayed()
+        composeRule.onNodeWithTag("top_app_title").assertIsDisplayed()
         composeRule.onNodeWithTag("compact_side_rail").assertIsDisplayed()
         assertBatteryShape()
         assertIntegrationsReadable()
@@ -85,7 +85,7 @@ class ResponsiveLayoutTest {
     ) {
         applyDisplay(widthPx, heightPx, densityDpi)
 
-        composeRule.onNodeWithText("SleepManager").assertIsDisplayed()
+        composeRule.onNodeWithTag("top_app_title").assertIsDisplayed()
 
         // Phones should not surrender 64dp to a permanent navigation rail.
         // The drawer entry point must remain visible instead.

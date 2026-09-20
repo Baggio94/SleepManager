@@ -907,6 +907,7 @@ class MainActivity : ComponentActivity() {
                                         AppSection.ACTIVITY_LOG -> "Activity log"
                                         AppSection.ABOUT -> "About"
                                     },
+                                    modifier = Modifier.testTag("top_app_title"),
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
