@@ -147,7 +147,7 @@ class ResponsiveLayoutTest {
             .performScrollToNode(hasTestTag("battery_gauge"))
 
         val bounds = composeRule
-            .onNodeWithTag("battery_gauge")
+            .onNodeWithTag("battery_gauge_body", useUnmergedTree = true)
             .assertIsDisplayed()
             .fetchSemanticsNode()
             .boundsInRoot
