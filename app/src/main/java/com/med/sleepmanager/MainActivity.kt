@@ -22,19 +22,25 @@ import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -226,7 +232,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                lightScrim = android.graphics.Color.TRANSPARENT,
+                darkScrim = android.graphics.Color.TRANSPARENT
+            )
+        )
 
         setContent {
             SleepManagerTheme {
@@ -1346,29 +1357,39 @@ private fun CompactSideRail(
     onSectionSelected: (AppSection) -> Unit,
     onMenuClick: () -> Unit
 ) {
-    NavigationRail(
-        modifier = Modifier.width(64.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        header = {
-            IconButton(onClick = feedbackClick(onMenuClick)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_menu),
-                    contentDescription = "Open navigation"
-                )
-            }
-        }
+    Box(
+        modifier = Modifier
+            .width(64.dp)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        AppSection.values().forEach { section ->
-            NavigationRailItem(
-                selected = currentSection == section,
-                onClick = feedbackClick { onSectionSelected(section) },
-                icon = {
+        NavigationRail(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            header = {
+                IconButton(onClick = feedbackClick(onMenuClick)) {
                     Icon(
-                        painter = painterResource(section.iconRes),
-                        contentDescription = section.label
+                        painter = painterResource(R.drawable.ic_menu),
+                        contentDescription = "Open navigation"
                     )
                 }
-            )
+            }
+        ) {
+            AppSection.values().forEach { section ->
+                NavigationRailItem(
+                    selected = currentSection == section,
+                    onClick = feedbackClick { onSectionSelected(section) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(section.iconRes),
+                            contentDescription = section.label
+                        )
+                    }
+                )
+            }
         }
     }
 }
