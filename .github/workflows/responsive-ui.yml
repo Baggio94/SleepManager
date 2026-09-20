@@ -46,6 +46,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Run responsive UI matrix
+        id: responsive_tests
+        continue-on-error: true
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -59,3 +61,23 @@ jobs:
             -no-boot-anim
             -gpu swiftshader_indirect
           script: gradle :app:connectedDebugAndroidTest
+
+      - name: Print responsive UI test results
+        if: always()
+        run: |
+          find app/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; || true
+
+      - name: Upload responsive UI reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-ui-report
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Fail when responsive tests fail
+        if: steps.responsive_tests.outcome != 'success'
+        run: exit 1
