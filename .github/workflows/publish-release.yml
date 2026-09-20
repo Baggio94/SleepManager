@@ -66,8 +66,13 @@ jobs:
           set -euo pipefail
 
           VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)
+          VERSION_CODE=$(sed -n 's/^SLEEPMANAGER_VERSION_CODE=//p' gradle.properties)
           [ -n "$VERSION_NAME" ] || {
             echo "::error::Version name is missing."
+            exit 1
+          }
+          [ -n "$VERSION_CODE" ] || {
+            echo "::error::Version code is missing."
             exit 1
           }
 
@@ -84,6 +89,7 @@ jobs:
           fi
 
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=v$VERSION_NAME" >> "$GITHUB_ENV"
 
       - name: Check whether release already exists
@@ -145,6 +151,29 @@ jobs:
           cp helper/build/outputs/apk/release/helper-release.apk \
             "dist/SleepManager-Helper-$VERSION_NAME.apk"
 
+          MAIN_APK="dist/SleepManager-$VERSION_NAME.apk"
+          APK_SHA256=$(sha256sum "$MAIN_APK" | awk '{print $1}')
+          RELEASE_URL="https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
+          APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-$VERSION_NAME.apk"
+
+          export APK_SHA256 RELEASE_URL APK_URL
+          python3 - <<'PY'
+          import json
+          import os
+
+          payload = {
+              "versionName": os.environ["VERSION_NAME"],
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "releaseUrl": os.environ["RELEASE_URL"],
+              "apkUrl": os.environ["APK_URL"],
+              "sha256": os.environ["APK_SHA256"],
+          }
+
+          with open("dist/update.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, separators=(",", ":"))
+              handle.write("\n")
+          PY
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -168,5 +197,6 @@ jobs:
             gh release upload "$RELEASE_TAG" \
               "dist/SleepManager-$VERSION_NAME.apk" \
               "dist/SleepManager-Helper-$VERSION_NAME.apk" \
+              "dist/update.json" \
               --repo "$GITHUB_REPOSITORY"
           fi
