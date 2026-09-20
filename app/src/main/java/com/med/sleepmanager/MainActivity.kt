@@ -85,7 +85,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -107,9 +106,6 @@ import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
-import com.med.sleepmanager.ui.HorizontalBatteryGauge
-import com.med.sleepmanager.ui.SleepMascot
-import com.med.sleepmanager.ui.dreamBackground
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
 import java.util.Locale
@@ -813,25 +809,12 @@ class MainActivity : ComponentActivity() {
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            SleepMascot(modifier = Modifier.size(46.dp))
-                            Column {
-                                Text(
-                                    "SleepManager",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    "Quiet on sleep. Ready on wake.",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        Text(
+                            "SleepManager",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
 
                         AppSection.values().forEach { section ->
                             NavigationDrawerItem(
@@ -854,11 +837,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .dreamBackground()
-            ) {
+            Row(modifier = Modifier.fillMaxSize()) {
                 CompactSideRail(
                     currentSection = currentSection,
                     onSectionSelected = { currentSection = it },
@@ -869,7 +848,7 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.weight(1f),
-                    containerColor = Color.Transparent,
+                    containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     TopAppBar(
                         title = {
@@ -898,7 +877,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent
+                            containerColor = MaterialTheme.colorScheme.background
                         )
                     )
                 }
@@ -931,9 +910,7 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     BatteryDashboardCard(
-                        dashboard = batteryDashboard,
-                        stats = batteryStats,
-                        onOpenStats = { currentSection = AppSection.STATS }
+                        dashboard = batteryDashboard
                     )
                 }
 
@@ -1395,14 +1372,14 @@ private fun CompactSideRail(
         modifier = Modifier
             .width(64.dp)
             .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.90f))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
         NavigationRail(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding(),
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             windowInsets = WindowInsets(0, 0, 0, 0),
             header = {
                 IconButton(onClick = feedbackClick(onMenuClick)) {
@@ -1589,8 +1566,6 @@ private fun StatusCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                SleepMascot(modifier = Modifier.size(48.dp))
             }
 
             Button(
@@ -1615,8 +1590,6 @@ private fun BatteryStatsPage(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        StatsHeroCard(stats)
-
         StatsCard(title = "Battery") {
             StatsGrid(
                 metrics = listOf(
@@ -1734,57 +1707,6 @@ private fun BatteryStatsPage(
 }
 
 @Composable
-private fun StatsHeroCard(
-    stats: BatterySleepStore.Stats
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            SleepMascot(modifier = Modifier.size(64.dp))
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Sleep at a glance",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    buildString {
-                        append(stats.currentPercent?.let { "$it% battery" } ?: "Battery unavailable")
-                        stats.averageDrainPerHour?.let {
-                            append(" • ")
-                            append(formatDrainRate(it))
-                            append("% / h 7-day drain")
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    "Quiet measurements from real sleep and wake cycles.",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun StatsCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
@@ -1861,62 +1783,60 @@ private fun formatStandbyEstimate(hours: Double): String {
 
 @Composable
 private fun BatteryDashboardCard(
-    dashboard: BatterySleepStore.Dashboard,
-    stats: BatterySleepStore.Stats,
-    onOpenStats: () -> Unit
+    dashboard: BatterySleepStore.Dashboard
 ) {
+    val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
     val last = dashboard.lastSession
-    val shortSession = last?.durationMs?.let { it < 10L * 60L * 1000L } == true
-    val chargeText =
-        if (stats.currentChargeMah != null && stats.estimatedCapacityMah != null) {
-            "${formatMah(stats.currentChargeMah)} / ~${formatMah(stats.estimatedCapacityMah)} mAh"
-        } else {
-            "Tap for detailed battery stats"
-        }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Column(modifier = Modifier.weight(0.36f)) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_battery),
+                        contentDescription = "Battery",
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .size(26.dp)
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         "Battery",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        dashboard.currentPercent?.let { "$it%" } ?: "—",
+                        currentText,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    if (dashboard.currentCharging) {
-                        Text(
-                            "Charging",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
                 }
 
-                HorizontalBatteryGauge(
-                    percent = dashboard.currentPercent,
-                    charging = dashboard.currentCharging,
-                    detail = chargeText,
-                    onClick = feedbackClick(onOpenStats),
-                    modifier = Modifier.weight(0.64f)
-                )
+                if (dashboard.currentCharging) {
+                    Text(
+                        "Charging",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             HorizontalDivider(
@@ -1943,13 +1863,14 @@ private fun BatteryDashboardCard(
                     BatteryMetric(
                         modifier = Modifier.weight(1f),
                         label = "Drain",
-                        value = when {
-                            last.chargedDuringSleep -> "Charging during sleep"
-                            shortSession -> "Short session"
-                            else -> last.drainPerHour?.let {
-                                "${formatDrainRate(it)}% / h"
-                            } ?: "—"
-                        }
+                        value =
+                            when {
+                                last.chargedDuringSleep -> "Charging during sleep"
+                                last.durationMs < 10L * 60L * 1000L -> "Short session"
+                                else -> last.drainPerHour?.let {
+                                    "${formatDrainRate(it)}% / h"
+                                } ?: "—"
+                            }
                     )
                 }
 
@@ -1980,7 +1901,7 @@ private fun BatteryDashboardCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    shortSession -> {
+                    last.durationMs < 10L * 60L * 1000L -> {
                         Text(
                             "Sessions under 10 minutes are shown here but excluded from the 7-day average.",
                             style = MaterialTheme.typography.labelSmall,
@@ -2751,8 +2672,9 @@ private fun AboutPage(context: Context) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        AboutBrandCard(
-            version = packageInfo?.versionName ?: "Unknown"
+        InfoCard(
+            title = "SleepManager",
+            text = "Version ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
         )
 
         SettingsCard {
@@ -2836,49 +2758,6 @@ private fun AboutPage(context: Context) {
                 actionLabel = "Open",
                 onClick = { openAppInfo() }
             )
-        }
-    }
-}
-
-@Composable
-private fun AboutBrandCard(
-    version: String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            SleepMascot(modifier = Modifier.size(78.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "SleepManager",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "Quiet on sleep. Ready on wake.",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    "Version $version • Smart sleep automation for Android",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-                )
-            }
         }
     }
 }
