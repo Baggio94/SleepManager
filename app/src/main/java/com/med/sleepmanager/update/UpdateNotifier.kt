@@ -62,7 +62,7 @@ object UpdateNotifier {
                 .setContentText("Version ${update.versionName} is ready to install.")
                 .setStyle(
                     Notification.BigTextStyle().bigText(
-                        "SleepManager ${update.versionName} is available. Tap to open the GitHub release."
+                        "SleepManager ${update.versionName} is available. Tap to open the in-app updater."
                     )
                 )
                 .setContentIntent(releasePendingIntent)
