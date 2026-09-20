@@ -83,6 +83,29 @@ class ResponsiveLayoutTest {
     }
 
     @Test
+    fun shortLandscape_testSleepWakeDialogCanScrollToLastInstruction() {
+        applyDisplay(
+            widthPx = 1280,
+            heightPx = 960,
+            densityDpi = 360
+        )
+
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("How to test sleep / wake"))
+        composeRule.onNodeWithText("How to test sleep / wake")
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(
+            "Copy log includes the full transaction details if needed."
+        )
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Got it")
+            .assertIsDisplayed()
+    }
+
+    @Test
     fun switchingToStats_doesNotReuseHomeScrollPosition() {
         applyDisplay(
             widthPx = 1440,

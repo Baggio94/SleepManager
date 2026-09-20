@@ -767,7 +767,10 @@ class MainActivity : ComponentActivity() {
                 onDismissRequest = { showTestDialog = false },
                 title = { Text("Test sleep / wake") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text("1. Choose the sleep actions you want to test below.")
                         Text("2. Enable SleepManager at the top of the app.")
                         Text("3. Turn the screen off normally.")
