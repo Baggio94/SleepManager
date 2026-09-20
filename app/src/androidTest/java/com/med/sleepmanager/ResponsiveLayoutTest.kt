@@ -122,8 +122,10 @@ class ResponsiveLayoutTest {
     }
 
     private fun assertTextIsNotCrushed(tag: String) {
-        val bounds: Rect = composeRule
-            .onNodeWithTag(tag, useUnmergedTree = true)
+        val node = composeRule.onNodeWithTag(tag, useUnmergedTree = true)
+        node.performScrollTo().assertIsDisplayed()
+
+        val bounds: Rect = node
             .fetchSemanticsNode()
             .boundsInRoot
 

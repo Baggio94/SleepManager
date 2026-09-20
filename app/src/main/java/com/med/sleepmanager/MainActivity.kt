@@ -98,6 +98,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -648,6 +649,7 @@ class MainActivity : ComponentActivity() {
         var currentSection by remember { mutableStateOf(AppSection.HOME) }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val drawerScope = rememberCoroutineScope()
+        val compactLayout = LocalConfiguration.current.screenWidthDp < 600
 
         var managerEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.isEnabled(this))
@@ -866,19 +868,35 @@ class MainActivity : ComponentActivity() {
             }
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
-                CompactSideRail(
-                    currentSection = currentSection,
-                    onSectionSelected = { currentSection = it },
-                    onMenuClick = {
-                        drawerScope.launch { drawerState.open() }
-                    }
-                )
+                if (!compactLayout) {
+                    CompactSideRail(
+                        currentSection = currentSection,
+                        onSectionSelected = { currentSection = it },
+                        onMenuClick = {
+                            drawerScope.launch { drawerState.open() }
+                        }
+                    )
+                }
 
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     TopAppBar(
+                        navigationIcon = {
+                            if (compactLayout) {
+                                IconButton(
+                                    onClick = feedbackClick {
+                                        drawerScope.launch { drawerState.open() }
+                                    }
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_menu),
+                                        contentDescription = "Open navigation"
+                                    )
+                                }
+                            }
+                        },
                         title = {
                             Column {
                                 Text(
@@ -936,6 +954,22 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                if (!setupComplete) {
+                    item {
+                        OnboardingCard(
+                            helperInstalled = helperInstalled,
+                            helperVersion = helperVersion,
+                            syncthingTarget = selectedTarget,
+                            syncthingEnabled = syncthingEnabled,
+                            tailscaleInstalled = tailscaleInstalled,
+                            tailscaleVersion = tailscaleVersion,
+                            managerEnabled = managerEnabled,
+                            onGetHelper = { openProjectReleases() },
+                            onShowTest = { showTestDialog = true }
+                        )
+                    }
+                }
+
                 item {
                     BatteryDashboardCard(
                         dashboard = batteryDashboard,
@@ -956,22 +990,6 @@ class MainActivity : ComponentActivity() {
                                 )
                                 activityRefreshToken++
                             }
-                        )
-                    }
-                }
-
-                if (!setupComplete) {
-                    item {
-                        OnboardingCard(
-                            helperInstalled = helperInstalled,
-                            helperVersion = helperVersion,
-                            syncthingTarget = selectedTarget,
-                            syncthingEnabled = syncthingEnabled,
-                            tailscaleInstalled = tailscaleInstalled,
-                            tailscaleVersion = tailscaleVersion,
-                            managerEnabled = managerEnabled,
-                            onGetHelper = { openProjectReleases() },
-                            onShowTest = { showTestDialog = true }
                         )
                     }
                 }
@@ -2134,8 +2152,13 @@ private fun InteractiveBatteryGauge(
                         ) { index ->
                             Text(
                                 text = infoTexts[index],
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = if (LocalConfiguration.current.screenWidthDp < 600) {
+                                    MaterialTheme.typography.bodySmall
+                                } else {
+                                    MaterialTheme.typography.bodyMedium
+                                },
                                 fontWeight = FontWeight.Medium,
+                                maxLines = 1,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -2388,13 +2411,9 @@ private fun CompactIntegrationRow(
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    val compact = LocalConfiguration.current.screenWidthDp < 600
+
+    val iconContent: @Composable () -> Unit = {
         Surface(
             shape = CircleShape,
             color = if (enabled) {
@@ -2416,9 +2435,10 @@ private fun CompactIntegrationRow(
                     .size(22.dp)
             )
         }
+    }
 
+    val detailsContent: @Composable () -> Unit = {
         Column(
-            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Text(
@@ -2457,38 +2477,93 @@ private fun CompactIntegrationRow(
                     )
                 }
             }
+        }
+    }
 
-            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    onOpen?.let { open ->
-                        OutlinedButton(onClick = feedbackClick(open)) {
-                            Text("Open")
-                        }
+    val actionsContent: @Composable () -> Unit = {
+        if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                onOpen?.let { open ->
+                    OutlinedButton(onClick = feedbackClick(open)) {
+                        Text("Open")
                     }
+                }
 
-                    if (secondaryActionLabel != null && onSecondaryAction != null) {
-                        TextButton(
-                            onClick = feedbackClick(onSecondaryAction),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Text(secondaryActionLabel)
-                        }
+                if (secondaryActionLabel != null && onSecondaryAction != null) {
+                    TextButton(
+                        onClick = feedbackClick(onSecondaryAction),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(secondaryActionLabel)
                     }
                 }
             }
         }
+    }
 
-        Switch(
-            checked = checked,
-            onCheckedChange = feedbackChange(onCheckedChange),
-            enabled = enabled,
-            modifier = Modifier.semantics {
-                contentDescription = "$title toggle"
+    if (compact) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                iconContent()
+                Box(modifier = Modifier.weight(1f)) {
+                    detailsContent()
+                }
+                Switch(
+                    checked = checked,
+                    onCheckedChange = feedbackChange(onCheckedChange),
+                    enabled = enabled,
+                    modifier = Modifier.semantics {
+                        contentDescription = "$title toggle"
+                    }
+                )
             }
-        )
+
+            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+                Box(
+                    modifier = Modifier.padding(start = 54.dp)
+                ) {
+                    actionsContent()
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            iconContent()
+            Box(modifier = Modifier.weight(1f)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    detailsContent()
+                    actionsContent()
+                }
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = feedbackChange(onCheckedChange),
+                enabled = enabled,
+                modifier = Modifier.semantics {
+                    contentDescription = "$title toggle"
+                }
+            )
+        }
     }
 }
 @Composable
