@@ -1670,7 +1670,8 @@ private fun BatteryStatsPage(
                 StatsGrid(
                     metrics = listOf(
                         "Duration" to formatSleepSessionDuration(last.durationMs),
-                        "Battery used" to "−${last.drainPercent}%",
+                        (if (last.chargedDuringSleep) "Battery change" else "Battery used") to
+                            formatBatteryChange(last),
                         "Charge used" to (
                             last.drainMah?.let {
                                 "${formatMah(it)} mAh"
@@ -1857,7 +1858,7 @@ private fun BatteryDashboardCard(
                         modifier = Modifier.weight(1f),
                         label = "Last sleep",
                         value =
-                            "−${last.drainPercent}% • ${formatSleepSessionDuration(last.durationMs)}"
+                            "${formatBatteryChange(last)} • ${formatSleepSessionDuration(last.durationMs)}"
                     )
                     BatteryMetric(
                         modifier = Modifier.weight(1f),
@@ -1972,6 +1973,17 @@ private fun PendingRestoreCard(
                 Text("Forget pending restore")
             }
         }
+    }
+}
+
+private fun formatBatteryChange(
+    session: BatterySleepStore.SleepSession
+): String {
+    val delta = session.endPercent - session.startPercent
+    return when {
+        delta > 0 -> "+${delta}%"
+        delta < 0 -> "−${-delta}%"
+        else -> "0%"
     }
 }
 
