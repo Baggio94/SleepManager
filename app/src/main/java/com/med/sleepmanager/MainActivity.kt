@@ -1853,12 +1853,13 @@ private fun BatteryDashboardCard(
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
                     averageDrainPerHour = stats.averageDrainPerHour,
                     averageDrainMahPerHour = stats.averageDrainMahPerHour,
-                    modifier = Modifier.weight(0.78f)
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .widthIn(max = 280.dp)
                 )
 
                 Column(
-                    modifier = Modifier.weight(0.22f),
-                    horizontalAlignment = Alignment.End
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
                         currentText,
@@ -1874,6 +1875,8 @@ private fun BatteryDashboardCard(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.weight(0.35f))
             }
 
             HorizontalDivider(
@@ -1972,7 +1975,11 @@ private fun BatteryDashboardCard(
                     }
                     last.durationMs < 10L * 60L * 1000L -> {
                         Text(
-                            "Complete a sleep session of at least 10 minutes to start building sleep averages.",
+                            if (dashboard.averageSessionCount == 0) {
+                                "Complete a sleep session of at least 10 minutes to start building sleep averages."
+                            } else {
+                                "This short session is excluded from the 7-day average."
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2009,11 +2016,13 @@ private fun InteractiveBatteryGauge(
         targetValue = level / 100f,
         label = "Battery level"
     )
-    val shape = RoundedCornerShape(15.dp)
 
+    // Above 50%, follow the app/system Material accent so the battery naturally
+    // matches the current Android UI. Lower levels intentionally override it.
     val levelColor = when {
+        charging -> MaterialTheme.colorScheme.primary
         percent == null -> MaterialTheme.colorScheme.outline
-        level >= 50 -> Color(0xFF67C99A)
+        level >= 50 -> MaterialTheme.colorScheme.primary
         level >= 20 -> Color(0xFFE7B55E)
         else -> Color(0xFFE97878)
     }
@@ -2065,9 +2074,12 @@ private fun InteractiveBatteryGauge(
         label = "Charging alpha"
     )
 
+    val bodyShape = RoundedCornerShape(18.dp)
+    val innerShape = RoundedCornerShape(12.dp)
+
     Row(
         modifier = modifier
-            .height(54.dp)
+            .height(66.dp)
             .clickable(onClick = onGaugeClick)
             .semantics {
                 contentDescription =
@@ -2080,51 +2092,60 @@ private fun InteractiveBatteryGauge(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .clip(shape)
+                .clip(bodyShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(
-                    width = 2.dp,
+                    width = 3.dp,
                     color = levelColor,
-                    shape = shape
+                    shape = bodyShape
                 )
+                .padding(6.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(animatedLevel)
-                    .background(levelColor.copy(alpha = 0.28f))
-            )
-
-            Row(
-                modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .clip(innerShape)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
                 Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.CenterStart
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedLevel)
+                        .background(levelColor.copy(alpha = 0.30f))
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Crossfade(
-                        targetState = infoIndex,
-                        label = "Battery info"
-                    ) { index ->
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Crossfade(
+                            targetState = infoIndex,
+                            label = "Battery info"
+                        ) { index ->
+                            Text(
+                                text = infoTexts[index],
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (charging) {
                         Text(
-                            text = infoTexts[index],
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            "⚡",
+                            modifier = Modifier.alpha(chargingAlpha),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = levelColor
                         )
                     }
-                }
-
-                if (charging) {
-                    Text(
-                        "⚡",
-                        modifier = Modifier.alpha(chargingAlpha),
-                        style = MaterialTheme.typography.titleMedium
-                    )
                 }
             }
         }
@@ -2132,9 +2153,9 @@ private fun InteractiveBatteryGauge(
         Box(
             modifier = Modifier
                 .padding(start = 4.dp)
-                .width(6.dp)
-                .height(22.dp)
-                .clip(RoundedCornerShape(0.dp, 4.dp, 4.dp, 0.dp))
+                .width(10.dp)
+                .height(30.dp)
+                .clip(RoundedCornerShape(0.dp, 6.dp, 6.dp, 0.dp))
                 .background(levelColor)
         )
     }
