@@ -128,16 +128,25 @@ object BatterySleepStore {
                 status == BatteryManager.BATTERY_STATUS_FULL ||
                 plugged != 0
 
+        // ACTION_BATTERY_CHANGED carries the same charge-counter value used by
+        // BatteryService. This also follows emulator battery overrides, whereas
+        // BatteryManager.getIntProperty() may still expose the underlying HAL value.
+        val broadcastCounter =
+            batteryIntent?.getIntExtra("charge_counter", Int.MIN_VALUE)
+                ?: Int.MIN_VALUE
+
         val batteryManager =
             context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
-        val rawCounter =
+        val propertyCounter =
             runCatching {
                 batteryManager?.getIntProperty(
                     BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER
                 ) ?: Int.MIN_VALUE
             }.getOrDefault(Int.MIN_VALUE)
+
         val chargeCounter =
-            rawCounter.takeUnless { it == Int.MIN_VALUE || it < 0 }
+            listOf(broadcastCounter, propertyCounter)
+                .firstOrNull { it != Int.MIN_VALUE && it >= 0 }
 
         return BatterySnapshot(
             percent = percent,
@@ -452,13 +461,36 @@ object BatterySleepStore {
     }
 
     private fun estimateCapacityMah(snapshot: BatterySnapshot): Double? {
-        readCapacityMahFromSysfs()?.let { return it }
+        val percent = snapshot.percent
+        val chargeMah = snapshot.chargeMah
 
-        val percent = snapshot.percent ?: return null
-        val chargeMah = snapshot.chargeMah ?: return null
-        if (percent <= 0 || chargeMah <= 0.0) return null
+        val chargeBasedEstimate =
+            if (
+                percent != null &&
+                percent > 0 &&
+                chargeMah != null &&
+                chargeMah > 0.0
+            ) {
+                chargeMah * 100.0 / percent.toDouble()
+            } else {
+                null
+            }
 
-        return chargeMah * 100.0 / percent.toDouble()
+        val sysfsCapacity = readCapacityMahFromSysfs()
+
+        // Some emulators expose a tiny fixed sysfs design capacity even while
+        // BatteryService is being overridden for tests. Reject a sysfs value
+        // that is clearly inconsistent with the live charge estimate.
+        if (sysfsCapacity != null) {
+            if (
+                chargeBasedEstimate == null ||
+                sysfsCapacity >= chargeBasedEstimate * 0.70
+            ) {
+                return sysfsCapacity
+            }
+        }
+
+        return chargeBasedEstimate
     }
 
     private fun readCapacityMahFromSysfs(): Double? {
