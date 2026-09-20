@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - dev/0.5.0-beta1
     paths:
       - "app/src/main/**"
