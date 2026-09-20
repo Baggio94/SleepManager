@@ -1910,13 +1910,20 @@ private fun BatteryDashboardCard(
                     estimatedCapacityMah = stats.estimatedCapacityMah,
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
                     averageDrainPerHour = stats.averageDrainPerHour,
-                    averageDrainMahPerHour = stats.averageDrainMahPerHour,
+                    averageDeepSleepPercent = stats.averageDeepSleepPercent,
                     modifier = Modifier
                         .weight(1f)
                         .widthIn(max = 280.dp)
                 )
 
+                val gaugeBodyHeight =
+                    if (LocalConfiguration.current.screenWidthDp < 600) 66.dp else 74.dp
+
                 Column(
+                    modifier = Modifier
+                        .align(Alignment.Top)
+                        .height(gaugeBodyHeight),
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.Start
                 ) {
                     Text(
@@ -2064,7 +2071,7 @@ private fun InteractiveBatteryGauge(
     estimatedCapacityMah: Double?,
     estimatedHoursRemaining: Double?,
     averageDrainPerHour: Double?,
-    averageDrainMahPerHour: Double?,
+    averageDeepSleepPercent: Double?,
     modifier: Modifier = Modifier
 ) {
     var infoIndex by remember { mutableIntStateOf(0) }
@@ -2102,16 +2109,16 @@ private fun InteractiveBatteryGauge(
             "Sleep drain • ${formatDrainRate(it)}% / h"
         } ?: "Sleep drain • Not enough data"
 
-    val chargeDrainText =
-        averageDrainMahPerHour?.let {
-            "Charge drain • ${formatMahRate(it)} mAh / h"
-        } ?: "Charge drain • Not enough data"
+    val deepSleepText =
+        averageDeepSleepPercent?.let {
+            "Deep sleep • ${String.format(Locale.US, "%.0f", it)}%"
+        } ?: "Deep sleep • Collecting data"
 
     val infoTexts = listOf(
         chargeText,
         standbyText,
         sleepDrainText,
-        chargeDrainText
+        deepSleepText
     )
     val currentInfo = infoTexts[infoIndex]
 
