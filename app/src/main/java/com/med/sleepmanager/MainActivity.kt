@@ -890,7 +890,7 @@ class MainActivity : ComponentActivity() {
                                     onClick = feedbackClick {
                                         drawerScope.launch { drawerState.open() }
                                     },
-                                    modifier = Modifier.offset(y = (-8).dp)
+                                    modifier = Modifier.offset(y = (-4).dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_menu),
@@ -1445,7 +1445,7 @@ private fun CompactSideRail(
             header = {
                 IconButton(
                     onClick = feedbackClick(onMenuClick),
-                    modifier = Modifier.offset(y = (-8).dp)
+                    modifier = Modifier.offset(y = (-4).dp)
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_menu),
@@ -3327,7 +3327,8 @@ private fun BehaviorGroup(title: String, lines: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             title,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary
         )
         lines.forEach {
