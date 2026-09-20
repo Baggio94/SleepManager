@@ -2,6 +2,30 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.1 — 2026-09-21
+
+### Highlights
+
+- Added a built-in secure updater with automatic/manual checks, update notifications and direct APK download.
+- Direct updates verify SHA-256, package name, version metadata and the permanent SleepManager signing certificate before opening Android's official installer.
+- Added stable-release `update.json` metadata while keeping a GitHub-release fallback when direct install is unavailable.
+- Fixed app-initiated external navigation so permission screens, App info and GitHub links no longer remove the SleepManager task.
+- Restored hidden-from-Recents behavior after confirming on the AYN Thor that swiping the task can terminate the foreground service.
+- Added a dedicated monochrome SleepManager status-bar/notification icon.
+- Expanded the battery gauge to cycle through capacity, standby estimate, sleep drain rate and deep-sleep percentage.
+- Includes all major 0.5.0 additions: JamesDSP sleep/wake control, sleep battery statistics, stronger Thor recovery, more durable sleep/wake transactions, improved Syncthing-Fork verification and responsive UI refinements.
+
+### Notes
+
+- Stable version code is **522**.
+- Package IDs and the permanent signing certificate remain unchanged.
+- Existing settings are preserved when updating an official signed build.
+- No root, Shizuku or ADB is required for normal use.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete cumulative 0.5.0 + 0.5.1 release summary.
+
+---
+
 ## 0.5.0 — 2026-09-20
 
 ### Highlights
