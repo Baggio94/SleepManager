@@ -974,6 +974,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 item {
+                    SectionTitle(
+                        title = "Battery",
+                        subtitle = "Track sleep drain, averages and standby estimates."
+                    )
+                }
+
+                item {
                     BatteryDashboardCard(
                         dashboard = batteryDashboard,
                         stats = batteryStats
@@ -1867,12 +1874,6 @@ private fun BatteryDashboardCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                "Battery",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
