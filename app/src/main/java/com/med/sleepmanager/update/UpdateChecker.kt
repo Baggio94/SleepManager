@@ -42,6 +42,17 @@ object UpdateChecker {
     fun cachedUpdate(context: Context): UpdateInfo? {
         val version = AppPreferences.latestReleaseVersion(context) ?: return null
         val url = AppPreferences.latestReleaseUrl(context) ?: return null
+
+        // Developer-only simulations and updater test prereleases can persist
+        // across an in-place install because app preferences are preserved.
+        // Never surface those cached test entries in RC/stable builds.
+        if (!BuildConfig.VERSION_NAME.contains("-dev")) {
+            val developerTestCache =
+                url == "https://github.com/Baggio94/SleepManager/releases" ||
+                    version.contains("updater-test", ignoreCase = true)
+            if (developerTestCache) return null
+        }
+
         return if (VersionComparator.isNewer(version, BuildConfig.VERSION_NAME)) {
             UpdateInfo(
                 versionName = version,
