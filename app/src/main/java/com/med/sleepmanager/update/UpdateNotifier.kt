@@ -8,8 +8,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
+import com.med.sleepmanager.MainActivity
 import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 
@@ -44,7 +44,10 @@ object UpdateNotifier {
         )
 
         val releaseIntent =
-            Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl))
+            Intent(context, MainActivity::class.java).apply {
+                putExtra(MainActivity.EXTRA_OPEN_UPDATES, true)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
         val releasePendingIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
