@@ -2524,7 +2524,7 @@ private fun CompactIntegrationRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
@@ -2558,7 +2558,7 @@ private fun CompactIntegrationRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -2734,7 +2734,6 @@ private fun AdvancedSleepRulesPage(
             "Conditions are combined with AND logic. If one enabled condition is false, sleep actions are skipped.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
         )
 
         SettingsCard {
@@ -3362,7 +3361,7 @@ private fun LastActivityCard(
     } else emptyList()
 
     Column(
-        modifier = Modifier.padding(horizontal = 2.dp),
+        modifier = Modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
