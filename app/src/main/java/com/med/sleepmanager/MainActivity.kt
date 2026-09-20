@@ -132,8 +132,11 @@ import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import com.med.sleepmanager.update.UpdateCheckResult
 import com.med.sleepmanager.update.UpdateCheckScheduler
 import com.med.sleepmanager.update.UpdateChecker
+import com.med.sleepmanager.update.UpdateDownloadResult
 import com.med.sleepmanager.update.UpdateInfo
+import com.med.sleepmanager.update.UpdateInstaller
 import com.med.sleepmanager.update.UpdateNotifier
+import java.io.File
 import java.util.Date
 import java.util.Locale
 
@@ -207,6 +210,7 @@ class MainActivity : ComponentActivity() {
     private var pendingThorAdminEnable = false
     private var pendingExactAlarmEnable = false
     private var pendingExternalNavigation = false
+    private var pendingUpdateInstallPath: String? = null
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -293,6 +297,19 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         pendingExternalNavigation = false
+
+        pendingUpdateInstallPath?.let { apkPath ->
+            pendingUpdateInstallPath = null
+            if (UpdateInstaller.canRequestPackageInstalls(this)) {
+                launchVerifiedUpdateInstaller(apkPath)
+            } else {
+                Toast.makeText(
+                    this,
+                    "Install unknown apps permission was not enabled",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
 
         if (pendingThorAdminEnable) {
             pendingThorAdminEnable = false
@@ -666,6 +683,46 @@ class MainActivity : ComponentActivity() {
                 Uri.parse("package:$packageName")
             ),
             failureMessage = "Unable to open Android app info"
+        )
+    }
+
+    private fun installVerifiedUpdate(apkPath: String) {
+        val apk = File(apkPath)
+        if (!apk.isFile) {
+            Toast.makeText(
+                this,
+                "Verified update APK is no longer available",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (!UpdateInstaller.canRequestPackageInstalls(this)) {
+            pendingUpdateInstallPath = apkPath
+            launchExternalActivity(
+                intent = UpdateInstaller.unknownSourcesIntent(this),
+                failureMessage = "Unable to open Install unknown apps settings"
+            )
+            return
+        }
+
+        launchVerifiedUpdateInstaller(apkPath)
+    }
+
+    private fun launchVerifiedUpdateInstaller(apkPath: String) {
+        val apk = File(apkPath)
+        if (!apk.isFile) {
+            Toast.makeText(
+                this,
+                "Verified update APK is no longer available",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        launchExternalActivity(
+            intent = UpdateInstaller.installIntent(this, apk),
+            failureMessage = "Unable to open Android's package installer"
         )
     }
 
@@ -1061,7 +1118,7 @@ class MainActivity : ComponentActivity() {
                     item {
                         UpdateAvailableCard(
                             update = update,
-                            onUpdate = { openReleaseUrl(update.releaseUrl) }
+                            onUpdate = { currentSection = AppSection.ABOUT }
                         )
                     }
                 }
@@ -1542,6 +1599,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenAppInfo = {
                                     openAppInfo()
+                                },
+                                onInstallVerifiedUpdate = { apkPath ->
+                                    installVerifiedUpdate(apkPath)
                                 },
                                 onUpdateStateChanged = {
                                     activityRefreshToken++
@@ -3214,6 +3274,7 @@ private fun AboutPage(
     onRequestNotificationPermission: () -> Unit,
     onOpenExternalUrl: (String) -> Unit,
     onOpenAppInfo: () -> Unit,
+    onInstallVerifiedUpdate: (String) -> Unit,
     onUpdateStateChanged: () -> Unit
 ) {
     val packageInfo = remember {
@@ -3230,6 +3291,7 @@ private fun AboutPage(
     }
     val updateScope = rememberCoroutineScope()
     var updateCheckRunning by remember { mutableStateOf(false) }
+    var updateDownloadRunning by remember { mutableStateOf(false) }
     var updateCheckMessage by remember { mutableStateOf<String?>(null) }
     val cachedUpdate = UpdateChecker.cachedUpdate(context)
 
@@ -3368,9 +3430,50 @@ private fun AboutPage(
                 )
                 AboutActionRow(
                     title = "SleepManager ${update.versionName}",
-                    subtitle = "New stable version available on GitHub.",
-                    actionLabel = "Update",
-                    onClick = { onOpenExternalUrl(update.releaseUrl) }
+                    subtitle = if (update.directInstallAvailable) {
+                        "Download, verify and install the signed APK."
+                    } else {
+                        "Direct install metadata unavailable. Open the GitHub release."
+                    },
+                    actionLabel = when {
+                        updateDownloadRunning -> "Downloading…"
+                        update.directInstallAvailable -> "Update"
+                        else -> "Open"
+                    },
+                    enabled = !updateDownloadRunning,
+                    onClick = {
+                        if (!update.directInstallAvailable) {
+                            onOpenExternalUrl(update.releaseUrl)
+                        } else {
+                            updateDownloadRunning = true
+                            updateCheckMessage =
+                                "Downloading SleepManager ${update.versionName}…"
+                            updateScope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    UpdateInstaller.downloadAndVerify(
+                                        context = context,
+                                        update = update
+                                    )
+                                }
+
+                                when (result) {
+                                    is UpdateDownloadResult.Success -> {
+                                        updateDownloadRunning = false
+                                        updateCheckMessage =
+                                            "APK verified. Opening Android installer…"
+                                        onInstallVerifiedUpdate(
+                                            result.apk.absolutePath
+                                        )
+                                    }
+
+                                    is UpdateDownloadResult.Failure -> {
+                                        updateDownloadRunning = false
+                                        updateCheckMessage = result.message
+                                    }
+                                }
+                            }
+                        }
+                    }
                 )
             }
 
