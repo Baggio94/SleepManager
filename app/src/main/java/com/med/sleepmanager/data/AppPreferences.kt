@@ -27,6 +27,11 @@ object AppPreferences {
     private const val KEY_SELECTED_SYNCTHING = "selected_syncthing"
     private const val KEY_LAST_EVENT = "last_event"
     private const val KEY_LAST_EVENT_TIME = "last_event_time"
+    private const val KEY_AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
+    private const val KEY_LAST_UPDATE_CHECK_ATTEMPT = "last_update_check_attempt"
+    private const val KEY_LATEST_RELEASE_VERSION = "latest_release_version"
+    private const val KEY_LATEST_RELEASE_URL = "latest_release_url"
+    private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "last_notified_update_version"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -197,4 +202,34 @@ object AppPreferences {
 
     fun lastEventTime(context: Context): Long =
         prefs(context).getLong(KEY_LAST_EVENT_TIME, 0L)
+
+    fun automaticUpdateChecks(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUTOMATIC_UPDATE_CHECKS, true)
+
+    fun setAutomaticUpdateChecks(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_AUTOMATIC_UPDATE_CHECKS, value).apply()
+
+    fun lastUpdateCheckAttempt(context: Context): Long =
+        prefs(context).getLong(KEY_LAST_UPDATE_CHECK_ATTEMPT, 0L)
+
+    fun setLastUpdateCheckAttempt(context: Context, value: Long) =
+        prefs(context).edit().putLong(KEY_LAST_UPDATE_CHECK_ATTEMPT, value).apply()
+
+    fun latestReleaseVersion(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_RELEASE_VERSION, null)
+
+    fun latestReleaseUrl(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_RELEASE_URL, null)
+
+    fun setLatestRelease(context: Context, version: String, url: String) =
+        prefs(context).edit()
+            .putString(KEY_LATEST_RELEASE_VERSION, version)
+            .putString(KEY_LATEST_RELEASE_URL, url)
+            .apply()
+
+    fun lastNotifiedUpdateVersion(context: Context): String? =
+        prefs(context).getString(KEY_LAST_NOTIFIED_UPDATE_VERSION, null)
+
+    fun setLastNotifiedUpdateVersion(context: Context, version: String) =
+        prefs(context).edit().putString(KEY_LAST_NOTIFIED_UPDATE_VERSION, version).apply()
 }

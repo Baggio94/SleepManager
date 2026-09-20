@@ -1,5 +1,6 @@
 package com.med.sleepmanager
 
+import android.Manifest
 import android.app.TimePickerDialog
 import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
@@ -10,6 +11,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -125,10 +127,17 @@ import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
+import com.med.sleepmanager.update.UpdateCheckResult
+import com.med.sleepmanager.update.UpdateCheckScheduler
+import com.med.sleepmanager.update.UpdateChecker
+import com.med.sleepmanager.update.UpdateInfo
+import com.med.sleepmanager.update.UpdateNotifier
 import java.util.Date
 import java.util.Locale
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private fun View.performSleepManagerFeedback() {
     if (isHapticFeedbackEnabled) {
@@ -255,6 +264,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UpdateCheckScheduler.sync(this)
+        UpdateChecker.checkIfDueAsync(this, notify = true)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
                 lightScrim = android.graphics.Color.TRANSPARENT,
@@ -605,13 +616,25 @@ class MainActivity : ComponentActivity() {
         ).show()
     }
 
-    private fun openProjectReleases() {
+    private fun openReleaseUrl(url: String) {
         runCatching {
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/Baggio94/SleepManager/releases")
-                )
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
+    }
+
+    private fun openProjectReleases() {
+        openReleaseUrl("https://github.com/Baggio94/SleepManager/releases")
+    }
+
+    private fun requestUpdateNotificationPermission() {
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE
             )
         }
     }
@@ -761,6 +784,15 @@ class MainActivity : ComponentActivity() {
         }
         val restoreProblem = remember(refreshToken) {
             SleepCycleStore.restoreProblem(this)
+        }
+        var automaticUpdateChecks by remember(refreshToken) {
+            mutableStateOf(AppPreferences.automaticUpdateChecks(this))
+        }
+        val availableUpdate = remember(refreshToken) {
+            UpdateChecker.cachedUpdate(this)
+        }
+        val updateNotificationsAllowed = remember(refreshToken) {
+            UpdateNotifier.notificationsAllowed(this)
         }
 
         if (showTestDialog) {
@@ -975,6 +1007,15 @@ class MainActivity : ComponentActivity() {
                             activityRefreshToken++
                         }
                     )
+                }
+
+                availableUpdate?.let { update ->
+                    item {
+                        UpdateAvailableCard(
+                            update = update,
+                            onUpdate = { openReleaseUrl(update.releaseUrl) }
+                        )
+                    }
                 }
 
                 if (!setupComplete) {
@@ -1426,7 +1467,32 @@ class MainActivity : ComponentActivity() {
 
                     AppSection.ABOUT -> {
                         item {
-                            AboutPage(context = this@MainActivity)
+                            AboutPage(
+                                context = this@MainActivity,
+                                automaticUpdateChecks = automaticUpdateChecks,
+                                notificationsAllowed = updateNotificationsAllowed,
+                                onAutomaticUpdateChecksChange = { enabled ->
+                                    automaticUpdateChecks = enabled
+                                    AppPreferences.setAutomaticUpdateChecks(
+                                        this@MainActivity,
+                                        enabled
+                                    )
+                                    UpdateCheckScheduler.sync(this@MainActivity)
+                                    if (enabled) {
+                                        UpdateChecker.checkIfDueAsync(
+                                            this@MainActivity,
+                                            notify = true
+                                        )
+                                    }
+                                    activityRefreshToken++
+                                },
+                                onRequestNotificationPermission = {
+                                    requestUpdateNotificationPermission()
+                                },
+                                onUpdateStateChanged = {
+                                    activityRefreshToken++
+                                }
+                            )
                         }
                     }
                 }
@@ -1437,6 +1503,7 @@ class MainActivity : ComponentActivity() {
     }
     companion object {
         private const val STATUS_REFRESH_INTERVAL_MS = 3000L
+        private const val UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE = 5222
     }
 }
 
@@ -1588,6 +1655,44 @@ private fun OnboardingCard(
 
             TextButton(onClick = feedbackClick(onShowTest)) {
                 Text("How to test sleep / wake")
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateAvailableCard(
+    update: UpdateInfo,
+    onUpdate: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("update_available_card"),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Update available",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "SleepManager ${update.versionName} is available on GitHub.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            OutlinedButton(onClick = feedbackClick(onUpdate)) {
+                Text("Update")
             }
         }
     }
@@ -3047,7 +3152,14 @@ private fun ActivityLogPage(
 }
 
 @Composable
-private fun AboutPage(context: Context) {
+private fun AboutPage(
+    context: Context,
+    automaticUpdateChecks: Boolean,
+    notificationsAllowed: Boolean,
+    onAutomaticUpdateChecksChange: (Boolean) -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    onUpdateStateChanged: () -> Unit
+) {
     val packageInfo = remember {
         runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0)
@@ -3060,6 +3172,10 @@ private fun AboutPage(context: Context) {
                 .versionName
         }.getOrNull()
     }
+    val updateScope = rememberCoroutineScope()
+    var updateCheckRunning by remember { mutableStateOf(false) }
+    var updateCheckMessage by remember { mutableStateOf<String?>(null) }
+    val cachedUpdate = UpdateChecker.cachedUpdate(context)
 
     fun openUrl(url: String) {
         runCatching {
@@ -3134,6 +3250,115 @@ private fun AboutPage(context: Context) {
         }
 
         SectionTitle(
+            title = "Updates",
+            subtitle = "Check GitHub releases and get notified when a new stable version is available."
+        )
+
+        SettingsCard {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Automatic update checks",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "Check at most once every 24 hours.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = automaticUpdateChecks,
+                    onCheckedChange = feedbackChange(onAutomaticUpdateChecksChange)
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AboutActionRow(
+                title = "Check for updates",
+                subtitle = when {
+                    updateCheckMessage != null -> updateCheckMessage!!
+                    cachedUpdate != null ->
+                        "SleepManager ${cachedUpdate.versionName} is available."
+                    else -> "Current version: ${packageInfo?.versionName ?: "Unknown"}"
+                },
+                actionLabel = if (updateCheckRunning) "Checking…" else "Check",
+                enabled = !updateCheckRunning,
+                onClick = {
+                    updateCheckRunning = true
+                    updateCheckMessage = null
+                    updateScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            UpdateChecker.check(
+                                context = context,
+                                force = true,
+                                notify = false
+                            )
+                        }
+                        updateCheckMessage = when (result) {
+                            is UpdateCheckResult.Available ->
+                                "SleepManager ${result.info.versionName} is available."
+                            is UpdateCheckResult.UpToDate ->
+                                "You're up to date. Latest stable: ${result.latestVersion}."
+                            is UpdateCheckResult.Error ->
+                                "Unable to check right now."
+                            UpdateCheckResult.Disabled ->
+                                "Automatic checks are disabled."
+                            UpdateCheckResult.NotDue ->
+                                "Already checked recently."
+                        }
+                        updateCheckRunning = false
+                        onUpdateStateChanged()
+                    }
+                }
+            )
+
+            UpdateChecker.cachedUpdate(context)?.let { update ->
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                AboutActionRow(
+                    title = "SleepManager ${update.versionName}",
+                    subtitle = "New stable version available on GitHub.",
+                    actionLabel = "Update",
+                    onClick = { openUrl(update.releaseUrl) }
+                )
+            }
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+                if (notificationsAllowed) {
+                    AboutInfoRow(
+                        label = "Update notifications",
+                        value = "Allowed"
+                    )
+                } else {
+                    AboutActionRow(
+                        title = "Update notifications",
+                        subtitle = "Allow Android notifications for new releases.",
+                        actionLabel = "Enable",
+                        onClick = onRequestNotificationPermission
+                    )
+                }
+            }
+        }
+
+        SectionTitle(
             title = "Support & project",
             subtitle = "Useful links for troubleshooting and development."
         )
@@ -3203,6 +3428,7 @@ private fun AboutActionRow(
     title: String,
     subtitle: String,
     actionLabel: String,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Row(
@@ -3225,7 +3451,10 @@ private fun AboutActionRow(
             )
         }
 
-        OutlinedButton(onClick = feedbackClick(onClick)) {
+        OutlinedButton(
+            onClick = feedbackClick(onClick),
+            enabled = enabled
+        ) {
             Text(actionLabel)
         }
     }

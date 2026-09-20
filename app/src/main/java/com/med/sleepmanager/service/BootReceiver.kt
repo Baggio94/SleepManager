@@ -6,9 +6,11 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.update.UpdateCheckScheduler
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
+        UpdateCheckScheduler.sync(context)
         if (!AppPreferences.isEnabled(context)) return
         val service = Intent(context, SleepManagerService::class.java)
         try {
