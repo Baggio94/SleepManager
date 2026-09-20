@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Notification small icons must be a monochrome alpha silhouette.
+         Android supplies the actual status-bar/notification tint. -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineJoin="round"
+        android:pathData="M12,2.6L19.4,6.2V11.8C19.4,16.5 16.3,20.5 12,21.8C7.7,20.5 4.6,16.5 4.6,11.8V6.2L12,2.6Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M13.1,7.1C11.4,7.8 10.2,9.5 10.2,11.5C10.2,14.1 12.3,16.2 14.9,16.2C15.6,16.2 16.3,16 16.9,15.7C16.1,17.2 14.5,18.2 12.7,18.2C9.9,18.2 7.7,16 7.7,13.2C7.7,10.6 9.7,8.3 12.3,8C12.6,7.7 12.8,7.4 13.1,7.1Z" />
+</vector>
