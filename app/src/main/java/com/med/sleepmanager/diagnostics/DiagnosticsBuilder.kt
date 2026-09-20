@@ -126,20 +126,6 @@ object DiagnosticsBuilder {
                         "not installed"
                     }
             )
-            val jamesDspProbe =
-                if (jamesDsp != null) JamesDspController.probePowerState() else null
-            appendLine(
-                "- JamesDSP power probe: " +
-                    when (jamesDspProbe?.state) {
-                        JamesDspController.ProbeState.ENABLED -> "enabled"
-                        JamesDspController.ProbeState.DISABLED -> "disabled"
-                        JamesDspController.ProbeState.EFFECT_NOT_FOUND -> "effect not found"
-                        JamesDspController.ProbeState.BLOCKED -> "blocked"
-                        JamesDspController.ProbeState.ERROR -> "error"
-                        null -> "not installed"
-                    } +
-                    (jamesDspProbe?.detail?.let { " • $it" } ?: "")
-            )
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
