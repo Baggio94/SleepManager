@@ -2068,6 +2068,7 @@ private fun InteractiveBatteryGauge(
     modifier: Modifier = Modifier
 ) {
     var infoIndex by remember { mutableIntStateOf(0) }
+    var hasInteracted by remember { mutableStateOf(false) }
     val level = (percent ?: 0).coerceIn(0, 100)
     val animatedLevel by animateFloatAsState(
         targetValue = level / 100f,
@@ -2115,6 +2116,7 @@ private fun InteractiveBatteryGauge(
     val currentInfo = infoTexts[infoIndex]
 
     val onGaugeClick = feedbackClick {
+        hasInteracted = true
         infoIndex = (infoIndex + 1) % infoTexts.size
     }
 
@@ -2137,89 +2139,138 @@ private fun InteractiveBatteryGauge(
     val bodyShape = RoundedCornerShape(if (compactBatteryLayout) 18.dp else 20.dp)
     val innerShape = RoundedCornerShape(if (compactBatteryLayout) 12.dp else 14.dp)
 
-    Row(
+    Column(
         modifier = modifier
-            .height(gaugeHeight)
             .testTag("battery_gauge")
             .clickable(onClick = onGaugeClick)
             .semantics {
                 contentDescription =
                     "Battery ${percent?.let { "$it percent" } ?: "level unavailable"}. " +
-                        "$currentInfo. Tap for next battery detail."
+                        "$currentInfo. Tap to cycle battery stats."
             },
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .clip(bodyShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(
-                    width = 3.dp,
-                    color = levelColor,
-                    shape = bodyShape
-                )
-                .padding(6.dp)
+                .fillMaxWidth()
+                .height(gaugeHeight),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .clip(innerShape)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(bodyShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(
+                        width = 3.dp,
+                        color = levelColor,
+                        shape = bodyShape
+                    )
+                    .padding(6.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedLevel)
-                        .background(levelColor.copy(alpha = 0.30f))
-                )
-
-                Row(
-                    modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .clip(innerShape)
+                        .background(MaterialTheme.colorScheme.surface)
                 ) {
                     Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.CenterStart
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedLevel)
+                            .background(levelColor.copy(alpha = 0.30f))
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Crossfade(
-                            targetState = infoIndex,
-                            label = "Battery info"
-                        ) { index ->
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Crossfade(
+                                targetState = infoIndex,
+                                label = "Battery info"
+                            ) { index ->
+                                Text(
+                                    text = infoTexts[index],
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        if (charging) {
                             Text(
-                                text = infoTexts[index],
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                color = MaterialTheme.colorScheme.onSurface
+                                "⚡",
+                                modifier = Modifier.alpha(chargingAlpha),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = levelColor
                             )
                         }
                     }
+                }
+            }
 
-                    if (charging) {
-                        Text(
-                            "⚡",
-                            modifier = Modifier.alpha(chargingAlpha),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = levelColor
-                        )
-                    }
+            Box(
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .width(10.dp)
+                    .height(terminalHeight)
+                    .clip(RoundedCornerShape(0.dp, 6.dp, 6.dp, 0.dp))
+                    .background(levelColor)
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp)
+                .padding(end = 14.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AnimatedVisibility(visible = !hasInteracted) {
+                Text(
+                    "Tap to cycle stats",
+                    modifier = Modifier.testTag("battery_gauge_hint"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (!hasInteracted) {
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            Row(
+                modifier = Modifier.testTag("battery_gauge_page_indicator"),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(infoTexts.size) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (index == infoIndex) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                }
+                            )
+                    )
                 }
             }
         }
-
-        Box(
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .width(10.dp)
-                .height(terminalHeight)
-                .clip(RoundedCornerShape(0.dp, 6.dp, 6.dp, 0.dp))
-                .background(levelColor)
-        )
     }
 }
 
