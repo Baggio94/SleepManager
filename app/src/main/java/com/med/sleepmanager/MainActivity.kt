@@ -822,12 +822,26 @@ class MainActivity : ComponentActivity() {
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            "SleepManager",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 12.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                "SleepManager",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Quiet on sleep. Ready on wake.",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
                         AppSection.values().forEach { section ->
                             NavigationDrawerItem(
@@ -1833,12 +1847,11 @@ private fun BatteryDashboardCard(
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
                     averageDrainPerHour = stats.averageDrainPerHour,
                     averageDrainMahPerHour = stats.averageDrainMahPerHour,
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .widthIn(max = 360.dp)
+                    modifier = Modifier.weight(0.78f)
                 )
 
                 Column(
+                    modifier = Modifier.weight(0.22f),
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
@@ -3012,6 +3025,7 @@ private fun InfoCard(
     onAction: (() -> Unit)? = null
 ) {
     Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
