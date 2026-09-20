@@ -39,6 +39,8 @@ object JamesDspController {
 
     private val EFFECT_UUID =
         UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
+    private val EFFECT_TYPE_NULL =
+        UUID.fromString("ec7178ec-e5e1-4432-a3f4-4657e6795210")
 
     fun installedTargets(context: Context): List<Target> =
         listOf(
@@ -106,8 +108,7 @@ object JamesDspController {
     /**
      * Experimental read-only probe used to learn whether Android lets a normal app attach a
      * low-priority handle to JamesDSP's existing session-0 AudioEffect and read its enabled state.
-     * The AudioEffect UUID/type constructor is hidden from the public SDK, so reflection can be
-     * blocked by hidden-API enforcement. No state is changed and the handle is always released.
+     * No state is changed and every temporary handle is released immediately.
      */
     fun probePowerState(): PowerProbe {
         val descriptor = runCatching {
@@ -120,40 +121,60 @@ object JamesDspController {
             )
         } ?: return PowerProbe(ProbeState.EFFECT_NOT_FOUND)
 
-        var effect: AudioEffect? = null
-        return try {
-            val constructor = AudioEffect::class.java.getDeclaredConstructor(
+        val constructor = try {
+            AudioEffect::class.java.getDeclaredConstructor(
                 UUID::class.java,
                 UUID::class.java,
                 Int::class.javaPrimitiveType,
                 Int::class.javaPrimitiveType
-            )
-            constructor.isAccessible = true
-            effect = constructor.newInstance(
-                descriptor.type,
-                descriptor.uuid,
-                -1000,
-                0
-            ) as AudioEffect
-
-            PowerProbe(
-                if (effect.enabled) ProbeState.ENABLED else ProbeState.DISABLED,
-                "name=${descriptor.name}; control=${effect.hasControl()}"
-            )
+            ).also { it.isAccessible = true }
         } catch (t: Throwable) {
             val cause = t.cause ?: t
-            val blocked =
-                cause is NoSuchMethodException ||
-                    cause is IllegalAccessException ||
-                    cause.javaClass.name.contains("HiddenApi", ignoreCase = true)
-
-            PowerProbe(
-                if (blocked) ProbeState.BLOCKED else ProbeState.ERROR,
+            return PowerProbe(
+                ProbeState.BLOCKED,
                 "${cause.javaClass.simpleName}: ${cause.message ?: "no message"}"
             )
-        } finally {
-            runCatching { effect?.release() }
         }
+
+        fun attempt(type: UUID, label: String): Pair<PowerProbe?, String?> {
+            var effect: AudioEffect? = null
+            return try {
+                effect = constructor.newInstance(
+                    type,
+                    descriptor.uuid,
+                    -1000,
+                    0
+                ) as AudioEffect
+
+                PowerProbe(
+                    if (effect.enabled) ProbeState.ENABLED else ProbeState.DISABLED,
+                    "name=${descriptor.name}; mode=$label; control=${effect.hasControl()}"
+                ) to null
+            } catch (t: Throwable) {
+                val cause = t.cause ?: t
+                val detail =
+                    "$label: ${cause.javaClass.simpleName}: ${cause.message ?: "no message"}"
+                null to detail
+            } finally {
+                runCatching { effect?.release() }
+            }
+        }
+
+        // AOSP explicitly allows EFFECT_TYPE_NULL when selecting a particular implementation
+        // by UUID. Try that first because JamesDSP exposes its own custom effect type.
+        val (uuidOnlyResult, uuidOnlyError) =
+            attempt(EFFECT_TYPE_NULL, "uuid-only")
+        if (uuidOnlyResult != null) return uuidOnlyResult
+
+        // Keep the original typed attempt as a diagnostic fallback.
+        val (typedResult, typedError) =
+            attempt(descriptor.type, "typed")
+        if (typedResult != null) return typedResult
+
+        return PowerProbe(
+            ProbeState.ERROR,
+            listOfNotNull(uuidOnlyError, typedError).joinToString(" | ")
+        )
     }
 
     private fun packageInfo(
