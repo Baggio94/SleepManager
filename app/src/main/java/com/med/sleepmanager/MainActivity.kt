@@ -28,7 +28,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +56,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
@@ -89,7 +95,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
@@ -1819,10 +1827,15 @@ private fun BatteryDashboardCard(
             ) {
                 InteractiveBatteryGauge(
                     percent = dashboard.currentPercent,
+                    charging = dashboard.currentCharging,
                     currentChargeMah = stats.currentChargeMah,
                     estimatedCapacityMah = stats.estimatedCapacityMah,
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
-                    modifier = Modifier.weight(1f)
+                    averageDrainPerHour = stats.averageDrainPerHour,
+                    averageDrainMahPerHour = stats.averageDrainMahPerHour,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .widthIn(max = 360.dp)
                 )
 
                 Column(
@@ -1931,18 +1944,28 @@ private fun BatteryDashboardCard(
 @Composable
 private fun InteractiveBatteryGauge(
     percent: Int?,
+    charging: Boolean,
     currentChargeMah: Double?,
     estimatedCapacityMah: Double?,
     estimatedHoursRemaining: Double?,
+    averageDrainPerHour: Double?,
+    averageDrainMahPerHour: Double?,
     modifier: Modifier = Modifier
 ) {
-    var showStandby by remember { mutableStateOf(false) }
+    var infoIndex by remember { mutableIntStateOf(0) }
     val level = (percent ?: 0).coerceIn(0, 100)
     val animatedLevel by animateFloatAsState(
         targetValue = level / 100f,
         label = "Battery level"
     )
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(15.dp)
+
+    val levelColor = when {
+        percent == null -> MaterialTheme.colorScheme.outline
+        level >= 50 -> Color(0xFF67C99A)
+        level >= 20 -> Color(0xFFE7B55E)
+        else -> Color(0xFFE97878)
+    }
 
     val chargeText =
         if (currentChargeMah != null && estimatedCapacityMah != null) {
@@ -1956,22 +1979,49 @@ private fun InteractiveBatteryGauge(
             "Estimated standby • ${formatStandbyEstimate(it)}"
         } ?: "Estimated standby • Not enough data"
 
+    val sleepDrainText =
+        averageDrainPerHour?.let {
+            "Sleep drain • ${formatDrainRate(it)}% / h"
+        } ?: "Sleep drain • Not enough data"
+
+    val chargeDrainText =
+        averageDrainMahPerHour?.let {
+            "Charge drain • ${formatMahRate(it)} mAh / h"
+        } ?: "Charge drain • Not enough data"
+
+    val infoTexts = listOf(
+        chargeText,
+        standbyText,
+        sleepDrainText,
+        chargeDrainText
+    )
+    val currentInfo = infoTexts[infoIndex]
+
     val onGaugeClick = feedbackClick {
-        showStandby = !showStandby
+        infoIndex = (infoIndex + 1) % infoTexts.size
     }
+
+    val chargingTransition = rememberInfiniteTransition(
+        label = "Charging pulse"
+    )
+    val chargingAlpha by chargingTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Charging alpha"
+    )
 
     Row(
         modifier = modifier
-            .height(62.dp)
+            .height(54.dp)
             .clickable(onClick = onGaugeClick)
             .semantics {
                 contentDescription =
                     "Battery ${percent?.let { "$it percent" } ?: "level unavailable"}. " +
-                        if (showStandby) {
-                            "$standbyText. Tap for charge information."
-                        } else {
-                            "$chargeText. Tap for standby estimate."
-                        }
+                        "$currentInfo. Tap for next battery detail."
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1983,7 +2033,7 @@ private fun InteractiveBatteryGauge(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .border(
                     width = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = levelColor,
                     shape = shape
                 )
         ) {
@@ -1991,26 +2041,38 @@ private fun InteractiveBatteryGauge(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(animatedLevel)
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
-                    )
+                    .background(levelColor.copy(alpha = 0.28f))
             )
 
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.CenterStart
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Crossfade(
-                    targetState = showStandby,
-                    label = "Battery info"
-                ) { standby ->
+                Box(
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Crossfade(
+                        targetState = infoIndex,
+                        label = "Battery info"
+                    ) { index ->
+                        Text(
+                            text = infoTexts[index],
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                if (charging) {
                     Text(
-                        text = if (standby) standbyText else chargeText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        "⚡",
+                        modifier = Modifier.alpha(chargingAlpha),
+                        style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
@@ -2019,10 +2081,10 @@ private fun InteractiveBatteryGauge(
         Box(
             modifier = Modifier
                 .padding(start = 4.dp)
-                .width(7.dp)
-                .height(26.dp)
-                .clip(RoundedCornerShape(0.dp, 5.dp, 5.dp, 0.dp))
-                .background(MaterialTheme.colorScheme.primary)
+                .width(6.dp)
+                .height(22.dp)
+                .clip(RoundedCornerShape(0.dp, 4.dp, 4.dp, 0.dp))
+                .background(levelColor)
         )
     }
 }
