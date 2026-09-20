@@ -3,11 +3,14 @@ package com.med.sleepmanager
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.FileInputStream
@@ -98,8 +101,12 @@ class ResponsiveLayoutTest {
     }
 
     private fun assertBatteryShape() {
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasTestTag("battery_gauge"))
+
         val bounds = composeRule
             .onNodeWithTag("battery_gauge")
+            .assertIsDisplayed()
             .fetchSemanticsNode()
             .boundsInRoot
 
@@ -111,9 +118,9 @@ class ResponsiveLayoutTest {
     }
 
     private fun assertIntegrationsReadable() {
-        composeRule.onNodeWithText("App integrations")
-            .performScrollTo()
-            .assertIsDisplayed()
+        val list = composeRule.onNodeWithTag("main_list")
+        list.performScrollToNode(hasText("App integrations"))
+        composeRule.onNodeWithText("App integrations").assertIsDisplayed()
 
         assertTextIsNotCrushed("integration_title_Syncthing-Fork")
         assertTextIsNotCrushed("integration_title_Tailscale")
@@ -121,8 +128,11 @@ class ResponsiveLayoutTest {
     }
 
     private fun assertTextIsNotCrushed(tag: String) {
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasTestTag(tag))
+
         val node = composeRule.onNodeWithTag(tag, useUnmergedTree = true)
-        node.performScrollTo().assertIsDisplayed()
+            .assertIsDisplayed()
 
         val bounds: Rect = node
             .fetchSemanticsNode()

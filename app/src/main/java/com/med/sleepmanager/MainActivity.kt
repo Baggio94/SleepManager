@@ -932,7 +932,8 @@ class MainActivity : ComponentActivity() {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(padding)
+                    .testTag("main_list"),
                 contentPadding = PaddingValues(
                     start = 18.dp,
                     end = 18.dp,
