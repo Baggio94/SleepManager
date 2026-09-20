@@ -28,6 +28,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -797,8 +801,13 @@ class MainActivity : ComponentActivity() {
             drawerContent = {
                 ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             "SleepManager",
@@ -809,6 +818,7 @@ class MainActivity : ComponentActivity() {
 
                         AppSection.values().forEach { section ->
                             NavigationDrawerItem(
+                                modifier = Modifier.height(48.dp),
                                 icon = {
                                     Icon(
                                         painter = painterResource(section.iconRes),
@@ -1367,7 +1377,8 @@ private fun CompactSideRail(
         NavigationRail(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .navigationBarsPadding(),
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             windowInsets = WindowInsets(0, 0, 0, 0),
             header = {
@@ -1381,6 +1392,7 @@ private fun CompactSideRail(
         ) {
             AppSection.values().forEach { section ->
                 NavigationRailItem(
+                    modifier = Modifier.height(48.dp),
                     selected = currentSection == section,
                     onClick = feedbackClick { onSectionSelected(section) },
                     icon = {
