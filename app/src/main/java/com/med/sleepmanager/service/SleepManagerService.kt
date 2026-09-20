@@ -21,6 +21,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import com.med.sleepmanager.MainActivity
+import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
@@ -1524,7 +1525,7 @@ class SleepManagerService : Service() {
         return builder
             .setContentTitle("SleepManager is on")
             .setContentText("Sleep / wake automation is running")
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_notification_sleepmanager)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setShowWhen(false)
