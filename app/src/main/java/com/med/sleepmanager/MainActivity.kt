@@ -2141,7 +2141,6 @@ private fun InteractiveBatteryGauge(
 
     Column(
         modifier = modifier
-            .testTag("battery_gauge")
             .clickable(onClick = onGaugeClick)
             .semantics {
                 contentDescription =
@@ -2152,6 +2151,7 @@ private fun InteractiveBatteryGauge(
     ) {
         Row(
             modifier = Modifier
+                .testTag("battery_gauge")
                 .fillMaxWidth()
                 .height(gaugeHeight),
             verticalAlignment = Alignment.CenterVertically
