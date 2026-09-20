@@ -890,7 +890,7 @@ class MainActivity : ComponentActivity() {
                                     onClick = feedbackClick {
                                         drawerScope.launch { drawerState.open() }
                                     },
-                                    modifier = Modifier.offset(y = (-12).dp)
+                                    modifier = Modifier.offset(y = (-8).dp)
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_menu),
@@ -1445,7 +1445,7 @@ private fun CompactSideRail(
             header = {
                 IconButton(
                     onClick = feedbackClick(onMenuClick),
-                    modifier = Modifier.offset(y = (-12).dp)
+                    modifier = Modifier.offset(y = (-8).dp)
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_menu),
