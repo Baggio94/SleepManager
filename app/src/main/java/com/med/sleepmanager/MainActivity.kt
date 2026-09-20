@@ -2168,13 +2168,13 @@ private fun InteractiveBatteryGauge(
                         ) { index ->
                             Text(
                                 text = infoTexts[index],
-                                style = if (
-                                    LocalConfiguration.current.screenWidthDp < 600 &&
-                                    !isShortLandscapeLayout()
-                                ) {
-                                    responsiveBodySmallStyle()
-                                } else {
-                                    MaterialTheme.typography.bodyMedium
+                                style = when {
+                                    isShortLandscapeLayout() ->
+                                        MaterialTheme.typography.bodyLarge
+                                    LocalConfiguration.current.screenWidthDp < 600 ->
+                                        responsiveBodySmallStyle()
+                                    else ->
+                                        MaterialTheme.typography.bodyMedium
                                 },
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
@@ -2309,7 +2309,7 @@ private fun isShortLandscapeLayout(): Boolean {
 @Composable
 private fun responsiveBodySmallStyle() =
     if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyMedium
+        MaterialTheme.typography.bodyLarge
     } else {
         MaterialTheme.typography.bodySmall
     }
@@ -2317,7 +2317,7 @@ private fun responsiveBodySmallStyle() =
 @Composable
 private fun responsiveLabelSmallStyle() =
     if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodySmall
+        MaterialTheme.typography.bodyMedium
     } else {
         MaterialTheme.typography.labelSmall
     }
@@ -2325,7 +2325,7 @@ private fun responsiveLabelSmallStyle() =
 @Composable
 private fun responsiveLabelMediumStyle() =
     if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyMedium
+        MaterialTheme.typography.bodyLarge
     } else {
         MaterialTheme.typography.labelMedium
     }
