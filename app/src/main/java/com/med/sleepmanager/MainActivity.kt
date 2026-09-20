@@ -2223,7 +2223,11 @@ private fun BatteryMetric(
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (isShortLandscapeLayout()) {
+                MaterialTheme.typography.bodyLarge
+            } else {
+                MaterialTheme.typography.bodyMedium
+            },
             fontWeight = FontWeight.Medium
         )
     }
@@ -2309,7 +2313,7 @@ private fun isShortLandscapeLayout(): Boolean {
 @Composable
 private fun responsiveBodySmallStyle() =
     if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyLarge
+        MaterialTheme.typography.bodyMedium
     } else {
         MaterialTheme.typography.bodySmall
     }
@@ -2325,7 +2329,7 @@ private fun responsiveLabelSmallStyle() =
 @Composable
 private fun responsiveLabelMediumStyle() =
     if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyLarge
+        MaterialTheme.typography.labelLarge
     } else {
         MaterialTheme.typography.labelMedium
     }
@@ -3050,7 +3054,11 @@ private fun AboutPage(context: Context) {
             ) {
                 Text(
                     "What SleepManager does",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = if (isShortLandscapeLayout()) {
+                        MaterialTheme.typography.titleMedium
+                    } else {
+                        MaterialTheme.typography.titleSmall
+                    },
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
@@ -3224,7 +3232,11 @@ private fun InfoCard(
         ) {
             Text(
                 title,
-                style = MaterialTheme.typography.titleSmall,
+                style = if (isShortLandscapeLayout()) {
+                    MaterialTheme.typography.titleMedium
+                } else {
+                    MaterialTheme.typography.titleSmall
+                },
                 fontWeight = FontWeight.SemiBold
             )
             Text(
