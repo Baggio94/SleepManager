@@ -206,6 +206,7 @@ class MainActivity : ComponentActivity() {
     private var helperStateReceiverRegistered = false
     private var pendingThorAdminEnable = false
     private var pendingExactAlarmEnable = false
+    private var pendingExternalNavigation = false
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -291,6 +292,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
 
+        pendingExternalNavigation = false
+
         if (pendingThorAdminEnable) {
             pendingThorAdminEnable = false
             val granted = isThorAdminActive()
@@ -348,6 +351,7 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            pendingExternalNavigation = false
             activityRefreshToken++
         }
     }
@@ -401,7 +405,11 @@ class MainActivity : ComponentActivity() {
         // to lose focus. Do not treat that internal permission flow like the
         // user pressing Home, otherwise the SleepManager task is removed before
         // the confirmation screen can be shown.
-        if (pendingThorAdminEnable || pendingExactAlarmEnable) {
+        if (
+            pendingThorAdminEnable ||
+            pendingExactAlarmEnable ||
+            pendingExternalNavigation
+        ) {
             return
         }
 
@@ -574,6 +582,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun launchExternalActivity(
+        intent: Intent,
+        failureMessage: String? = null
+    ) {
+        pendingExternalNavigation = true
+        runCatching {
+            startActivity(intent)
+        }.onFailure {
+            pendingExternalNavigation = false
+            failureMessage?.let { message ->
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private fun canScheduleExactAlarms(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return true
@@ -630,9 +653,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openReleaseUrl(url: String) {
-        runCatching {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-        }
+        launchExternalActivity(
+            intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)),
+            failureMessage = "No app is available to open this link"
+        )
+    }
+
+    private fun openAppInfo() {
+        launchExternalActivity(
+            intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:$packageName")
+            ),
+            failureMessage = "Unable to open Android app info"
+        )
     }
 
     private fun openProjectReleases() {
@@ -645,6 +679,7 @@ class MainActivity : ComponentActivity() {
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
         ) {
+            pendingExternalNavigation = true
             requestPermissions(
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                 UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE
@@ -1501,6 +1536,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onRequestNotificationPermission = {
                                     requestUpdateNotificationPermission()
+                                },
+                                onOpenExternalUrl = { url ->
+                                    openReleaseUrl(url)
+                                },
+                                onOpenAppInfo = {
+                                    openAppInfo()
                                 },
                                 onUpdateStateChanged = {
                                     activityRefreshToken++
@@ -3171,6 +3212,8 @@ private fun AboutPage(
     notificationsAllowed: Boolean,
     onAutomaticUpdateChecksChange: (Boolean) -> Unit,
     onRequestNotificationPermission: () -> Unit,
+    onOpenExternalUrl: (String) -> Unit,
+    onOpenAppInfo: () -> Unit,
     onUpdateStateChanged: () -> Unit
 ) {
     val packageInfo = remember {
@@ -3189,25 +3232,6 @@ private fun AboutPage(
     var updateCheckRunning by remember { mutableStateOf(false) }
     var updateCheckMessage by remember { mutableStateOf<String?>(null) }
     val cachedUpdate = UpdateChecker.cachedUpdate(context)
-
-    fun openUrl(url: String) {
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            )
-        }
-    }
-
-    fun openAppInfo() {
-        runCatching {
-            context.startActivity(
-                Intent(
-                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:${context.packageName}")
-                )
-            )
-        }
-    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -3346,7 +3370,7 @@ private fun AboutPage(
                     title = "SleepManager ${update.versionName}",
                     subtitle = "New stable version available on GitHub.",
                     actionLabel = "Update",
-                    onClick = { openUrl(update.releaseUrl) }
+                    onClick = { onOpenExternalUrl(update.releaseUrl) }
                 )
             }
 
@@ -3404,7 +3428,7 @@ private fun AboutPage(
                 subtitle = "View SleepManager on GitHub",
                 actionLabel = "Open",
                 onClick = {
-                    openUrl("https://github.com/Baggio94/SleepManager")
+                    onOpenExternalUrl("https://github.com/Baggio94/SleepManager")
                 }
             )
             HorizontalDivider(
@@ -3416,7 +3440,7 @@ private fun AboutPage(
                 subtitle = "Open the GitHub issue tracker",
                 actionLabel = "Open",
                 onClick = {
-                    openUrl("https://github.com/Baggio94/SleepManager/issues")
+                    onOpenExternalUrl("https://github.com/Baggio94/SleepManager/issues")
                 }
             )
             HorizontalDivider(
@@ -3427,7 +3451,7 @@ private fun AboutPage(
                 title = "Android app info",
                 subtitle = "Permissions, battery and storage settings",
                 actionLabel = "Open",
-                onClick = { openAppInfo() }
+                onClick = { onOpenAppInfo() }
             )
         }
     }
