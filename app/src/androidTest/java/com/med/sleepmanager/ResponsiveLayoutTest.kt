@@ -9,6 +9,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -79,6 +80,24 @@ class ResponsiveLayoutTest {
         composeRule.onNodeWithTag("compact_side_rail").assertIsDisplayed()
         assertBatteryShape()
         assertIntegrationsReadable()
+    }
+
+    @Test
+    fun switchingToStats_doesNotReuseHomeScrollPosition() {
+        applyDisplay(
+            widthPx = 1440,
+            heightPx = 900,
+            densityDpi = 320
+        )
+
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("App integrations"))
+        composeRule.onNodeWithText("Stats")
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Battery")
+            .assertIsDisplayed()
     }
 
     private fun verifyCompactProfile(

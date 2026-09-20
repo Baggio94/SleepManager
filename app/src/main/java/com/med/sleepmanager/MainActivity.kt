@@ -60,6 +60,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -648,6 +649,18 @@ class MainActivity : ComponentActivity() {
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
         var currentSection by remember { mutableStateOf(AppSection.HOME) }
+        val homeListState = rememberLazyListState()
+        val advancedListState = rememberLazyListState()
+        val statsListState = rememberLazyListState()
+        val activityListState = rememberLazyListState()
+        val aboutListState = rememberLazyListState()
+        val currentListState = when (currentSection) {
+            AppSection.HOME -> homeListState
+            AppSection.ADVANCED -> advancedListState
+            AppSection.STATS -> statsListState
+            AppSection.ACTIVITY_LOG -> activityListState
+            AppSection.ABOUT -> aboutListState
+        }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val drawerScope = rememberCoroutineScope()
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
@@ -933,6 +946,7 @@ class MainActivity : ComponentActivity() {
                 }
             ) { padding ->
             LazyColumn(
+                state = currentListState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
