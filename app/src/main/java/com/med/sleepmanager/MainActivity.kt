@@ -841,7 +841,7 @@ class MainActivity : ComponentActivity() {
                             )
                             Text(
                                 "Quiet on sleep. Ready on wake.",
-                                style = responsiveLabelMediumStyle(),
+                                style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -908,6 +908,7 @@ class MainActivity : ComponentActivity() {
                                         AppSection.ABOUT -> "About"
                                     },
                                     modifier = Modifier.testTag("top_app_title"),
+                                    style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
@@ -918,7 +919,7 @@ class MainActivity : ComponentActivity() {
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
                                         AppSection.ABOUT -> "App information"
                                     },
-                                    style = responsiveLabelMediumStyle(),
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -1501,7 +1502,7 @@ private fun OnboardingCard(
                 } else {
                     "• Compatibility helper not installed — only needed for Wi-Fi / Bluetooth."
                 },
-                style = responsiveBodySmallStyle()
+                style = MaterialTheme.typography.bodyMedium
             )
 
             if (!helperInstalled) {
@@ -1513,13 +1514,13 @@ private fun OnboardingCard(
             Text(
                 syncthingTarget?.let { "✓ ${it.displayName} detected" }
                     ?: "• Syncthing-Fork not detected — optional.",
-                style = responsiveBodySmallStyle()
+                style = MaterialTheme.typography.bodyMedium
             )
 
             if (syncthingEnabled && syncthingTarget != null) {
                 Text(
                     "Syncthing-Fork: make sure Settings → Behaviour → Service control by broadcast is enabled.",
-                    style = responsiveBodySmallStyle(),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -1534,7 +1535,7 @@ private fun OnboardingCard(
                 } else {
                     "• Tailscale not detected — optional."
                 },
-                style = responsiveBodySmallStyle()
+                style = MaterialTheme.typography.bodyMedium
             )
 
             Text(
@@ -1543,7 +1544,7 @@ private fun OnboardingCard(
                         (target.versionName?.let { " • $it" } ?: "") +
                         " detected"
                 } ?: "• JamesDSP not detected — optional.",
-                style = responsiveBodySmallStyle()
+                style = MaterialTheme.typography.bodyMedium
             )
 
             Text(
@@ -1552,13 +1553,13 @@ private fun OnboardingCard(
                 } else {
                     "Choose the actions you want below, then enable SleepManager."
                 },
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Text(
                 "Sleep statistics start automatically. Complete a sleep session of at least 10 minutes without charging to build averages and standby estimates.",
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
@@ -1734,7 +1735,7 @@ private fun BatteryStatsPage(
             )
             Text(
                 "Standby estimates use the measured 7-day sleep average and are only indicative.",
-                style = responsiveLabelSmallStyle(),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1773,7 +1774,7 @@ private fun BatteryStatsPage(
             )
             Text(
                 "Sessions shorter than 10 minutes or containing charging are excluded from averages. Capacity is an estimate when Android does not expose a readable full-capacity value.",
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1904,7 +1905,7 @@ private fun BatteryDashboardCard(
                     if (dashboard.currentCharging) {
                         Text(
                             "Charging",
-                            style = responsiveLabelMediumStyle(),
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -1951,7 +1952,7 @@ private fun BatteryDashboardCard(
 
                 Text(
                     "Sleep statistics will appear after your first sleep session of at least 10 minutes without charging.",
-                    style = responsiveLabelSmallStyle(),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
@@ -2002,7 +2003,7 @@ private fun BatteryDashboardCard(
                     last.chargedDuringSleep -> {
                         Text(
                             "Sessions with charging are excluded from the 7-day drain average.",
-                            style = responsiveLabelSmallStyle(),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -2013,7 +2014,7 @@ private fun BatteryDashboardCard(
                             } else {
                                 "This short session is excluded from the 7-day average."
                             },
-                            style = responsiveLabelSmallStyle(),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -2021,7 +2022,7 @@ private fun BatteryDashboardCard(
                         last.drainMah?.let {
                             Text(
                                 "Measured charge used: ${String.format(Locale.US, "%.0f", it)} mAh",
-                                style = responsiveLabelSmallStyle(),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -2168,14 +2169,7 @@ private fun InteractiveBatteryGauge(
                         ) { index ->
                             Text(
                                 text = infoTexts[index],
-                                style = when {
-                                    isShortLandscapeLayout() ->
-                                        MaterialTheme.typography.bodyLarge
-                                    LocalConfiguration.current.screenWidthDp < 600 ->
-                                        responsiveBodySmallStyle()
-                                    else ->
-                                        MaterialTheme.typography.bodyMedium
-                                },
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -2218,16 +2212,12 @@ private fun BatteryMetric(
     ) {
         Text(
             label,
-            style = responsiveLabelSmallStyle(),
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             value,
-            style = if (isShortLandscapeLayout()) {
-                MaterialTheme.typography.bodyLarge
-            } else {
-                MaterialTheme.typography.bodyMedium
-            },
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium
         )
     }
@@ -2256,12 +2246,12 @@ private fun PendingRestoreCard(
             )
             Text(
                 problem,
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
             Text(
                 "SleepManager keeps the transaction instead of pretending the restore succeeded.",
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
             OutlinedButton(
@@ -2304,37 +2294,6 @@ private fun formatDrainRate(value: Double): String =
     }
 
 @Composable
-private fun isShortLandscapeLayout(): Boolean {
-    val configuration = LocalConfiguration.current
-    return configuration.screenWidthDp > configuration.screenHeightDp &&
-        configuration.screenHeightDp <= 500
-}
-
-@Composable
-private fun responsiveBodySmallStyle() =
-    if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyMedium
-    } else {
-        MaterialTheme.typography.bodySmall
-    }
-
-@Composable
-private fun responsiveLabelSmallStyle() =
-    if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.bodyMedium
-    } else {
-        MaterialTheme.typography.labelSmall
-    }
-
-@Composable
-private fun responsiveLabelMediumStyle() =
-    if (isShortLandscapeLayout()) {
-        MaterialTheme.typography.labelLarge
-    } else {
-        MaterialTheme.typography.labelMedium
-    }
-
-@Composable
 private fun SectionTitle(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
@@ -2344,7 +2303,7 @@ private fun SectionTitle(title: String, subtitle: String) {
         )
         Text(
             subtitle,
-            style = responsiveBodySmallStyle(),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -2417,7 +2376,7 @@ private fun SettingRow(
             )
             Text(
                 subtitle,
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = secondaryAlpha
                 )
@@ -2430,7 +2389,7 @@ private fun SettingRow(
                         currentStatus.endsWith(": CONNECTED")
                 Text(
                     currentStatus,
-                    style = responsiveLabelMediumStyle(),
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
                         currentStatus.contains("CHECKING") -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -2508,7 +2467,7 @@ private fun CompactIntegrationRow(
             ) {
                 Text(
                     version,
-                    style = responsiveBodySmallStyle(),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -2516,12 +2475,12 @@ private fun CompactIntegrationRow(
                     val active = it == "RUNNING" || it == "CONNECTED"
                     Text(
                         "•",
-                        style = responsiveBodySmallStyle(),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         it,
-                        style = responsiveLabelMediumStyle(),
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = if (active) {
                             MaterialTheme.colorScheme.primary
@@ -2649,7 +2608,7 @@ private fun SleepGraceSelector(
             } else {
                 "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed."
             },
-            style = responsiveBodySmallStyle(),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -2770,7 +2729,7 @@ private fun AdvancedSleepRulesPage(
 
         Text(
             "Conditions are combined with AND logic. If one enabled condition is false, sleep actions are skipped.",
-            style = responsiveBodySmallStyle(),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
@@ -2843,7 +2802,7 @@ private fun AdvancedSleepRulesPage(
                         AppPreferences.BATTERY_SAVER_OFF -> "Only when Android Battery Saver is OFF"
                         else -> "Ignore Battery Saver state"
                     },
-                    style = responsiveBodySmallStyle(),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -2929,7 +2888,7 @@ private fun AdvancedToggleRow(
             )
             Text(
                 subtitle,
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -2988,7 +2947,7 @@ private fun ActivityLogPage(
                         )
                         Text(
                             timestamp,
-                            style = responsiveLabelSmallStyle(),
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -3054,11 +3013,7 @@ private fun AboutPage(context: Context) {
             ) {
                 Text(
                     "What SleepManager does",
-                    style = if (isShortLandscapeLayout()) {
-                        MaterialTheme.typography.titleMedium
-                    } else {
-                        MaterialTheme.typography.titleSmall
-                    },
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
@@ -3155,7 +3110,7 @@ private fun AboutInfoRow(
         )
         Text(
             value,
-            style = responsiveBodySmallStyle(),
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -3183,7 +3138,7 @@ private fun AboutActionRow(
             )
             Text(
                 subtitle,
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -3232,16 +3187,12 @@ private fun InfoCard(
         ) {
             Text(
                 title,
-                style = if (isShortLandscapeLayout()) {
-                    MaterialTheme.typography.titleMedium
-                } else {
-                    MaterialTheme.typography.titleSmall
-                },
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text,
-                style = responsiveBodySmallStyle(),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
 
@@ -3326,7 +3277,7 @@ private fun BehaviorCard(
                     )
                     Text(
                         compactSleepSummary,
-                        style = responsiveBodySmallStyle(),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -3350,7 +3301,7 @@ private fun BehaviorCard(
                 if (wifi || bluetooth) {
                     Text(
                         "Only states changed by SleepManager are restored.",
-                        style = responsiveBodySmallStyle(),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -3358,7 +3309,7 @@ private fun BehaviorCard(
                 if (thorProtection) {
                     Text(
                         "Thor false wakes with the lid closed are returned to sleep without normal wake restoration.",
-                        style = responsiveBodySmallStyle(),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -3412,7 +3363,7 @@ private fun LastActivityCard(
     ) {
         Text(
             "Last activity",
-            style = responsiveLabelMediumStyle(),
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -3440,11 +3391,11 @@ private fun LastActivityCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (subject != null) {
-                        Text("$subject ·", style = responsiveBodySmallStyle(), fontWeight = FontWeight.Medium)
+                        Text("$subject ·", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                     Text(
                         detail,
-                        style = responsiveBodySmallStyle(),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (detail.equals("Unchanged", ignoreCase = true)) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
@@ -3454,11 +3405,11 @@ private fun LastActivityCard(
                 }
             }
         } else {
-            Text(event, style = responsiveBodySmallStyle())
+            Text(event, style = MaterialTheme.typography.bodyMedium)
         }
 
         timeText?.let {
-            Text(it, style = responsiveLabelSmallStyle(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Row(
@@ -3523,7 +3474,7 @@ private fun ActivityLogDialog(
                             )
                             Text(
                                 timestamp,
-                                style = responsiveLabelSmallStyle(),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -3567,7 +3518,7 @@ private fun SyncthingTargetDialog(
                             if (target.packageName == selected) {
                                 Text(
                                     "Selected",
-                                    style = responsiveLabelSmallStyle(),
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
