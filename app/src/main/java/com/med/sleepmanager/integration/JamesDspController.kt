@@ -4,7 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.audiofx.AudioEffect
 import android.util.Log
+import java.util.UUID
 
 object JamesDspController {
     const val O2P_PACKAGE = "james.dsp"
@@ -21,6 +23,22 @@ object JamesDspController {
         val displayName: String,
         val versionName: String?
     )
+
+    enum class ProbeState {
+        ENABLED,
+        DISABLED,
+        EFFECT_NOT_FOUND,
+        BLOCKED,
+        ERROR
+    }
+
+    data class PowerProbe(
+        val state: ProbeState,
+        val detail: String? = null
+    )
+
+    private val EFFECT_UUID =
+        UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
 
     fun installedTargets(context: Context): List<Target> =
         listOf(
@@ -82,6 +100,59 @@ object JamesDspController {
                 it
             )
             false
+        }
+    }
+
+    /**
+     * Experimental read-only probe used to learn whether Android lets a normal app attach a
+     * low-priority handle to JamesDSP's existing session-0 AudioEffect and read its enabled state.
+     * The AudioEffect UUID/type constructor is hidden from the public SDK, so reflection can be
+     * blocked by hidden-API enforcement. No state is changed and the handle is always released.
+     */
+    fun probePowerState(): PowerProbe {
+        val descriptor = runCatching {
+            AudioEffect.queryEffects()
+                ?.firstOrNull { it.uuid == EFFECT_UUID }
+        }.getOrElse {
+            return PowerProbe(
+                ProbeState.ERROR,
+                "queryEffects: ${it.javaClass.simpleName}: ${it.message ?: "no message"}"
+            )
+        } ?: return PowerProbe(ProbeState.EFFECT_NOT_FOUND)
+
+        var effect: AudioEffect? = null
+        return try {
+            val constructor = AudioEffect::class.java.getDeclaredConstructor(
+                UUID::class.java,
+                UUID::class.java,
+                Int::class.javaPrimitiveType,
+                Int::class.javaPrimitiveType
+            )
+            constructor.isAccessible = true
+            effect = constructor.newInstance(
+                descriptor.type,
+                descriptor.uuid,
+                -1000,
+                0
+            ) as AudioEffect
+
+            PowerProbe(
+                if (effect.enabled) ProbeState.ENABLED else ProbeState.DISABLED,
+                "name=${descriptor.name}; control=${effect.hasControl()}"
+            )
+        } catch (t: Throwable) {
+            val cause = t.cause ?: t
+            val blocked =
+                cause is NoSuchMethodException ||
+                    cause is IllegalAccessException ||
+                    cause.javaClass.name.contains("HiddenApi", ignoreCase = true)
+
+            PowerProbe(
+                if (blocked) ProbeState.BLOCKED else ProbeState.ERROR,
+                "${cause.javaClass.simpleName}: ${cause.message ?: "no message"}"
+            )
+        } finally {
+            runCatching { effect?.release() }
         }
     }
 
