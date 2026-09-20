@@ -2,6 +2,52 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.0 — 2026-09-20
+
+### Highlights
+
+- Added sleep battery statistics with last-session drain, duration, drain rate, 7-day averages and measured mAh when available.
+- Added JamesDSP sleep/wake control for O2P JamesDSP Manager and RootlessJamesDSP.
+- JamesDSP management is explicitly **OFF during sleep / ON while awake** because JamesDSP does not expose a reliable public power-state query.
+- Strengthened AYN Thor Hall-state startup and closed-lid recovery.
+- Hardened service startup, Helper idempotency and persistent restore transactions.
+- Added pending-restore recovery and clearer diagnostics.
+- Improved Syncthing-Fork STOP verification when its running state can be confirmed.
+- Added responsive UI regression coverage and multiple handheld/phone layout refinements.
+
+### Notes
+
+- Stable version code is **501**, allowing direct updates from the 0.5.0 beta.
+- Package IDs and the permanent signing certificate remain unchanged.
+- No root, Shizuku or ADB is required on the device.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
+
+---
+
+## 0.5.0-beta1 — 2026-09-19 — Preview
+
+### Highlights
+
+- New Home battery dashboard with current level, last-sleep drain, duration, drain rate and 7-day average.
+- Sleep battery sessions survive AYN Thor closed-lid false wakes and exclude charging sessions from averages.
+- Current Thor Hall-switch state is queried when closed-lid protection starts, with persisted fallback state for service recovery.
+- Service startup ordering is hardened so screen state is applied only after the start request has been validated.
+- Main ↔ Helper sleep/restore protocol is now idempotent and critical Helper state is persisted synchronously.
+- Pending restore failures can be surfaced to the user and manually forgotten when recovery is impossible.
+- Syncthing STOP is verified when its pre-sleep running state can be confirmed.
+- Visible status polling is reduced and Helper setup has a direct download shortcut.
+- Initial automated regression tests cover closed-lid false wakes during Grace period.
+
+### Notes
+
+- This is a beta build intended for real-device validation before stable 0.5.x.
+- Package IDs and the permanent release signing identity are unchanged, so updates preserve existing app data.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full beta summary.
+
+---
+
 ## 0.4.1 — 2026-09-19
 
 ### UI polish

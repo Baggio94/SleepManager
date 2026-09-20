@@ -9,7 +9,10 @@ object AppPreferences {
     private const val KEY_BLUETOOTH = "bluetooth"
     private const val KEY_SYNCTHING = "syncthing"
     private const val KEY_TAILSCALE = "tailscale"
+    private const val KEY_JAMES_DSP = "james_dsp"
     private const val KEY_THOR_PROTECTION = "thor_protection"
+    private const val KEY_THOR_LID_CLOSED_LAST_KNOWN = "thor_lid_closed_last_known"
+    private const val KEY_THOR_LID_STATE_KNOWN = "thor_lid_state_known"
     private const val KEY_SLEEP_GRACE_MS = "sleep_grace_ms"
     private const val KEY_CUSTOM_DELAY_ENABLED = "custom_delay_enabled"
     private const val KEY_CUSTOM_DELAY_MS = "custom_delay_ms"
@@ -50,11 +53,29 @@ object AppPreferences {
     fun setManageTailscale(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_TAILSCALE, value).apply()
 
+    fun manageJamesDsp(context: Context) =
+        prefs(context).getBoolean(KEY_JAMES_DSP, false)
+
+    fun setManageJamesDsp(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_JAMES_DSP, value).apply()
+
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
 
     fun setManageThorProtection(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_THOR_PROTECTION, value).apply()
+
+    fun lastKnownThorLidClosed(context: Context): Boolean? {
+        val p = prefs(context)
+        if (!p.getBoolean(KEY_THOR_LID_STATE_KNOWN, false)) return null
+        return p.getBoolean(KEY_THOR_LID_CLOSED_LAST_KNOWN, false)
+    }
+
+    fun setLastKnownThorLidClosed(context: Context, closed: Boolean) =
+        prefs(context).edit()
+            .putBoolean(KEY_THOR_LID_CLOSED_LAST_KNOWN, closed)
+            .putBoolean(KEY_THOR_LID_STATE_KNOWN, true)
+            .commit()
 
     fun sleepGraceMs(context: Context): Long {
         val value = prefs(context).getLong(KEY_SLEEP_GRACE_MS, 0L)

@@ -22,22 +22,45 @@ import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import android.view.View
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -74,17 +97,28 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
@@ -92,6 +126,7 @@ import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import java.util.Date
+import java.util.Locale
 
 import kotlinx.coroutines.launch
 
@@ -125,6 +160,7 @@ private fun <T> feedbackChange(action: (T) -> Unit): (T) -> Unit {
 private enum class AppSection {
     HOME,
     ADVANCED,
+    STATS,
     ACTIVITY_LOG,
     ABOUT
 }
@@ -133,6 +169,7 @@ private val AppSection.label: String
     get() = when (this) {
         AppSection.HOME -> "Home"
         AppSection.ADVANCED -> "Advanced settings"
+        AppSection.STATS -> "Stats"
         AppSection.ACTIVITY_LOG -> "Activity log"
         AppSection.ABOUT -> "About"
     }
@@ -141,6 +178,7 @@ private val AppSection.iconRes: Int
     get() = when (this) {
         AppSection.HOME -> R.drawable.ic_home
         AppSection.ADVANCED -> R.drawable.ic_advanced
+        AppSection.STATS -> R.drawable.ic_battery
         AppSection.ACTIVITY_LOG -> R.drawable.ic_activity_log
         AppSection.ABOUT -> R.drawable.ic_info
     }
@@ -217,7 +255,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                lightScrim = android.graphics.Color.TRANSPARENT,
+                darkScrim = android.graphics.Color.TRANSPARENT
+            )
+        )
 
         setContent {
             SleepManagerTheme {
@@ -493,6 +536,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreJamesDspTransactionNow() {
+        val change =
+            SleepCycleStore.connectorChange(this, JamesDspConnector.id)
+                ?: return
+
+        val result = JamesDspConnector.wake(this, change.restoreToken)
+
+        if (result.success) {
+            SleepCycleStore.clearConnectorChange(this, JamesDspConnector.id)
+        } else {
+            AppPreferences.recordEvent(this, "JamesDSP restore pending")
+        }
+    }
+
     private fun canScheduleExactAlarms(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return true
@@ -548,6 +605,17 @@ class MainActivity : ComponentActivity() {
         ).show()
     }
 
+    private fun openProjectReleases() {
+        runCatching {
+            startActivity(
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://github.com/Baggio94/SleepManager/releases")
+                )
+            )
+        }
+    }
+
     private fun copyDiagnostics() {
         val diagnostics = DiagnosticsBuilder.build(
             context = this,
@@ -582,8 +650,21 @@ class MainActivity : ComponentActivity() {
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
         var currentSection by remember { mutableStateOf(AppSection.HOME) }
+        val homeListState = rememberLazyListState()
+        val advancedListState = rememberLazyListState()
+        val statsListState = rememberLazyListState()
+        val activityListState = rememberLazyListState()
+        val aboutListState = rememberLazyListState()
+        val currentListState = when (currentSection) {
+            AppSection.HOME -> homeListState
+            AppSection.ADVANCED -> advancedListState
+            AppSection.STATS -> statsListState
+            AppSection.ACTIVITY_LOG -> activityListState
+            AppSection.ABOUT -> aboutListState
+        }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val drawerScope = rememberCoroutineScope()
+        val compactLayout = LocalConfiguration.current.screenWidthDp < 600
 
         var managerEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.isEnabled(this))
@@ -599,6 +680,9 @@ class MainActivity : ComponentActivity() {
         }
         var tailscaleEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageTailscale(this))
+        }
+        var jamesDspEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageJamesDsp(this))
         }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
@@ -660,11 +744,23 @@ class MainActivity : ComponentActivity() {
         val tailscaleVersion = remember(refreshToken) {
             TailscaleController.versionName(this)
         }
+        val jamesDspTarget = remember(refreshToken) {
+            JamesDspController.selectedTarget(this)
+        }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
         }
         val thorAdminActive = remember(refreshToken) {
             isThorAdminActive()
+        }
+        val batteryDashboard = remember(refreshToken) {
+            BatterySleepStore.dashboard(this)
+        }
+        val batteryStats = remember(refreshToken) {
+            BatterySleepStore.stats(this)
+        }
+        val restoreProblem = remember(refreshToken) {
+            SleepCycleStore.restoreProblem(this)
         }
 
         if (showTestDialog) {
@@ -672,7 +768,10 @@ class MainActivity : ComponentActivity() {
                 onDismissRequest = { showTestDialog = false },
                 title = { Text("Test sleep / wake") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text("1. Choose the sleep actions you want to test below.")
                         Text("2. Enable SleepManager at the top of the app.")
                         Text("3. Turn the screen off normally.")
@@ -714,7 +813,11 @@ class MainActivity : ComponentActivity() {
                             this,
                             SyncthingConnector.id
                         )
-                        if (change?.restoreToken == previous) {
+                        if (
+                            SyncthingConnector.restoreTargetPackage(
+                                change?.restoreToken
+                            ) == previous
+                        ) {
                             restoreSyncthingTransactionNow()
                             SleepCycleStore.completeIfRestored(this)
                         }
@@ -732,18 +835,38 @@ class MainActivity : ComponentActivity() {
             drawerContent = {
                 ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            "SleepManager",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 12.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                "SleepManager",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Quiet on sleep. Ready on wake.",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
                         AppSection.values().forEach { section ->
                             NavigationDrawerItem(
+                                modifier = Modifier.height(48.dp),
                                 icon = {
                                     Icon(
                                         painter = painterResource(section.iconRes),
@@ -763,38 +886,59 @@ class MainActivity : ComponentActivity() {
             }
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
-                CompactSideRail(
-                    currentSection = currentSection,
-                    onSectionSelected = { currentSection = it },
-                    onMenuClick = {
-                        drawerScope.launch { drawerState.open() }
-                    }
-                )
+                if (!compactLayout) {
+                    CompactSideRail(
+                        currentSection = currentSection,
+                        onSectionSelected = { currentSection = it },
+                        onMenuClick = {
+                            drawerScope.launch { drawerState.open() }
+                        }
+                    )
+                }
 
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     TopAppBar(
+                        navigationIcon = {
+                            if (compactLayout) {
+                                IconButton(
+                                    onClick = feedbackClick {
+                                        drawerScope.launch { drawerState.open() }
+                                    },
+                                    modifier = Modifier.offset(y = (-4).dp)
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_menu),
+                                        contentDescription = "Open navigation"
+                                    )
+                                }
+                            }
+                        },
                         title = {
                             Column {
                                 Text(
                                     when (currentSection) {
                                         AppSection.HOME -> "SleepManager"
                                         AppSection.ADVANCED -> "Advanced"
+                                        AppSection.STATS -> "Stats"
                                         AppSection.ACTIVITY_LOG -> "Activity log"
                                         AppSection.ABOUT -> "About"
                                     },
+                                    modifier = Modifier.testTag("top_app_title"),
+                                    style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
                                     when (currentSection) {
-                                        AppSection.HOME -> "Smart sleep automation"
+                                        AppSection.HOME -> "Quiet on sleep. Ready on wake."
                                         AppSection.ADVANCED -> "Custom delay and sleep conditions"
+                                        AppSection.STATS -> "Sleep and battery measurements"
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
                                         AppSection.ABOUT -> "App information"
                                     },
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -806,9 +950,11 @@ class MainActivity : ComponentActivity() {
                 }
             ) { padding ->
             LazyColumn(
+                state = currentListState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(padding)
+                    .testTag("main_list"),
                 contentPadding = PaddingValues(
                     start = 18.dp,
                     end = 18.dp,
@@ -840,8 +986,41 @@ class MainActivity : ComponentActivity() {
                             syncthingEnabled = syncthingEnabled,
                             tailscaleInstalled = tailscaleInstalled,
                             tailscaleVersion = tailscaleVersion,
+                            jamesDspTarget = jamesDspTarget,
                             managerEnabled = managerEnabled,
+                            onGetHelper = { openProjectReleases() },
                             onShowTest = { showTestDialog = true }
+                        )
+                    }
+                }
+
+                item {
+                    SectionTitle(
+                        title = "Battery",
+                        subtitle = "Track sleep drain, averages and standby estimates."
+                    )
+                }
+
+                item {
+                    BatteryDashboardCard(
+                        dashboard = batteryDashboard,
+                        stats = batteryStats
+                    )
+                }
+
+                restoreProblem?.let { problem ->
+                    item {
+                        PendingRestoreCard(
+                            problem = problem,
+                            onForget = {
+                                HelperController.forgetPendingState(this@MainActivity)
+                                SleepCycleStore.clear(this@MainActivity)
+                                AppPreferences.recordEvent(
+                                    this@MainActivity,
+                                    "Recovery → pending restore forgotten"
+                                )
+                                activityRefreshToken++
+                            }
                         )
                     }
                 }
@@ -913,7 +1092,9 @@ class MainActivity : ComponentActivity() {
                     AnimatedVisibility(visible = !helperInstalled) {
                         InfoCard(
                             title = "Compatibility helper not installed",
-                            text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to."
+                            text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.",
+                            actionLabel = "Get Helper",
+                            onAction = { openProjectReleases() }
                         )
                     }
                 }
@@ -981,10 +1162,10 @@ class MainActivity : ComponentActivity() {
                                 ?: if (selectedTarget != null) "Installed" else "Not detected",
                             status = if (selectedTarget != null) {
                                 when (currentSyncthingState) {
-                                    SyncthingController.RuntimeState.RUNNING -> "RUNNING"
-                                    SyncthingController.RuntimeState.STOPPED -> "STOPPED"
-                                    SyncthingController.RuntimeState.UNKNOWN -> "UNKNOWN"
-                                    null -> "CHECKING…"
+                                    SyncthingController.RuntimeState.RUNNING -> "Running"
+                                    SyncthingController.RuntimeState.STOPPED -> "Stopped"
+                                    SyncthingController.RuntimeState.UNKNOWN -> "Unknown"
+                                    null -> "Checking…"
                                 }
                             } else {
                                 null
@@ -1030,8 +1211,8 @@ class MainActivity : ComponentActivity() {
                             },
                             status = if (tailscaleInstalled) {
                                 currentTailscaleConnected?.let {
-                                    if (it) "CONNECTED" else "DISCONNECTED"
-                                } ?: "CHECKING…"
+                                    if (it) "Connected" else "Disconnected"
+                                } ?: "Checking…"
                             } else {
                                 null
                             },
@@ -1050,6 +1231,37 @@ class MainActivity : ComponentActivity() {
                                 null
                             }
                         )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        CompactIntegrationRow(
+                            icon = R.drawable.ic_equalizer,
+                            title = "JamesDSP",
+                            version = jamesDspTarget?.versionName ?: "Not detected",
+                            status = null,
+                            checked = jamesDspEnabled && jamesDspTarget != null,
+                            enabled = jamesDspTarget != null,
+                            onCheckedChange = {
+                                jamesDspEnabled = it
+                                AppPreferences.setManageJamesDsp(
+                                    this@MainActivity,
+                                    it
+                                )
+
+                                if (!it && managerEnabled) {
+                                    restoreJamesDspTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
+                                }
+                            },
+                            onOpen = if (jamesDspTarget != null) {
+                                { JamesDspController.open(this@MainActivity) }
+                            } else {
+                                null
+                            }
+                        )
                     }
                 }
                 item {
@@ -1058,6 +1270,7 @@ class MainActivity : ComponentActivity() {
                         bluetooth = bluetoothEnabled && helperInstalled,
                         syncthing = syncthingEnabled && selectedTarget != null,
                         tailscale = tailscaleEnabled && tailscaleInstalled,
+                        jamesDsp = jamesDspEnabled && jamesDspTarget != null,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
@@ -1194,6 +1407,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    AppSection.STATS -> {
+                        item {
+                            BatteryStatsPage(
+                                stats = batteryStats
+                            )
+                        }
+                    }
+
                     AppSection.ACTIVITY_LOG -> {
                         item {
                             ActivityLogPage(
@@ -1215,7 +1436,7 @@ class MainActivity : ComponentActivity() {
         }
     }
     companion object {
-        private const val STATUS_REFRESH_INTERVAL_MS = 1000L
+        private const val STATUS_REFRESH_INTERVAL_MS = 3000L
     }
 }
 
@@ -1225,29 +1446,45 @@ private fun CompactSideRail(
     onSectionSelected: (AppSection) -> Unit,
     onMenuClick: () -> Unit
 ) {
-    NavigationRail(
-        modifier = Modifier.width(64.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        header = {
-            IconButton(onClick = feedbackClick(onMenuClick)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_menu),
-                    contentDescription = "Open navigation"
-                )
-            }
-        }
+    Box(
+        modifier = Modifier
+            .width(64.dp)
+            .fillMaxHeight()
+            .testTag("compact_side_rail")
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        AppSection.values().forEach { section ->
-            NavigationRailItem(
-                selected = currentSection == section,
-                onClick = feedbackClick { onSectionSelected(section) },
-                icon = {
+        NavigationRail(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            header = {
+                IconButton(
+                    onClick = feedbackClick(onMenuClick),
+                    modifier = Modifier.offset(y = (-4).dp)
+                ) {
                     Icon(
-                        painter = painterResource(section.iconRes),
-                        contentDescription = section.label
+                        painter = painterResource(R.drawable.ic_menu),
+                        contentDescription = "Open navigation"
                     )
                 }
-            )
+            }
+        ) {
+            AppSection.values().forEach { section ->
+                NavigationRailItem(
+                    modifier = Modifier.height(48.dp),
+                    selected = currentSection == section,
+                    onClick = feedbackClick { onSectionSelected(section) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(section.iconRes),
+                            contentDescription = section.label
+                        )
+                    }
+                )
+            }
         }
     }
 }
@@ -1260,7 +1497,9 @@ private fun OnboardingCard(
     syncthingEnabled: Boolean,
     tailscaleInstalled: Boolean,
     tailscaleVersion: String?,
+    jamesDspTarget: JamesDspController.Target?,
     managerEnabled: Boolean,
+    onGetHelper: () -> Unit,
     onShowTest: () -> Unit
 ) {
     Card(
@@ -1286,19 +1525,25 @@ private fun OnboardingCard(
                 } else {
                     "• Compatibility helper not installed — only needed for Wi-Fi / Bluetooth."
                 },
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
+
+            if (!helperInstalled) {
+                TextButton(onClick = feedbackClick(onGetHelper)) {
+                    Text("Get Helper")
+                }
+            }
 
             Text(
                 syncthingTarget?.let { "✓ ${it.displayName} detected" }
                     ?: "• Syncthing-Fork not detected — optional.",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
             )
 
             if (syncthingEnabled && syncthingTarget != null) {
                 Text(
                     "Syncthing-Fork: make sure Settings → Behaviour → Service control by broadcast is enabled.",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -1313,7 +1558,16 @@ private fun OnboardingCard(
                 } else {
                     "• Tailscale not detected — optional."
                 },
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Text(
+                jamesDspTarget?.let { target ->
+                    "✓ JamesDSP" +
+                        (target.versionName?.let { " • $it" } ?: "") +
+                        " detected"
+                } ?: "• JamesDSP not detected — optional.",
+                style = MaterialTheme.typography.bodyMedium
             )
 
             Text(
@@ -1322,7 +1576,13 @@ private fun OnboardingCard(
                 } else {
                     "Choose the actions you want below, then enable SleepManager."
                 },
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                "Sleep statistics start automatically. Complete a sleep session of at least 10 minutes without charging to build averages and standby estimates.",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
@@ -1420,6 +1680,642 @@ private fun StatusCard(
     }
 }
 
+
+@Composable
+private fun BatteryStatsPage(
+    stats: BatterySleepStore.Stats
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        StatsCard(title = "Battery") {
+            StatsGrid(
+                metrics = listOf(
+                    "Current" to (stats.currentPercent?.let { "$it%" } ?: "—"),
+                    "Estimated capacity" to (
+                        stats.estimatedCapacityMah?.let {
+                            "~${formatMah(it)} mAh"
+                        } ?: "Unavailable"
+                    ),
+                    "Current charge" to (
+                        stats.currentChargeMah?.let {
+                            "${formatMah(it)} mAh"
+                        } ?: "Unavailable"
+                    )
+                )
+            )
+        }
+
+        StatsCard(title = "Sleep efficiency") {
+            StatsGrid(
+                metrics = listOf(
+                    "7-day drain" to (
+                        stats.averageDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "Not enough data"
+                    ),
+                    "Charge drain" to (
+                        stats.averageDrainMahPerHour?.let {
+                            "${formatMahRate(it)} mAh / h"
+                        } ?: "Unavailable"
+                    ),
+                    "Deep sleep" to (
+                        stats.averageDeepSleepPercent?.let {
+                            "${formatPercentOneDecimal(it)}%"
+                        } ?: "Collecting data"
+                    ),
+                    "Measured sleep" to formatSleepSessionDuration(
+                        stats.totalMeasuredSleepMs
+                    )
+                )
+            )
+        }
+
+        StatsCard(title = "Standby estimate") {
+            StatsGrid(
+                metrics = listOf(
+                    "From current battery" to (
+                        stats.estimatedHoursRemaining?.let {
+                            formatStandbyEstimate(it)
+                        } ?: "Not enough data"
+                    ),
+                    "From 100%" to (
+                        stats.estimatedHoursFromFull?.let {
+                            formatStandbyEstimate(it)
+                        } ?: "Not enough data"
+                    ),
+                    "Best drain" to (
+                        stats.bestDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "—"
+                    ),
+                    "Worst drain" to (
+                        stats.worstDrainPerHour?.let {
+                            "${formatDrainRate(it)}% / h"
+                        } ?: "—"
+                    )
+                )
+            )
+            Text(
+                "Standby estimates use the measured 7-day sleep average and are only indicative.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        stats.lastSession?.let { last ->
+            StatsCard(title = "Last sleep") {
+                StatsGrid(
+                    metrics = listOf(
+                        "Duration" to formatSleepSessionDuration(last.durationMs),
+                        (if (last.chargedDuringSleep) "Battery change" else "Battery used") to
+                            formatBatteryChange(last),
+                        "Charge used" to (
+                            last.drainMah?.let {
+                                "${formatMah(it)} mAh"
+                            } ?: if (last.chargedDuringSleep) {
+                                "Charging during sleep"
+                            } else {
+                                "Unavailable"
+                            }
+                        ),
+                        "Deep sleep" to (
+                            last.deepSleepPercent?.let {
+                                "${formatPercentOneDecimal(it)}%"
+                            } ?: "Collecting data"
+                        )
+                    )
+                )
+            }
+        }
+
+        StatsCard(title = "Measurement") {
+            Text(
+                "${stats.averageSessionCount} eligible sleep session" +
+                    if (stats.averageSessionCount == 1) "." else "s.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                "Sessions shorter than 10 minutes or containing charging are excluded from averages. Capacity is an estimate when Android does not expose a readable full-capacity value.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatsGrid(
+    metrics: List<Pair<String, String>>
+) {
+    metrics.chunked(2).forEach { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            row.forEach { pair ->
+                BatteryMetric(
+                    modifier = Modifier.weight(1f),
+                    label = pair.first,
+                    value = pair.second
+                )
+            }
+            if (row.size == 1) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+private fun formatMah(value: Double): String =
+    String.format(Locale.US, "%.0f", value)
+
+private fun formatMahRate(value: Double): String =
+    if (value < 10.0) {
+        String.format(Locale.US, "%.1f", value)
+    } else {
+        String.format(Locale.US, "%.0f", value)
+    }
+
+private fun formatPercentOneDecimal(value: Double): String =
+    String.format(Locale.US, "%.1f", value)
+
+private fun formatStandbyEstimate(hours: Double): String {
+    if (!hours.isFinite() || hours <= 0.0) return "—"
+
+    val totalHours = hours.toLong().coerceAtLeast(1L)
+    val days = totalHours / 24L
+    val remainderHours = totalHours % 24L
+    return when {
+        days > 0L && remainderHours > 0L -> "${days}d ${remainderHours}h"
+        days > 0L -> "${days}d"
+        else -> "${totalHours}h"
+    }
+}
+
+@Composable
+private fun BatteryDashboardCard(
+    dashboard: BatterySleepStore.Dashboard,
+    stats: BatterySleepStore.Stats
+) {
+    val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
+    val last = dashboard.lastSession
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                InteractiveBatteryGauge(
+                    percent = dashboard.currentPercent,
+                    charging = dashboard.currentCharging,
+                    currentChargeMah = stats.currentChargeMah,
+                    estimatedCapacityMah = stats.estimatedCapacityMah,
+                    estimatedHoursRemaining = stats.estimatedHoursRemaining,
+                    averageDrainPerHour = stats.averageDrainPerHour,
+                    averageDrainMahPerHour = stats.averageDrainMahPerHour,
+                    modifier = Modifier
+                        .weight(1f)
+                        .widthIn(max = 280.dp)
+                )
+
+                Column(
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    Text(
+                        currentText,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    if (dashboard.currentCharging) {
+                        Text(
+                            "Charging",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+            }
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            if (last == null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Last sleep",
+                        value = "—"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Drain",
+                        value = "—"
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "7-day average",
+                        value = "—"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Samples",
+                        value = "0"
+                    )
+                }
+
+                Text(
+                    "Sleep statistics will appear after your first sleep session of at least 10 minutes without charging.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Last sleep",
+                        value =
+                            "${formatBatteryChange(last)} • ${formatSleepSessionDuration(last.durationMs)}"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Drain",
+                        value =
+                            when {
+                                last.chargedDuringSleep -> "Charging during sleep"
+                                last.durationMs < 10L * 60L * 1000L -> "Short session"
+                                else -> last.drainPerHour?.let {
+                                    "${formatDrainRate(it)}% / h"
+                                } ?: "—"
+                            }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "7-day average",
+                        value =
+                            dashboard.averageDrainPerHour?.let {
+                                "${formatDrainRate(it)}% / h"
+                            } ?: "Not enough data"
+                    )
+                    BatteryMetric(
+                        modifier = Modifier.weight(1f),
+                        label = "Samples",
+                        value = dashboard.averageSessionCount.toString()
+                    )
+                }
+
+                when {
+                    last.chargedDuringSleep -> {
+                        Text(
+                            "Sessions with charging are excluded from the 7-day drain average.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    last.durationMs < 10L * 60L * 1000L -> {
+                        Text(
+                            if (dashboard.averageSessionCount == 0) {
+                                "Complete a sleep session of at least 10 minutes to start building sleep averages."
+                            } else {
+                                "This short session is excluded from the 7-day average."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    else -> {
+                        last.drainMah?.let {
+                            Text(
+                                "Measured charge used: ${String.format(Locale.US, "%.0f", it)} mAh",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InteractiveBatteryGauge(
+    percent: Int?,
+    charging: Boolean,
+    currentChargeMah: Double?,
+    estimatedCapacityMah: Double?,
+    estimatedHoursRemaining: Double?,
+    averageDrainPerHour: Double?,
+    averageDrainMahPerHour: Double?,
+    modifier: Modifier = Modifier
+) {
+    var infoIndex by remember { mutableIntStateOf(0) }
+    val level = (percent ?: 0).coerceIn(0, 100)
+    val animatedLevel by animateFloatAsState(
+        targetValue = level / 100f,
+        label = "Battery level"
+    )
+
+    // Above 50%, follow the app/system Material accent so the battery naturally
+    // matches the current Android UI. Lower levels intentionally override it.
+    val levelColor = when {
+        charging -> MaterialTheme.colorScheme.primary
+        percent == null -> MaterialTheme.colorScheme.outline
+        level >= 50 -> MaterialTheme.colorScheme.primary
+        level >= 20 -> Color(0xFFE7B55E)
+        else -> Color(0xFFE97878)
+    }
+
+    val chargeText =
+        if (currentChargeMah != null && estimatedCapacityMah != null) {
+            "${formatMah(currentChargeMah)} / ~${formatMah(estimatedCapacityMah)} mAh"
+        } else {
+            "Charge data unavailable"
+        }
+
+    val standbyText =
+        estimatedHoursRemaining?.let {
+            "Estimated standby • ${formatStandbyEstimate(it)}"
+        } ?: "Estimated standby • Not enough data"
+
+    val sleepDrainText =
+        averageDrainPerHour?.let {
+            "Sleep drain • ${formatDrainRate(it)}% / h"
+        } ?: "Sleep drain • Not enough data"
+
+    val chargeDrainText =
+        averageDrainMahPerHour?.let {
+            "Charge drain • ${formatMahRate(it)} mAh / h"
+        } ?: "Charge drain • Not enough data"
+
+    val infoTexts = listOf(
+        chargeText,
+        standbyText,
+        sleepDrainText,
+        chargeDrainText
+    )
+    val currentInfo = infoTexts[infoIndex]
+
+    val onGaugeClick = feedbackClick {
+        infoIndex = (infoIndex + 1) % infoTexts.size
+    }
+
+    val chargingTransition = rememberInfiniteTransition(
+        label = "Charging pulse"
+    )
+    val chargingAlpha by chargingTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 850),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Charging alpha"
+    )
+
+    val compactBatteryLayout = LocalConfiguration.current.screenWidthDp < 600
+    val gaugeHeight = if (compactBatteryLayout) 66.dp else 74.dp
+    val terminalHeight = if (compactBatteryLayout) 30.dp else 34.dp
+    val bodyShape = RoundedCornerShape(if (compactBatteryLayout) 18.dp else 20.dp)
+    val innerShape = RoundedCornerShape(if (compactBatteryLayout) 12.dp else 14.dp)
+
+    Row(
+        modifier = modifier
+            .height(gaugeHeight)
+            .testTag("battery_gauge")
+            .clickable(onClick = onGaugeClick)
+            .semantics {
+                contentDescription =
+                    "Battery ${percent?.let { "$it percent" } ?: "level unavailable"}. " +
+                        "$currentInfo. Tap for next battery detail."
+            },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clip(bodyShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .border(
+                    width = 3.dp,
+                    color = levelColor,
+                    shape = bodyShape
+                )
+                .padding(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(innerShape)
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(animatedLevel)
+                        .background(levelColor.copy(alpha = 0.30f))
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Crossfade(
+                            targetState = infoIndex,
+                            label = "Battery info"
+                        ) { index ->
+                            Text(
+                                text = infoTexts[index],
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (charging) {
+                        Text(
+                            "⚡",
+                            modifier = Modifier.alpha(chargingAlpha),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = levelColor
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .width(10.dp)
+                .height(terminalHeight)
+                .clip(RoundedCornerShape(0.dp, 6.dp, 6.dp, 0.dp))
+                .background(levelColor)
+        )
+    }
+}
+
+@Composable
+private fun BatteryMetric(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun PendingRestoreCard(
+    problem: String,
+    onForget: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Pending restore needs attention",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                problem,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Text(
+                "SleepManager keeps the transaction instead of pretending the restore succeeded.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            OutlinedButton(
+                onClick = feedbackClick(onForget)
+            ) {
+                Text("Forget pending restore")
+            }
+        }
+    }
+}
+
+private fun formatBatteryChange(
+    session: BatterySleepStore.SleepSession
+): String {
+    val delta = session.endPercent - session.startPercent
+    return when {
+        delta > 0 -> "+${delta}%"
+        delta < 0 -> "−${-delta}%"
+        else -> "0%"
+    }
+}
+
+private fun formatSleepSessionDuration(durationMs: Long): String {
+    val totalMinutes = (durationMs / 60_000L).coerceAtLeast(0L)
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return when {
+        hours > 0L && minutes > 0L -> "${hours}h ${minutes}m"
+        hours > 0L -> "${hours}h"
+        totalMinutes > 0L -> "${totalMinutes}m"
+        else -> "<1m"
+    }
+}
+
+private fun formatDrainRate(value: Double): String =
+    when {
+        value < 0.01 -> "<0.01"
+        value < 1.0 -> String.format(Locale.US, "%.2f", value)
+        else -> String.format(Locale.US, "%.1f", value)
+    }
+
 @Composable
 private fun SectionTitle(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1430,7 +2326,7 @@ private fun SectionTitle(title: String, subtitle: String) {
         )
         Text(
             subtitle,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -1503,7 +2399,7 @@ private fun SettingRow(
             )
             Text(
                 subtitle,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = secondaryAlpha
                 )
@@ -1516,7 +2412,7 @@ private fun SettingRow(
                         currentStatus.endsWith(": CONNECTED")
                 Text(
                     currentStatus,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = when {
                         currentStatus.contains("CHECKING") -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -1530,7 +2426,10 @@ private fun SettingRow(
         Switch(
             checked = checked,
             onCheckedChange = feedbackChange(onCheckedChange),
-            enabled = enabled
+            enabled = enabled,
+            modifier = Modifier.semantics {
+                contentDescription = "$title toggle"
+            }
         )
     }
 }
@@ -1548,13 +2447,9 @@ private fun CompactIntegrationRow(
     secondaryActionLabel: String? = null,
     onSecondaryAction: (() -> Unit)? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    val compact = LocalConfiguration.current.screenWidthDp < 600
+
+    val iconContent: @Composable () -> Unit = {
         Surface(
             shape = CircleShape,
             color = if (enabled) {
@@ -1576,13 +2471,15 @@ private fun CompactIntegrationRow(
                     .size(22.dp)
             )
         }
+    }
 
+    val detailsContent: @Composable () -> Unit = {
         Column(
-            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             Text(
                 title,
+                modifier = Modifier.testTag("integration_title_$title"),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium
             )
@@ -1593,20 +2490,20 @@ private fun CompactIntegrationRow(
             ) {
                 Text(
                     version,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 status?.let {
-                    val active = it == "RUNNING" || it == "CONNECTED"
+                    val active = it == "Running" || it == "Connected"
                     Text(
                         "•",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         it,
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = if (active) {
                             MaterialTheme.colorScheme.primary
@@ -1616,35 +2513,93 @@ private fun CompactIntegrationRow(
                     )
                 }
             }
+        }
+    }
 
-            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    onOpen?.let { open ->
-                        OutlinedButton(onClick = feedbackClick(open)) {
-                            Text("Open")
-                        }
+    val actionsContent: @Composable () -> Unit = {
+        if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                onOpen?.let { open ->
+                    OutlinedButton(onClick = feedbackClick(open)) {
+                        Text("Open")
                     }
+                }
 
-                    if (secondaryActionLabel != null && onSecondaryAction != null) {
-                        TextButton(
-                            onClick = feedbackClick(onSecondaryAction),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Text(secondaryActionLabel)
-                        }
+                if (secondaryActionLabel != null && onSecondaryAction != null) {
+                    TextButton(
+                        onClick = feedbackClick(onSecondaryAction),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(secondaryActionLabel)
                     }
                 }
             }
         }
+    }
 
-        Switch(
-            checked = checked,
-            onCheckedChange = feedbackChange(onCheckedChange),
-            enabled = enabled
-        )
+    if (compact) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                iconContent()
+                Box(modifier = Modifier.weight(1f)) {
+                    detailsContent()
+                }
+                Switch(
+                    checked = checked,
+                    onCheckedChange = feedbackChange(onCheckedChange),
+                    enabled = enabled,
+                    modifier = Modifier.semantics {
+                        contentDescription = "$title toggle"
+                    }
+                )
+            }
+
+            if (onOpen != null || (secondaryActionLabel != null && onSecondaryAction != null)) {
+                Box(
+                    modifier = Modifier.padding(start = 54.dp)
+                ) {
+                    actionsContent()
+                }
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            iconContent()
+            Box(modifier = Modifier.weight(1f)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    detailsContent()
+                    actionsContent()
+                }
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = feedbackChange(onCheckedChange),
+                enabled = enabled,
+                modifier = Modifier.semantics {
+                    contentDescription = "$title toggle"
+                }
+            )
+        }
     }
 }
 @Composable
@@ -1676,7 +2631,7 @@ private fun SleepGraceSelector(
             } else {
                 "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed."
             },
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -1797,9 +2752,8 @@ private fun AdvancedSleepRulesPage(
 
         Text(
             "Conditions are combined with AND logic. If one enabled condition is false, sleep actions are skipped.",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
         )
 
         SettingsCard {
@@ -1871,7 +2825,7 @@ private fun AdvancedSleepRulesPage(
                         AppPreferences.BATTERY_SAVER_OFF -> "Only when Android Battery Saver is OFF"
                         else -> "Ignore Battery Saver state"
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -1957,14 +2911,17 @@ private fun AdvancedToggleRow(
             )
             Text(
                 subtitle,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
         Switch(
             checked = checked,
-            onCheckedChange = feedbackChange(onCheckedChange)
+            onCheckedChange = feedbackChange(onCheckedChange),
+            modifier = Modifier.semantics {
+                contentDescription = "$title toggle"
+            }
         )
     }
 }
@@ -2013,7 +2970,7 @@ private fun ActivityLogPage(
                         )
                         Text(
                             timestamp,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -2069,7 +3026,7 @@ private fun AboutPage(context: Context) {
     ) {
         InfoCard(
             title = "SleepManager",
-            text = "Version ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
+            text = "Quiet on sleep. Ready on wake.\nVersion ${packageInfo?.versionName ?: "Unknown"} • Smart sleep automation for Android."
         )
 
         SettingsCard {
@@ -2079,7 +3036,7 @@ private fun AboutPage(context: Context) {
             ) {
                 Text(
                     "What SleepManager does",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
@@ -2176,7 +3133,7 @@ private fun AboutInfoRow(
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -2204,7 +3161,7 @@ private fun AboutActionRow(
             )
             Text(
                 subtitle,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -2234,8 +3191,14 @@ private fun formatTime(minutes: Int): String {
 }
 
 @Composable
-private fun InfoCard(title: String, text: String) {
+private fun InfoCard(
+    title: String,
+    text: String,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -2247,14 +3210,20 @@ private fun InfoCard(title: String, text: String) {
         ) {
             Text(
                 title,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
+
+            if (actionLabel != null && onAction != null) {
+                TextButton(onClick = feedbackClick(onAction)) {
+                    Text(actionLabel)
+                }
+            }
         }
     }
 }
@@ -2265,12 +3234,13 @@ private fun BehaviorCard(
     bluetooth: Boolean,
     syncthing: Boolean,
     tailscale: Boolean,
+    jamesDsp: Boolean,
     thorProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasSleepAction = wifi || bluetooth || syncthing || tailscale
+    val hasSleepAction = wifi || bluetooth || syncthing || tailscale || jamesDsp
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
@@ -2279,6 +3249,7 @@ private fun BehaviorCard(
         advancedConditions.forEach { add("Only if $it") }
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
+        if (jamesDsp) add("Power off JamesDSP")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -2290,6 +3261,7 @@ private fun BehaviorCard(
         if (bluetooth) add("Restore Bluetooth")
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
+        if (jamesDsp) add("Restore JamesDSP")
     }
 
     val compactSleepSummary = buildList {
@@ -2298,6 +3270,7 @@ private fun BehaviorCard(
         if (bluetooth) add("Bluetooth")
         if (syncthing) add("Syncthing")
         if (tailscale) add("Tailscale")
+        if (jamesDsp) add("JamesDSP")
         if (advancedConditions.isNotEmpty()) {
             add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
         }
@@ -2327,7 +3300,7 @@ private fun BehaviorCard(
                     )
                     Text(
                         compactSleepSummary,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -2351,7 +3324,7 @@ private fun BehaviorCard(
                 if (wifi || bluetooth) {
                     Text(
                         "Only states changed by SleepManager are restored.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -2359,7 +3332,7 @@ private fun BehaviorCard(
                 if (thorProtection) {
                     Text(
                         "Thor false wakes with the lid closed are returned to sleep without normal wake restoration.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -2372,7 +3345,8 @@ private fun BehaviorGroup(title: String, lines: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             title,
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary
         )
         lines.forEach {
@@ -2408,12 +3382,12 @@ private fun LastActivityCard(
     } else emptyList()
 
     Column(
-        modifier = Modifier.padding(horizontal = 2.dp),
+        modifier = Modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             "Last activity",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -2441,11 +3415,11 @@ private fun LastActivityCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (subject != null) {
-                        Text("$subject ·", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                        Text("$subject ·", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                     Text(
                         detail,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = if (detail.equals("Unchanged", ignoreCase = true)) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
@@ -2455,11 +3429,11 @@ private fun LastActivityCard(
                 }
             }
         } else {
-            Text(event, style = MaterialTheme.typography.bodySmall)
+            Text(event, style = MaterialTheme.typography.bodyMedium)
         }
 
         timeText?.let {
-            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Row(
@@ -2524,7 +3498,7 @@ private fun ActivityLogDialog(
                             )
                             Text(
                                 timestamp,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -2568,7 +3542,7 @@ private fun SyncthingTargetDialog(
                             if (target.packageName == selected) {
                                 Text(
                                     "Selected",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }

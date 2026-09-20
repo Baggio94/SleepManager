@@ -1,75 +1,70 @@
-# SleepManager 0.4.1
+# SleepManager 0.5.0
 
-SleepManager 0.4.1 focuses on a simpler UI, smarter sleep rules and more reliable app integrations.
+SleepManager 0.5.0 adds sleep battery statistics, JamesDSP integration, stronger recovery logic and a more polished responsive interface.
 
 ## Highlights
 
-- **New modern UI**
-  - Permanent side navigation rail for Home, Advanced, Activity log and About.
-  - Cleaner setup flow and more readable current states.
-  - Compact Current behavior summary.
-  - Expanded About page with app details and support links.
+### JamesDSP sleep / wake integration
 
-- **Advanced sleep rules**
-  - Grace period: Immediate, 5s, 10s or Custom.
-  - Custom delay: 1, 5, 10 or 30 minutes.
-  - Battery level condition.
-  - Not charging condition.
-  - Android Battery Saver condition.
-  - Schedule / time window.
-  - Enabled conditions are combined with AND logic.
+- Detects the JamesDSP Manager package used by O2P Tweaks and the standard RootlessJamesDSP package when available.
+- Sends JamesDSP **OFF** when sleep actions run.
+- Sends JamesDSP **ON** again on a real wake.
+- Uses JamesDSP's exported power-control receiver; no root, Shizuku or ADB is required.
+- JamesDSP does not expose a public power-state query to normal apps, so SleepManager does not show a guessed Running / Stopped state.
+- Because the previous JamesDSP state cannot be read reliably, enabling this integration is an explicit **OFF while asleep / ON while awake** policy.
 
-- **Tailscale integration**
-  - Detects the official Tailscale app and current connection state.
-  - Disconnects Tailscale for sleep only when appropriate.
-  - Reconnects it only when SleepManager verified that it disconnected it.
-  - Waits for usable network connectivity before restoring.
+### Sleep battery dashboard and statistics
 
-- **Improved Syncthing-Fork integration**
-  - Live RUNNING / STOPPED / UNKNOWN state in the UI.
-  - Network-ready restore instead of relying only on a fixed delay.
-  - Supports HTTP and local HTTPS health checks.
-  - Keeps the existing STOP / FOLLOW broadcast workflow.
+- Shows the current battery level near the top of Home.
+- Tracks the last completed sleep session, duration and battery percentage used.
+- Shows drain per hour and a rolling 7-day average.
+- Uses Android's charge counter when available to show measured mAh usage.
+- Excludes sleep sessions that included charging from drain averages.
+- AYN Thor closed-lid false wakes remain part of the same sleep session instead of ending the measurement.
 
-- **Safer sleep/wake transactions**
-  - SleepManager remembers only what it changed.
-  - Pending restore state survives process restarts.
-  - Failed restores stay pending instead of being marked successful.
+### Stronger AYN Thor recovery
 
-- **AYN Thor closed-lid protection**
-  - Thor owners have widely reported wake/sleep problems while the lid is closed.
-  - If the Thor wakes while its lid sensor still says CLOSED, SleepManager puts it back to sleep.
-  - Normal wake restoration is suppressed until the lid is really opened.
-  - This helps avoid unnoticed battery drain and heat if a closed Thor wakes in a case or bag.
+- Queries the current Hall-switch state when closed-lid protection starts.
+- Persists the last known lid state as a fallback across service recovery.
+- Closed-lid false wakes continue to avoid the normal wake restore sequence.
+- Grace period / Custom delay are not cancelled by a closed-lid false wake.
 
-- **Activity log and diagnostics**
-  - Recent sleep/wake events are available from Activity log.
-  - Copy log includes current configuration and transaction state.
+### More resilient sleep / wake transactions
 
-- **Quick Settings tile**
-  - Quickly enable or disable SleepManager from Android Quick Settings.
+- Service startup validates the start request before applying screen state.
+- Main ↔ Helper sleep/restore requests are more idempotent and durable.
+- Critical transaction state is persisted synchronously.
+- Pending restore failures are surfaced on Home and can be explicitly forgotten when recovery is no longer possible.
+- Disabling SleepManager first attempts to restore changes still owned by the active transaction.
 
-- **Haptic and sound feedback**
-  - Buttons, options and navigation now use Android's standard haptic/click feedback.
-  - Feedback follows the device's own system settings.
+### Better Syncthing-Fork verification
 
-## Defaults
+- When the pre-sleep running state can be confirmed, SleepManager verifies that Syncthing actually stopped after the STOP grace period.
+- If STOP cannot be confirmed, SleepManager does not pretend that the stop succeeded.
+- Compatible STOP/FOLLOW behavior remains available when Syncthing state cannot be queried.
 
-On a fresh install:
+### Responsive UI and polish
 
-- Grace period: **Immediate**
-- Custom delay: **Off**
-- Sleep actions: **Off**
-- Advanced conditions: **Off**
+- Added dedicated layouts and regression checks for compact portrait, landscape and wider handheld/tablet screens.
+- Home, Advanced, Stats, Activity log and About keep independent scroll positions.
+- The sleep/wake test dialog scrolls correctly on short landscape displays.
+- Integration state labels use sentence case and setting text spacing was refined.
+- Navigation alignment and behavior-card hierarchy were polished for handheld screens.
 
-## Installation
+## Compatibility
 
-1. Install **SleepManager**.
-2. Install **SleepManager Helper** if you want Wi-Fi or Bluetooth control.
-3. Open SleepManager and choose the actions you want.
-4. For Syncthing-Fork, enable **Settings → Behaviour → Service Control by Broadcast**.
-5. For AYN Thor protection, enable the option and grant the one-time Device Admin permission.
-6. Enable **SleepManager**, then tap **Finish setup**.
+- Android **9 / API 28 or newer**
+- Main app target SDK: **36**
+- Compatibility Helper target SDK: **28**
+- Same package IDs and permanent signing certificate as previous stable releases
+- Version code **501**, so devices running the 0.5.0 beta can update normally to this stable build
+
+## Installation / update
+
+1. Install **SleepManager 0.5.0**.
+2. Install **SleepManager Helper 0.5.0** if you use Wi-Fi or Bluetooth management.
+3. Existing settings are preserved when updating an official signed build.
+4. For Syncthing-Fork, keep **Settings → Behaviour → Service Control by Broadcast** enabled.
+5. For AYN Thor protection, keep the one-time Device Admin permission enabled.
 
 No root, Shizuku or ADB is required on the device.
-

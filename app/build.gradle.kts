@@ -49,6 +49,7 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -97,4 +98,11 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.4.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling:1.11.4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.11.4")
+
+    testImplementation("junit:junit:4.13.2")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.11.4")
 }

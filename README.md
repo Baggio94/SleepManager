@@ -10,10 +10,12 @@ Set it once, choose what should sleep, and let it run in the background.
 - **Bluetooth** — same behavior as Wi-Fi.
 - **Syncthing-Fork** — pause it during sleep and resume it after the network is ready again.
 - **Tailscale** — disconnects Tailscale during sleep if it is connected, then reconnects it on wake.
+- **JamesDSP** — sends JamesDSP power OFF during sleep and ON again on wake when this integration is enabled.
 - **AYN Thor closed-lid protection** — protects against unwanted wake-ups while the lid is still closed.
 - **Grace period** — Immediate, 5 seconds, 10 seconds, or a longer custom delay.
 - **Advanced conditions** — run sleep actions only when your enabled conditions are all true.
 - **Activity log** — see recent sleep/wake actions and copy a diagnostic log when needed.
+- **Battery statistics** — track sleep drain, duration, 7-day averages and measured mAh when the device exposes a charge counter.
 - **Quick Settings tile** — quickly enable or disable SleepManager.
 
 SleepManager does not require root, Shizuku or ADB on the device.
@@ -68,6 +70,14 @@ Install the official Tailscale Android app and sign in normally.
 
 SleepManager shows the current Tailscale connection state. If Tailscale is connected when the device sleeps, SleepManager can disconnect it and later reconnect it only when that change was verified.
 
+### JamesDSP
+
+SleepManager supports the JamesDSP Manager package used by O2P Tweaks and the standard RootlessJamesDSP package when available.
+
+When the JamesDSP integration is enabled, SleepManager sends JamesDSP **OFF** on sleep and **ON** on wake.
+
+JamesDSP exposes a public power-control broadcast but no public state-query API for normal Android apps. Because SleepManager cannot reliably read whether JamesDSP was already OFF before sleep, this integration acts as an explicit policy: **OFF while asleep, ON while awake**. If you prefer to keep JamesDSP manually disabled while awake, leave the SleepManager JamesDSP integration disabled.
+
 ## Sleep behavior
 
 The default setup is simple:
@@ -85,7 +95,9 @@ When the screen turns off, SleepManager:
 
 When the device wakes, SleepManager restores only those changes.
 
-If Wi-Fi, Bluetooth, Syncthing or Tailscale was already in the desired sleep state, SleepManager does not force a different state on wake.
+Wi-Fi, Bluetooth and Tailscale restoration is state-aware: SleepManager avoids restoring a state it did not verify that it changed. Syncthing-Fork is verified when possible and falls back to its compatible STOP/FOLLOW behavior when state cannot be confirmed.
+
+JamesDSP is the exception: because its public integration exposes power control but no readable power state, enabling JamesDSP management means **OFF during sleep and ON after wake**.
 
 ## Advanced conditions
 
@@ -134,6 +146,10 @@ Make sure:
 ### Tailscale does not reconnect
 
 Open Tailscale and make sure it is signed in and able to connect normally. SleepManager only restores Tailscale when it verified that SleepManager itself disconnected it.
+
+### JamesDSP does not return to the state I expected
+
+When JamesDSP management is enabled, SleepManager intentionally applies **OFF on sleep / ON on wake**. JamesDSP does not expose a readable public power state, so SleepManager cannot preserve a pre-existing manual OFF state.
 
 ### Thor protection cannot be enabled
 
@@ -329,6 +345,24 @@ If disconnection cannot be verified, SleepManager clears that pending change and
 On wake, Tailscale follows the same validated-network gate used by Syncthing. SleepManager sends CONNECT, then checks the VPN state every **500 ms** for up to **12 attempts**. A second CONNECT request is sent on attempt 4 if the VPN is still not back.
 
 The restore transaction is cleared only when reconnection is verified. If reconnection never verifies, the restore remains pending for diagnostics/recovery instead of being reported as successful.
+
+### JamesDSP integration
+
+SleepManager supports the exported JamesDSP power receiver:
+
+`me.timschneeberger.rootlessjamesdsp.SET_POWER_STATE`
+
+with the boolean extra:
+
+`rootlessjamesdsp.enabled`
+
+Sleep sends `false` and wake sends `true` to the exact JamesDSP package selected for that sleep cycle.
+
+The commonly used O2P JamesDSP Manager package is `james.dsp`; the standard RootlessJamesDSP package is also detected when installed.
+
+JamesDSP does not expose a public query API that lets a normal third-party app reliably read its current power state. SleepManager therefore deliberately does not display a guessed Running / Stopped state. Enabling this integration is an explicit awake/sleep policy rather than a state-preserving toggle.
+
+No root, Shizuku, ADB or notification-listener permission is required for this control path.
 
 ### AYN Thor closed-lid protection
 

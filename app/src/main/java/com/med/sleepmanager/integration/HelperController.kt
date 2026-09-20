@@ -13,6 +13,7 @@ object HelperController {
     private const val ACTION_WAKE = "com.med.sleepmanager.helper.action.WAKE"
     private const val ACTION_RESTORE = "com.med.sleepmanager.helper.action.RESTORE"
     private const val ACTION_QUERY = "com.med.sleepmanager.helper.action.QUERY_STATE"
+    private const val ACTION_FORGET_STATE = "com.med.sleepmanager.helper.action.FORGET_STATE"
     const val ACTION_STATE = "com.med.sleepmanager.helper.action.STATE"
     const val ACTION_RESULT = "com.med.sleepmanager.helper.action.RESULT"
 
@@ -28,6 +29,11 @@ object HelperController {
     const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
     const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
     const val EXTRA_RESTORE_SUCCESS = "restore_success"
+    const val EXTRA_STATUS = "status"
+    const val STATUS_OK = "OK"
+    const val STATUS_ALREADY_SLEEPING = "ALREADY_SLEEPING"
+    const val STATUS_NO_ACTIVE_CYCLE = "NO_ACTIVE_CYCLE"
+    const val STATUS_RESTORE_FAILED = "RESTORE_FAILED"
     const val PHASE_SLEEP = "sleep"
     const val PHASE_WAKE = "wake"
 
@@ -74,6 +80,18 @@ object HelperController {
             PERMISSION
         )
         Log.i("SleepManager", "Helper state query")
+        return true
+    }
+
+    fun forgetPendingState(context: Context): Boolean {
+        if (!isInstalled(context)) return false
+        context.sendBroadcast(
+            Intent(ACTION_FORGET_STATE)
+                .setPackage(PACKAGE)
+                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES),
+            PERMISSION
+        )
+        Log.i("SleepManager", "Helper pending state forget request")
         return true
     }
 

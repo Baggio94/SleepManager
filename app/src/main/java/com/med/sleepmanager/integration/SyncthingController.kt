@@ -95,6 +95,8 @@ object SyncthingController {
         }
     }
 
+    fun healthProbeRunning(): Boolean = healthCheckDefaultGui()
+
     fun sendStop(context: Context) =
         send(
             context,

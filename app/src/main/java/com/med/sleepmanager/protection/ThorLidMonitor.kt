@@ -5,6 +5,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.TimeUnit
 
 class ThorLidMonitor(
     private val onClosed: () -> Unit,
@@ -26,6 +27,10 @@ class ThorLidMonitor(
             try {
                 val input = FileInputStream(devicePath)
                 stream = input
+
+                readCurrentLidClosed(devicePath)?.let { closed ->
+                    if (closed) onClosed() else onOpened()
+                }
 
                 val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
                 val eventSize = if (is64Bit) 24 else 16
@@ -100,6 +105,41 @@ class ThorLidMonitor(
             } catch (_: Throwable) {
                 null
             }
+        }
+
+        fun readCurrentLidClosed(devicePath: String? = findHallDevicePath()): Boolean? {
+            val resolvedPath = devicePath ?: return null
+            val getevent = File("/system/bin/getevent")
+            if (!getevent.canExecute()) return null
+
+            return runCatching {
+                val process = ProcessBuilder(
+                    getevent.absolutePath,
+                    "-S",
+                    resolvedPath
+                )
+                    .redirectErrorStream(true)
+                    .start()
+
+                if (!process.waitFor(750L, TimeUnit.MILLISECONDS)) {
+                    process.destroy()
+                    return@runCatching null
+                }
+
+                if (process.exitValue() != 0) {
+                    return@runCatching null
+                }
+
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                val token =
+                    Regex("""(?i)\b[0-9a-f]{4,}\b""")
+                        .find(output)
+                        ?.value
+                        ?: return@runCatching null
+
+                val switchMask = token.toLong(16)
+                (switchMask and 0x1L) != 0L
+            }.getOrNull()
         }
 
         fun isSupported(): Boolean = findHallDevicePath() != null

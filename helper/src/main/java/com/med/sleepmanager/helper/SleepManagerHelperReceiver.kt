@@ -14,6 +14,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val ACTION_WAKE = "com.med.sleepmanager.helper.action.WAKE"
         private const val ACTION_RESTORE = "com.med.sleepmanager.helper.action.RESTORE"
         private const val ACTION_QUERY = "com.med.sleepmanager.helper.action.QUERY_STATE"
+        private const val ACTION_FORGET_STATE = "com.med.sleepmanager.helper.action.FORGET_STATE"
         private const val ACTION_STATE = "com.med.sleepmanager.helper.action.STATE"
         private const val ACTION_RESULT = "com.med.sleepmanager.helper.action.RESULT"
         private const val MAIN_PACKAGE = "com.med.sleepmanager"
@@ -31,6 +32,11 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
         private const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
         private const val EXTRA_RESTORE_SUCCESS = "restore_success"
+        private const val EXTRA_STATUS = "status"
+        private const val STATUS_OK = "OK"
+        private const val STATUS_ALREADY_SLEEPING = "ALREADY_SLEEPING"
+        private const val STATUS_NO_ACTIVE_CYCLE = "NO_ACTIVE_CYCLE"
+        private const val STATUS_RESTORE_FAILED = "RESTORE_FAILED"
         private const val PHASE_SLEEP = "sleep"
         private const val PHASE_WAKE = "wake"
 
@@ -53,6 +59,13 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             )
             ACTION_WAKE, ACTION_RESTORE -> restore(context)
             ACTION_QUERY -> reportCurrentState(context)
+            ACTION_FORGET_STATE -> {
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .clear()
+                    .commit()
+                Log.i(TAG, "Pending Helper state forgotten")
+            }
         }
     }
 
@@ -80,7 +93,18 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
     ) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_CYCLE_ACTIVE, false)) {
-            Log.i(TAG, "Sleep cycle already active; duplicate request ignored")
+            Log.i(TAG, "Sleep cycle already active; reporting existing state")
+            sendResult(
+                context = context,
+                phase = PHASE_SLEEP,
+                wifiManaged = prefs.getBoolean(KEY_WIFI_MANAGED, false),
+                wifiPrevious = prefs.getBoolean(KEY_WIFI_PREVIOUS, false),
+                wifiChanged = prefs.getBoolean(KEY_WIFI_CHANGED, false),
+                bluetoothManaged = prefs.getBoolean(KEY_BT_MANAGED, false),
+                bluetoothPrevious = prefs.getBoolean(KEY_BT_PREVIOUS, false),
+                bluetoothChanged = prefs.getBoolean(KEY_BT_CHANGED, false),
+                status = STATUS_ALREADY_SLEEPING
+            )
             return
         }
 
@@ -91,26 +115,41 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         val wifiWasOn = safeWifiState(wifiManager)
         val bluetoothWasOn = safeBluetoothState(bluetooth)
 
-        var wifiChanged = false
-        var bluetoothChanged = false
+        val wifiChangeExpected = manageWifi && wifiWasOn
+        val bluetoothChangeExpected = manageBluetooth && bluetoothWasOn
 
-        if (manageWifi && wifiWasOn) {
-            wifiChanged = setWifi(wifiManager, false)
-        }
-
-        if (manageBluetooth && bluetoothWasOn) {
-            bluetoothChanged = setBluetooth(bluetooth, false)
-        }
-
+        // Persist the recovery intent before touching system radios. If the
+        // process dies after a toggle but before the final result is written,
+        // restore() still knows which previous state must be recovered.
         prefs.edit()
             .putBoolean(KEY_CYCLE_ACTIVE, true)
             .putBoolean(KEY_WIFI_PREVIOUS, wifiWasOn)
-            .putBoolean(KEY_WIFI_CHANGED, wifiChanged)
+            .putBoolean(KEY_WIFI_CHANGED, wifiChangeExpected)
             .putBoolean(KEY_BT_PREVIOUS, bluetoothWasOn)
-            .putBoolean(KEY_BT_CHANGED, bluetoothChanged)
+            .putBoolean(KEY_BT_CHANGED, bluetoothChangeExpected)
             .putBoolean(KEY_WIFI_MANAGED, manageWifi)
             .putBoolean(KEY_BT_MANAGED, manageBluetooth)
-            .apply()
+            .commit()
+
+        val wifiChanged =
+            if (wifiChangeExpected) {
+                setWifi(wifiManager, false)
+            } else {
+                false
+            }
+
+        val bluetoothChanged =
+            if (bluetoothChangeExpected) {
+                setBluetooth(bluetooth, false)
+            } else {
+                false
+            }
+
+        // Replace the recovery intent with the actual system-call result.
+        prefs.edit()
+            .putBoolean(KEY_WIFI_CHANGED, wifiChanged)
+            .putBoolean(KEY_BT_CHANGED, bluetoothChanged)
+            .commit()
 
         Log.i(
             TAG,
@@ -126,14 +165,27 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             wifiChanged = wifiChanged,
             bluetoothManaged = manageBluetooth,
             bluetoothPrevious = bluetoothWasOn,
-            bluetoothChanged = bluetoothChanged
+            bluetoothChanged = bluetoothChanged,
+            status = STATUS_OK
         )
     }
 
     private fun restore(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(KEY_CYCLE_ACTIVE, false)) {
-            Log.i(TAG, "No active sleep cycle to restore")
+            Log.i(TAG, "No active sleep cycle to restore; reporting mismatch")
+            sendResult(
+                context = context,
+                phase = PHASE_WAKE,
+                wifiManaged = false,
+                wifiPrevious = false,
+                wifiChanged = false,
+                bluetoothManaged = false,
+                bluetoothPrevious = false,
+                bluetoothChanged = false,
+                restoreSuccess = false,
+                status = STATUS_NO_ACTIVE_CYCLE
+            )
             return
         }
 
@@ -167,12 +219,12 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         val restoreSuccess = wifiRestoreSuccess && bluetoothRestoreSuccess
 
         if (restoreSuccess) {
-            prefs.edit().clear().apply()
+            prefs.edit().clear().commit()
         } else {
             prefs.edit()
                 .putBoolean(KEY_WIFI_CHANGED, wifiChanged && !wifiRestoreSuccess)
                 .putBoolean(KEY_BT_CHANGED, bluetoothChanged && !bluetoothRestoreSuccess)
-                .apply()
+                .commit()
         }
 
         Log.i(
@@ -191,7 +243,8 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             bluetoothManaged = bluetoothManaged,
             bluetoothPrevious = bluetoothPrevious,
             bluetoothChanged = bluetoothRestored,
-            restoreSuccess = restoreSuccess
+            restoreSuccess = restoreSuccess,
+            status = if (restoreSuccess) STATUS_OK else STATUS_RESTORE_FAILED
         )
     }
 
@@ -204,7 +257,8 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         bluetoothManaged: Boolean,
         bluetoothPrevious: Boolean,
         bluetoothChanged: Boolean,
-        restoreSuccess: Boolean = true
+        restoreSuccess: Boolean = true,
+        status: String = STATUS_OK
     ) {
         val response = Intent(ACTION_RESULT)
             .setPackage(MAIN_PACKAGE)
@@ -216,6 +270,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             .putExtra(EXTRA_BLUETOOTH_PREVIOUS, bluetoothPrevious)
             .putExtra(EXTRA_BLUETOOTH_CHANGED, bluetoothChanged)
             .putExtra(EXTRA_RESTORE_SUCCESS, restoreSuccess)
+            .putExtra(EXTRA_STATUS, status)
 
         context.sendBroadcast(response, PERMISSION)
     }
