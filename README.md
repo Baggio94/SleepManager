@@ -127,6 +127,10 @@ Official builds keep the same package IDs and signing certificate so they can be
 - Main app: `com.med.sleepmanager`
 - Helper: `com.med.sleepmanager.helper`
 
+SleepManager 0.5.1 and newer can also check for stable updates from **About → Updates**. When the release publishes trusted direct-install metadata, SleepManager downloads the APK, verifies its SHA-256, package/version and permanent signing certificate, then hands the verified APK to Android's official package installer.
+
+Android may ask once for notification permission and, for direct APK installation, permission to **Install unknown apps** from SleepManager.
+
 Install the main app first, then the Helper.
 
 ## Troubleshooting
