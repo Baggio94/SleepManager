@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - dev/0.5.0-beta1
+      - dev/0.5.1
     tags:
       - "v*"
 
