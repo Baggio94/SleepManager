@@ -1472,8 +1472,14 @@ class SleepManagerService : Service() {
         displayManager
             ?.displays
             ?.any { display ->
-                display.type == Display.TYPE_EXTERNAL &&
-                    display.state == Display.STATE_ON
+                val name = display.name.lowercase()
+                display.displayId != Display.DEFAULT_DISPLAY &&
+                    display.state == Display.STATE_ON &&
+                    (
+                        name.contains("dp screen") ||
+                            name.contains("hdmi") ||
+                            name.contains("external")
+                    )
             } == true
 
     private fun refreshThorExternalDisplayState(reason: String) {
