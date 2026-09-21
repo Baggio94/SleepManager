@@ -72,6 +72,9 @@ class SleepManagerService : Service() {
 
     private var lastWakeWifiManaged = false
     private var lastWakeWifiChanged = false
+    private var lastWakeWifiAttempted = false
+    private var lastWakeWifiToggleSuccess = true
+    private var lastWakeWifiAirplaneMode = false
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
     private var sleepActionsApplied = false
@@ -210,6 +213,14 @@ class SleepManagerService : Service() {
             val phase = intent.getStringExtra(HelperController.EXTRA_PHASE) ?: return
             val wifiManaged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_MANAGED, false)
             val wifiChanged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_CHANGED, false)
+            val wifiAttempted =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_ATTEMPTED, false)
+            val wifiAction =
+                intent.getStringExtra(HelperController.EXTRA_WIFI_ACTION) ?: "NONE"
+            val wifiToggleSuccess =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_TOGGLE_SUCCESS, true)
+            val airplaneMode =
+                intent.getBooleanExtra(HelperController.EXTRA_AIRPLANE_MODE, false)
             val bluetoothManaged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_MANAGED, false)
             val bluetoothChanged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_CHANGED, false)
             val restoreSuccess = intent.getBooleanExtra(
@@ -219,6 +230,20 @@ class SleepManagerService : Service() {
             val helperStatus =
                 intent.getStringExtra(HelperController.EXTRA_STATUS)
                     ?: HelperController.STATUS_OK
+
+            if (
+                wifiManaged &&
+                helperStatus != HelperController.STATUS_ALREADY_SLEEPING
+            ) {
+                AppPreferences.recordWifiToggleDiagnostic(
+                    context = this@SleepManagerService,
+                    phase = phase,
+                    action = wifiAction,
+                    attempted = wifiAttempted,
+                    success = wifiToggleSuccess,
+                    airplaneMode = airplaneMode
+                )
+            }
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
@@ -231,6 +256,9 @@ class SleepManagerService : Service() {
                         buildSleepSummary(
                             wifiManaged = wifiManaged,
                             wifiChanged = wifiChanged,
+                            wifiAttempted = wifiAttempted,
+                            wifiToggleSuccess = wifiToggleSuccess,
+                            wifiAirplaneMode = airplaneMode,
                             bluetoothManaged = bluetoothManaged,
                             bluetoothChanged = bluetoothChanged,
                             syncthing = AppPreferences.manageSyncthing(this@SleepManagerService)
@@ -241,6 +269,9 @@ class SleepManagerService : Service() {
                 HelperController.PHASE_WAKE -> {
                     lastWakeWifiManaged = wifiManaged
                     lastWakeWifiChanged = wifiChanged
+                    lastWakeWifiAttempted = wifiAttempted
+                    lastWakeWifiToggleSuccess = wifiToggleSuccess
+                    lastWakeWifiAirplaneMode = airplaneMode
                     lastWakeBluetoothManaged = bluetoothManaged
                     lastWakeBluetoothChanged = bluetoothChanged
 
@@ -249,18 +280,39 @@ class SleepManagerService : Service() {
                             TAG,
                             "Helper restore failed status=$helperStatus; preserving sleep transaction"
                         )
+
+                        val wifiRestoreFailed =
+                            wifiManaged && wifiAttempted && !wifiToggleSuccess
+                        val wifiFailureText =
+                            if (wifiRestoreFailed) {
+                                "Wi-Fi toggle failed" +
+                                    if (airplaneMode) {
+                                        " · Airplane mode is enabled"
+                                    } else {
+                                        ""
+                                    }
+                            } else {
+                                null
+                            }
+
                         SleepCycleStore.markRestoreProblem(
                             this@SleepManagerService,
-                            when (helperStatus) {
-                                HelperController.STATUS_NO_ACTIVE_CYCLE ->
+                            when {
+                                helperStatus == HelperController.STATUS_NO_ACTIVE_CYCLE ->
                                     "Compatibility Helper no longer has the pending sleep state."
+                                wifiFailureText != null ->
+                                    "$wifiFailureText. Wi-Fi restore is still pending."
                                 else ->
                                     "Compatibility Helper could not restore Wi-Fi / Bluetooth."
                             }
                         )
                         AppPreferences.recordEvent(
                             this@SleepManagerService,
-                            if (disableRestoreRequested) {
+                            if (wifiFailureText != null) {
+                                val prefix =
+                                    if (disableRestoreRequested) "Disable" else "Wake"
+                                "$prefix → $wifiFailureText"
+                            } else if (disableRestoreRequested) {
                                 "Disable → Helper restore pending"
                             } else {
                                 "Wake → Helper restore pending"
@@ -295,6 +347,9 @@ class SleepManagerService : Service() {
                                 buildWakeSummary(
                                     wifiManaged = wifiManaged,
                                     wifiChanged = wifiChanged,
+                                    wifiAttempted = wifiAttempted,
+                                    wifiToggleSuccess = wifiToggleSuccess,
+                                    wifiAirplaneMode = airplaneMode,
                                     bluetoothManaged = bluetoothManaged,
                                     bluetoothChanged = bluetoothChanged,
                                     syncthing = false
@@ -1242,6 +1297,9 @@ class SleepManagerService : Service() {
                                 buildWakeSummary(
                                     wifiManaged = lastWakeWifiManaged,
                                     wifiChanged = lastWakeWifiChanged,
+                                    wifiAttempted = lastWakeWifiAttempted,
+                                    wifiToggleSuccess = lastWakeWifiToggleSuccess,
+                                    wifiAirplaneMode = lastWakeWifiAirplaneMode,
                                     bluetoothManaged = lastWakeBluetoothManaged,
                                     bluetoothChanged = lastWakeBluetoothChanged,
                                     syncthing = true
@@ -1667,12 +1725,29 @@ class SleepManagerService : Service() {
     private fun buildSleepSummary(
         wifiManaged: Boolean,
         wifiChanged: Boolean,
+        wifiAttempted: Boolean = false,
+        wifiToggleSuccess: Boolean = true,
+        wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
         bluetoothChanged: Boolean,
         syncthing: Boolean
     ): String {
         val actions = buildList {
-            if (wifiManaged) add(if (wifiChanged) "Wi‑Fi off" else "Wi‑Fi unchanged")
+            if (wifiManaged) {
+                add(
+                    when {
+                        wifiAttempted && !wifiToggleSuccess ->
+                            "Wi-Fi toggle failed" +
+                                if (wifiAirplaneMode) {
+                                    " · Airplane mode is enabled"
+                                } else {
+                                    ""
+                                }
+                        wifiChanged -> "Wi-Fi off"
+                        else -> "Wi-Fi unchanged"
+                    }
+                )
+            }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth off" else "Bluetooth unchanged")
             if (syncthing) add("Syncthing paused")
         }
@@ -1682,12 +1757,29 @@ class SleepManagerService : Service() {
     private fun buildWakeSummary(
         wifiManaged: Boolean,
         wifiChanged: Boolean,
+        wifiAttempted: Boolean = false,
+        wifiToggleSuccess: Boolean = true,
+        wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
         bluetoothChanged: Boolean,
         syncthing: Boolean
     ): String {
         val actions = buildList {
-            if (wifiManaged) add(if (wifiChanged) "Wi‑Fi restored to previous state" else "Wi‑Fi unchanged")
+            if (wifiManaged) {
+                add(
+                    when {
+                        wifiAttempted && !wifiToggleSuccess ->
+                            "Wi-Fi toggle failed" +
+                                if (wifiAirplaneMode) {
+                                    " · Airplane mode is enabled"
+                                } else {
+                                    ""
+                                }
+                        wifiChanged -> "Wi-Fi restored to previous state"
+                        else -> "Wi-Fi unchanged"
+                    }
+                )
+            }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth restored to previous state" else "Bluetooth unchanged")
             if (syncthing) add("Syncthing resumed")
         }
