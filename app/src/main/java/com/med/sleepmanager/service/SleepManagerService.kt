@@ -29,6 +29,7 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.BasicSyncConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
@@ -609,6 +610,9 @@ class SleepManagerService : Service() {
         val jamesDsp =
             AppPreferences.manageJamesDsp(this) &&
                 JamesDspConnector.isInstalled(this)
+        val basicSync =
+            AppPreferences.manageBasicSync(this) &&
+                BasicSyncConnector.isInstalled(this)
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
 
@@ -621,7 +625,8 @@ class SleepManagerService : Service() {
         Log.i(
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
-                "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp"
+                "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
+                "basicSync=$basicSync"
         )
 
         val syncthingResult = if (syncthing) {
@@ -666,6 +671,24 @@ class SleepManagerService : Service() {
                 this,
                 JamesDspConnector.id,
                 jamesDspResult.restoreToken
+            )
+        }
+
+        val basicSyncResult = if (basicSync) {
+            BasicSyncConnector.sleep(this)
+        } else {
+            null
+        }
+
+        if (basicSyncResult?.changed == true) {
+            SleepCycleStore.recordConnectorChange(
+                this,
+                BasicSyncConnector.id,
+                basicSyncResult.restoreToken
+            )
+            AppPreferences.recordEvent(
+                this,
+                "Sleep → BasicSync stopped"
             )
         }
 
@@ -922,6 +945,40 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun restorePendingBasicSync() {
+        val change =
+            SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
+                ?: return
+
+        val wakeResult =
+            BasicSyncConnector.wake(this, change.restoreToken)
+
+        if (wakeResult.success) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+            if (!disableRestoreRequested) {
+                AppPreferences.recordEvent(
+                    this,
+                    "Wake → BasicSync returned to auto mode"
+                )
+            }
+            Log.i(TAG, "BasicSync AUTO_MODE sent")
+        } else {
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "BasicSync restore is still pending: ${wakeResult.detail}."
+            )
+            AppPreferences.recordEvent(
+                this,
+                if (disableRestoreRequested) {
+                    "Disable → BasicSync restore pending"
+                } else {
+                    "Wake → BasicSync restore pending"
+                }
+            )
+            Log.w(TAG, "BasicSync restore failed; preserving transaction")
+        }
+    }
+
     private fun hasPendingNetworkConnectorRestore(): Boolean {
         val syncthingPending =
             SleepCycleStore.hasConnectorChange(this, SyncthingConnector.id)
@@ -1145,6 +1202,7 @@ class SleepManagerService : Service() {
         }
 
         restorePendingJamesDsp()
+        restorePendingBasicSync()
 
         var cycle = SleepCycleStore.current(this)
         if (
