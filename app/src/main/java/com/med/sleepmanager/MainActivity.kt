@@ -1378,7 +1378,7 @@ class MainActivity : ComponentActivity() {
                 item {
                     SettingsCard {
                         CompactIntegrationRow(
-                            icon = R.drawable.ic_sync,
+                            icon = R.drawable.ic_syncthing,
                             title = "Syncthing‑Fork",
                             version = selectedTarget?.displayName
                                 ?.substringAfter("•")
