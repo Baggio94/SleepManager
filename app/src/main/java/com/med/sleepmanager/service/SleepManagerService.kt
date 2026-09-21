@@ -96,6 +96,7 @@ class SleepManagerService : Service() {
     private var thorLidMonitor: ThorLidMonitor? = null
     private var thorPowerButtonMonitor: ThorPowerButtonMonitor? = null
     private var thorDisplayListenerRegistered = false
+    private var thorExternalDisplayConnected = false
     private var thorExternalDisplayActive = false
     private var thorClosedAwakeOverride = false
     private var thorClosedSleepIntent = false
@@ -1351,6 +1352,7 @@ class SleepManagerService : Service() {
             AppPreferences.setLastKnownThorLidClosed(this, it)
         }
 
+        thorExternalDisplayConnected = hasExternalDisplayConnected()
         thorExternalDisplayActive = hasActiveExternalDisplay()
 
         val monitor = ThorLidMonitor(
@@ -1366,13 +1368,18 @@ class SleepManagerService : Service() {
                     handler.removeCallbacks(thorCloseGuardRunnable)
                     handler.removeCallbacks(thorScreenOnRecheckRunnable)
 
+                    thorExternalDisplayConnected = hasExternalDisplayConnected()
                     thorExternalDisplayActive = hasActiveExternalDisplay()
                     Log.i(TAG, "Thor SW_LID -> CLOSED")
 
-                    if (thorExternalDisplayActive) {
+                    if (thorExternalDisplayConnected) {
                         Log.i(
                             TAG,
-                            "Thor dock mode -> external display active; lid close ignored"
+                            if (thorExternalDisplayActive) {
+                                "Thor dock mode -> external display active; lid close ignored"
+                            } else {
+                                "Thor dock mode -> external display connected; lid close ignored"
+                            }
                         )
                     } else {
                         handler.postDelayed(
@@ -1424,10 +1431,12 @@ class SleepManagerService : Service() {
 
         manager.registerDisplayListener(thorDisplayListener, handler)
         thorDisplayListenerRegistered = true
+        thorExternalDisplayConnected = hasExternalDisplayConnected()
         thorExternalDisplayActive = hasActiveExternalDisplay()
         Log.i(
             TAG,
-            "Thor display monitor started externalActive=$thorExternalDisplayActive"
+            "Thor display monitor started connected=$thorExternalDisplayConnected " +
+                "active=$thorExternalDisplayActive"
         )
     }
 
@@ -1437,6 +1446,7 @@ class SleepManagerService : Service() {
             displayManager?.unregisterDisplayListener(thorDisplayListener)
         }
         thorDisplayListenerRegistered = false
+        thorExternalDisplayConnected = false
         thorExternalDisplayActive = false
     }
 
@@ -1468,55 +1478,69 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun isThorExternalDisplay(display: Display): Boolean {
+        if (display.displayId == Display.DEFAULT_DISPLAY) return false
+        val name = display.name.lowercase()
+        return name.contains("dp screen") ||
+            name.contains("hdmi") ||
+            name.contains("external")
+    }
+
+    private fun hasExternalDisplayConnected(): Boolean =
+        displayManager
+            ?.displays
+            ?.any(::isThorExternalDisplay) == true
+
     private fun hasActiveExternalDisplay(): Boolean =
         displayManager
             ?.displays
             ?.any { display ->
-                val name = display.name.lowercase()
-                display.displayId != Display.DEFAULT_DISPLAY &&
-                    display.state == Display.STATE_ON &&
-                    (
-                        name.contains("dp screen") ||
-                            name.contains("hdmi") ||
-                            name.contains("external")
-                    )
+                isThorExternalDisplay(display) &&
+                    display.state == Display.STATE_ON
             } == true
 
     private fun refreshThorExternalDisplayState(reason: String) {
         if (!AppPreferences.manageThorProtection(this)) return
 
+        val connected = hasExternalDisplayConnected()
         val active = hasActiveExternalDisplay()
-        val wasActive = thorExternalDisplayActive
+        val wasConnected = thorExternalDisplayConnected
+
+        thorExternalDisplayConnected = connected
         thorExternalDisplayActive = active
 
-        if (active) {
+        if (connected) {
             handler.removeCallbacks(thorDockDisconnectRunnable)
             if (thorLidClosed && !thorClosedSleepIntent) {
                 thorClosedAwakeOverride = false
-                Log.i(TAG, "Thor dock mode -> external display active ($reason)")
+                if (active) {
+                    Log.i(TAG, "Thor dock mode -> external display active ($reason)")
+                }
             }
             return
         }
 
-        if (wasActive && thorLidClosed) {
+        if (wasConnected && thorLidClosed) {
             handler.removeCallbacks(thorDockDisconnectRunnable)
             handler.postDelayed(
                 thorDockDisconnectRunnable,
                 THOR_DOCK_DISCONNECT_DEBOUNCE_MS
             )
-            Log.i(TAG, "Thor dock mode -> external display lost; debounce started")
+            Log.i(TAG, "Thor dock mode -> external display disconnected; debounce started")
         }
     }
 
     private fun handleThorDockDisconnect() {
         if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
 
-        if (hasActiveExternalDisplay()) {
-            thorExternalDisplayActive = true
+        if (hasExternalDisplayConnected()) {
+            thorExternalDisplayConnected = true
+            thorExternalDisplayActive = hasActiveExternalDisplay()
             thorClosedAwakeOverride = false
             return
         }
 
+        thorExternalDisplayConnected = false
         thorExternalDisplayActive = false
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
@@ -1560,7 +1584,7 @@ class SleepManagerService : Service() {
 
     private fun shouldBypassThorProtectionForClosedLid(): Boolean {
         if (!thorLidClosed || thorClosedSleepIntent) return false
-        return hasActiveExternalDisplay() || thorClosedAwakeOverride
+        return hasExternalDisplayConnected() || thorClosedAwakeOverride
     }
 
     private fun stopThorLidMonitor() {
