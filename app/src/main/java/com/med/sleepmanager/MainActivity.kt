@@ -822,6 +822,12 @@ class MainActivity : ComponentActivity() {
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
+        var thorDockDisconnectSleeps by remember(refreshToken) {
+            mutableStateOf(AppPreferences.thorDockDisconnectSleeps(this))
+        }
+        var thorClosedPowerSleeps by remember(refreshToken) {
+            mutableStateOf(AppPreferences.thorClosedPowerSleeps(this))
+        }
         var sleepGraceMs by remember(refreshToken) {
             mutableStateOf(AppPreferences.sleepGraceMs(this))
         }
@@ -1273,6 +1279,46 @@ class MainActivity : ComponentActivity() {
                                     thorProtectionEnabled =
                                         AppPreferences.manageThorProtection(this@MainActivity)
                                     activityRefreshToken++
+                                }
+                            )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            SettingRow(
+                                icon = R.drawable.ic_lid_lock,
+                                title = "Sleep when external display disconnects",
+                                subtitle = "With the lid closed, put the Thor to sleep when dock video is unplugged. Off keeps AYN's default awake behavior.",
+                                checked = thorDockDisconnectSleeps,
+                                enabled = thorProtectionEnabled && thorAdminActive,
+                                onCheckedChange = {
+                                    thorDockDisconnectSleeps = it
+                                    AppPreferences.setThorDockDisconnectSleeps(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                }
+                            )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            SettingRow(
+                                icon = R.drawable.ic_lid_lock,
+                                title = "Power button sleeps with lid closed",
+                                subtitle = "Make Power start a normal SleepManager sleep cycle while the Thor is closed. Off keeps AYN's default behavior.",
+                                checked = thorClosedPowerSleeps,
+                                enabled = thorProtectionEnabled && thorAdminActive,
+                                onCheckedChange = {
+                                    thorClosedPowerSleeps = it
+                                    AppPreferences.setThorClosedPowerSleeps(
+                                        this@MainActivity,
+                                        it
+                                    )
                                 }
                             )
 
