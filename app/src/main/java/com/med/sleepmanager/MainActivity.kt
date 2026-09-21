@@ -1271,7 +1271,7 @@ class MainActivity : ComponentActivity() {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "AYN Thor closed-lid protection",
-                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed.",
+                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed. Dock-safe: external displays won\'t trigger false sleeps.",
                                 checked = thorProtectionEnabled && thorAdminActive,
                                 enabled = true,
                                 onCheckedChange = { enabled ->
