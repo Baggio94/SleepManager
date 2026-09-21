@@ -11,6 +11,8 @@ object AppPreferences {
     private const val KEY_TAILSCALE = "tailscale"
     private const val KEY_JAMES_DSP = "james_dsp"
     private const val KEY_THOR_PROTECTION = "thor_protection"
+    private const val KEY_THOR_DOCK_DISCONNECT_SLEEP = "thor_dock_disconnect_sleep"
+    private const val KEY_THOR_CLOSED_POWER_SLEEP = "thor_closed_power_sleep"
     private const val KEY_THOR_LID_CLOSED_LAST_KNOWN = "thor_lid_closed_last_known"
     private const val KEY_THOR_LID_STATE_KNOWN = "thor_lid_state_known"
     private const val KEY_SLEEP_GRACE_MS = "sleep_grace_ms"
@@ -72,6 +74,18 @@ object AppPreferences {
 
     fun setManageThorProtection(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_THOR_PROTECTION, value).apply()
+
+    fun thorDockDisconnectSleeps(context: Context) =
+        prefs(context).getBoolean(KEY_THOR_DOCK_DISCONNECT_SLEEP, false)
+
+    fun setThorDockDisconnectSleeps(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_THOR_DOCK_DISCONNECT_SLEEP, value).apply()
+
+    fun thorClosedPowerSleeps(context: Context) =
+        prefs(context).getBoolean(KEY_THOR_CLOSED_POWER_SLEEP, false)
+
+    fun setThorClosedPowerSleeps(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_THOR_CLOSED_POWER_SLEEP, value).apply()
 
     fun lastKnownThorLidClosed(context: Context): Boolean? {
         val p = prefs(context)
