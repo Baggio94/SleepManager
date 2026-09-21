@@ -52,6 +52,7 @@ object DiagnosticsBuilder {
         val jamesDsp = JamesDspController.selectedTarget(context)
         val jamesDspPending =
             SleepCycleStore.connectorChange(context, JamesDspConnector.id)
+        val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -126,6 +127,34 @@ object DiagnosticsBuilder {
                         "not installed"
                     }
             )
+            appendLine()
+            appendLine("Last Wi-Fi toggle")
+            if (wifiDiagnostic == null) {
+                appendLine("- none")
+            } else {
+                appendLine("- Phase: ${wifiDiagnostic.phase}")
+                appendLine("- Action: ${wifiDiagnostic.action}")
+                appendLine("- Attempted: ${wifiDiagnostic.attempted}")
+                appendLine(
+                    "- Result: " +
+                        if (!wifiDiagnostic.attempted) {
+                            "not required"
+                        } else if (wifiDiagnostic.success) {
+                            "success"
+                        } else {
+                            "failed"
+                        }
+                )
+                appendLine(
+                    "- Airplane mode: " +
+                        if (wifiDiagnostic.airplaneMode) "ON" else "OFF"
+                )
+                if (wifiDiagnostic.timestamp > 0L) {
+                    appendLine(
+                        "- Time: ${formatter.format(Date(wifiDiagnostic.timestamp))}"
+                    )
+                }
+            }
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
