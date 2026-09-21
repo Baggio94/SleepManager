@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.wifi.WifiManager
+import android.provider.Settings
 import android.util.Log
 
 class SleepManagerHelperReceiver : BroadcastReceiver() {
@@ -28,6 +29,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val EXTRA_WIFI_MANAGED = "wifi_managed"
         private const val EXTRA_WIFI_PREVIOUS = "wifi_previous"
         private const val EXTRA_WIFI_CHANGED = "wifi_changed"
+        private const val EXTRA_WIFI_ATTEMPTED = "wifi_attempted"
+        private const val EXTRA_WIFI_ACTION = "wifi_action"
+        private const val EXTRA_WIFI_TOGGLE_SUCCESS = "wifi_toggle_success"
+        private const val EXTRA_AIRPLANE_MODE = "airplane_mode"
         private const val EXTRA_BLUETOOTH_MANAGED = "bluetooth_managed"
         private const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
         private const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
@@ -37,6 +42,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val STATUS_ALREADY_SLEEPING = "ALREADY_SLEEPING"
         private const val STATUS_NO_ACTIVE_CYCLE = "NO_ACTIVE_CYCLE"
         private const val STATUS_RESTORE_FAILED = "RESTORE_FAILED"
+        private const val STATUS_WIFI_TOGGLE_FAILED = "WIFI_TOGGLE_FAILED"
         private const val PHASE_SLEEP = "sleep"
         private const val PHASE_WAKE = "wake"
 
@@ -114,6 +120,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         val wifiWasOn = safeWifiState(wifiManager)
         val bluetoothWasOn = safeBluetoothState(bluetooth)
+        val airplaneModeOn = isAirplaneModeOn(context)
 
         val wifiChangeExpected = manageWifi && wifiWasOn
         val bluetoothChangeExpected = manageBluetooth && bluetoothWasOn
@@ -151,11 +158,21 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             .putBoolean(KEY_BT_CHANGED, bluetoothChanged)
             .commit()
 
+        val wifiToggleFailed = wifiChangeExpected && !wifiChanged
+
         Log.i(
             TAG,
-            "Sleep applied: wifiWasOn=$wifiWasOn wifiChanged=$wifiChanged " +
+            "Sleep applied: wifiWasOn=$wifiWasOn wifiAttempted=$wifiChangeExpected " +
+                "wifiChanged=$wifiChanged airplaneMode=$airplaneModeOn " +
                 "btWasOn=$bluetoothWasOn btChanged=$bluetoothChanged"
         )
+
+        if (wifiToggleFailed) {
+            Log.w(
+                TAG,
+                "Wi-Fi OFF toggle failed; airplaneMode=$airplaneModeOn"
+            )
+        }
 
         sendResult(
             context = context,
@@ -163,10 +180,14 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             wifiManaged = manageWifi,
             wifiPrevious = wifiWasOn,
             wifiChanged = wifiChanged,
+            wifiAttempted = wifiChangeExpected,
+            wifiAction = "OFF",
+            wifiToggleSuccess = !wifiChangeExpected || wifiChanged,
+            airplaneMode = airplaneModeOn,
             bluetoothManaged = manageBluetooth,
             bluetoothPrevious = bluetoothWasOn,
             bluetoothChanged = bluetoothChanged,
-            status = STATUS_OK
+            status = if (wifiToggleFailed) STATUS_WIFI_TOGGLE_FAILED else STATUS_OK
         )
     }
 
@@ -195,6 +216,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         val wifiPrevious = prefs.getBoolean(KEY_WIFI_PREVIOUS, false)
         val wifiChanged = prefs.getBoolean(KEY_WIFI_CHANGED, false)
+        val airplaneModeOn = isAirplaneModeOn(context)
         val bluetoothPrevious = prefs.getBoolean(KEY_BT_PREVIOUS, false)
         val bluetoothChanged = prefs.getBoolean(KEY_BT_CHANGED, false)
         val wifiManaged = prefs.getBoolean(KEY_WIFI_MANAGED, false)
@@ -230,9 +252,17 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         Log.i(
             TAG,
             "Wake restore result: success=$restoreSuccess " +
-                "wifi=$wifiPrevious (restored=$wifiRestored) " +
+                "wifi=$wifiPrevious (attempted=$wifiRestoreRequired restored=$wifiRestored) " +
+                "airplaneMode=$airplaneModeOn " +
                 "bluetooth=$bluetoothPrevious (restored=$bluetoothRestored)"
         )
+
+        if (wifiRestoreRequired && !wifiRestored) {
+            Log.w(
+                TAG,
+                "Wi-Fi ON restore failed; airplaneMode=$airplaneModeOn"
+            )
+        }
 
         sendResult(
             context = context,
@@ -240,6 +270,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             wifiManaged = wifiManaged,
             wifiPrevious = wifiPrevious,
             wifiChanged = wifiRestored,
+            wifiAttempted = wifiRestoreRequired,
+            wifiAction = "ON",
+            wifiToggleSuccess = !wifiRestoreRequired || wifiRestored,
+            airplaneMode = airplaneModeOn,
             bluetoothManaged = bluetoothManaged,
             bluetoothPrevious = bluetoothPrevious,
             bluetoothChanged = bluetoothRestored,
@@ -254,6 +288,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         wifiManaged: Boolean,
         wifiPrevious: Boolean,
         wifiChanged: Boolean,
+        wifiAttempted: Boolean = false,
+        wifiAction: String = "NONE",
+        wifiToggleSuccess: Boolean = true,
+        airplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
         bluetoothPrevious: Boolean,
         bluetoothChanged: Boolean,
@@ -266,6 +304,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             .putExtra(EXTRA_WIFI_MANAGED, wifiManaged)
             .putExtra(EXTRA_WIFI_PREVIOUS, wifiPrevious)
             .putExtra(EXTRA_WIFI_CHANGED, wifiChanged)
+            .putExtra(EXTRA_WIFI_ATTEMPTED, wifiAttempted)
+            .putExtra(EXTRA_WIFI_ACTION, wifiAction)
+            .putExtra(EXTRA_WIFI_TOGGLE_SUCCESS, wifiToggleSuccess)
+            .putExtra(EXTRA_AIRPLANE_MODE, airplaneMode)
             .putExtra(EXTRA_BLUETOOTH_MANAGED, bluetoothManaged)
             .putExtra(EXTRA_BLUETOOTH_PREVIOUS, bluetoothPrevious)
             .putExtra(EXTRA_BLUETOOTH_CHANGED, bluetoothChanged)
@@ -274,6 +316,18 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         context.sendBroadcast(response, PERMISSION)
     }
+
+    private fun isAirplaneModeOn(context: Context): Boolean =
+        try {
+            Settings.Global.getInt(
+                context.contentResolver,
+                Settings.Global.AIRPLANE_MODE_ON,
+                0
+            ) == 1
+        } catch (t: Throwable) {
+            Log.e(TAG, "Unable to read Airplane mode state", t)
+            false
+        }
 
     private fun safeWifiState(wifiManager: WifiManager?): Boolean =
         try {
