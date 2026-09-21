@@ -1,67 +1,52 @@
-# SleepManager 0.5.1
+# SleepManager 0.5.2
 
-SleepManager 0.5.1 brings a secure built-in updater, better background reliability on Android handhelds, new battery insights, and several important improvements introduced with 0.5.0.
+SleepManager 0.5.2 adds better AYN Thor dock behavior, more reliable battery statistics, and clearer Wi-Fi diagnostics.
 
-## What's new in 0.5.1
+## What's new
 
-### Built-in secure updater
-SleepManager can now check for new stable releases directly from the app.
+### Better AYN Thor dock support
 
-When an update is available, SleepManager can:
-- notify you
-- download the APK directly
-- verify its SHA-256
-- verify the package, version and official SleepManager signing certificate
-- open Android's official installer
+Closed-lid protection is now dock-aware.
 
-No root, Shizuku or ADB is required.
+- Closing the Thor while an external display is active no longer triggers a false sleep.
+- **Sleep when external display disconnects** can put the Thor to sleep automatically if the external display is unplugged while the lid is still closed.
+- **Power button sleeps with lid closed** lets the Power button start a normal sleep cycle while the Thor is awake with the lid closed.
+- Turning these optional controls off keeps AYN's default behavior.
+- SleepManager never wakes an already sleeping Thor to implement these options.
 
-### Better background reliability
-- SleepManager is hidden from Android Recents to avoid accidental service termination on devices such as the AYN Thor.
-- Permission screens, App info, GitHub links and update screens now work without closing the app's background task.
-- The service restarts automatically after reboot or app update when SleepManager is enabled.
+### More reliable battery statistics
 
-### Improved battery stats
-The battery gauge can now cycle through:
-- battery capacity
-- estimated standby time
-- sleep drain per hour
-- deep-sleep percentage
+Short sleeps can distort hourly drain estimates, so SleepManager now uses only eligible sleep sessions of **3 hours or longer** for:
 
-### New notification icon
-The generic Android alarm icon has been replaced with a dedicated SleepManager status-bar icon.
-
-## Also included from 0.5.0
-
-### JamesDSP support
-SleepManager can automatically turn JamesDSP **OFF during sleep** and **ON again after wake**.
-
-### Sleep battery tracking
-SleepManager records:
-- battery drain during sleep
-- sleep duration
-- drain per hour
-- 7-day averages
-- measured mAh when supported
-- deep-sleep percentage
+- 7-day drain average
+- charge drain
+- deep-sleep average
+- measured sleep total
+- best / worst drain
 - standby estimates
 
-Charging sessions are excluded from drain averages.
+Shorter sleeps are still visible in **Last sleep** and history.
 
-### AYN Thor closed-lid protection
-SleepManager monitors the Thor Hall sensor directly.
+Sessions containing charging remain excluded from drain statistics.
 
-If the Thor wakes while the lid is still closed, SleepManager sends it back to sleep and prevents the normal wake sequence from restoring Wi-Fi, Bluetooth or other integrations too early.
+### Clearer Wi-Fi failure diagnostics
 
-### More reliable sleep / wake handling
-- More durable sleep transactions
-- Better recovery after process/service restarts
-- Improved Syncthing-Fork STOP/FOLLOW handling
-- Better responsive layouts for handheld and tablet screens
+SleepManager can now distinguish between Wi-Fi already being in the requested state and a Wi-Fi toggle that was actually attempted but failed.
+
+The Activity log and copied diagnostics now include:
+
+- attempted action
+- success / failure
+- Airplane-mode state
+
+When relevant, the Activity log can show:
+
+**Wi-Fi toggle failed · Airplane mode is enabled**
 
 ## Main features
 
 SleepManager can manage during sleep:
+
 - Wi-Fi
 - Bluetooth
 - Syncthing-Fork
@@ -69,12 +54,14 @@ SleepManager can manage during sleep:
 - JamesDSP
 
 It also includes:
-- AYN Thor closed-lid protection
+
+- AYN Thor closed-lid protection and dock controls
 - Grace period and custom sleep delay
 - Advanced battery / charging / Battery Saver / schedule conditions
 - Sleep battery statistics
 - Activity log and diagnostics
 - Quick Settings tile
+- Secure built-in updater
 
 ## Compatibility
 
@@ -83,48 +70,32 @@ It also includes:
 - Helper package: `com.med.sleepmanager.helper`
 - No root, Shizuku or ADB required for normal use
 
----
-
 ## Installation
 
 ### 1. Install SleepManager
+
 Download and install:
 
-**SleepManager-0.5.1.apk**
+**SleepManager-0.5.2.apk**
 
 ### 2. Install the Helper if you want Wi-Fi / Bluetooth control
+
 Install:
 
-**SleepManager-Helper-0.5.1.apk**
+**SleepManager-Helper-0.5.2.apk**
 
-The Helper has no launcher icon and no separate interface. It is only used by SleepManager to control Wi-Fi and Bluetooth.
+The Helper has no launcher icon or separate interface.
 
-### 3. Open SleepManager
-Choose what you want SleepManager to manage when the device sleeps, then enable SleepManager.
+### 3. Configure SleepManager
 
-### 4. Optional integrations
+Open SleepManager, choose what should be managed during sleep, configure any optional rules, then enable SleepManager.
 
-**Syncthing-Fork**
+## Updating from 0.5.1
 
-In Syncthing-Fork enable:
+SleepManager 0.5.1 and newer can check for stable updates from:
 
-**Settings → Behaviour → Service Control by Broadcast**
+**About → Updates**
 
-Then enable Syncthing inside SleepManager.
+The built-in updater verifies the downloaded APK before handing it to Android's official installer.
 
-**Tailscale**
-
-Install and sign in to the official Tailscale Android app, then enable Tailscale inside SleepManager.
-
-**JamesDSP**
-
-Install a supported JamesDSP build, then enable JamesDSP inside SleepManager.
-
-**AYN Thor closed-lid protection**
-
-Enable **AYN Thor closed-lid protection** in SleepManager and approve the Android Device Admin permission when prompted.
-
-### 5. Finish setup
-Once your options are configured and SleepManager is enabled, tap **Finish setup**.
-
-SleepManager will then continue running in the background and automatically handle your selected sleep / wake actions.
+Official releases keep the same package IDs and permanent signing certificate, so normal updates preserve existing settings.

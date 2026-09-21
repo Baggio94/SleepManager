@@ -25,6 +25,10 @@ object HelperController {
     const val EXTRA_WIFI_MANAGED = "wifi_managed"
     const val EXTRA_WIFI_PREVIOUS = "wifi_previous"
     const val EXTRA_WIFI_CHANGED = "wifi_changed"
+    const val EXTRA_WIFI_ATTEMPTED = "wifi_attempted"
+    const val EXTRA_WIFI_ACTION = "wifi_action"
+    const val EXTRA_WIFI_TOGGLE_SUCCESS = "wifi_toggle_success"
+    const val EXTRA_AIRPLANE_MODE = "airplane_mode"
     const val EXTRA_BLUETOOTH_MANAGED = "bluetooth_managed"
     const val EXTRA_BLUETOOTH_PREVIOUS = "bluetooth_previous"
     const val EXTRA_BLUETOOTH_CHANGED = "bluetooth_changed"
@@ -34,6 +38,7 @@ object HelperController {
     const val STATUS_ALREADY_SLEEPING = "ALREADY_SLEEPING"
     const val STATUS_NO_ACTIVE_CYCLE = "NO_ACTIVE_CYCLE"
     const val STATUS_RESTORE_FAILED = "RESTORE_FAILED"
+    const val STATUS_WIFI_TOGGLE_FAILED = "WIFI_TOGGLE_FAILED"
     const val PHASE_SLEEP = "sleep"
     const val PHASE_WAKE = "wake"
 

@@ -2,6 +2,29 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.2 — 2026-09-21
+
+### Highlights
+
+- Added dock-aware AYN Thor closed-lid protection so an active external display is treated as intentional docked use instead of a false wake.
+- Added **Sleep when external display disconnects** for an optional normal sleep cycle when a docked display is unplugged while the lid remains closed.
+- Added **Power button sleeps with lid closed** for an optional normal sleep cycle while the Thor is awake with the lid closed.
+- Improved external-display handling so a connected display entering OFF state during sleep is not mistaken for a physical disconnect.
+- Battery statistics now use only eligible sleep sessions of **3 hours or longer** for long-term drain and standby estimates; shorter sleeps remain visible in Last sleep/history.
+- Improved Wi-Fi diagnostics to distinguish an unchanged state from a failed toggle attempt and report Airplane-mode state when relevant.
+- Copyable diagnostics now include the attempted Wi-Fi action, result and Airplane-mode state.
+
+### Notes
+
+- Stable version code is **525**.
+- Package IDs and the permanent signing certificate remain unchanged.
+- Existing settings are preserved when updating an official signed build.
+- No root, Shizuku or ADB is required for normal use.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.2 summary.
+
+---
+
 ## 0.5.1 — 2026-09-21
 
 ### Highlights

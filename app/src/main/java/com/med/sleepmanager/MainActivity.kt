@@ -822,6 +822,12 @@ class MainActivity : ComponentActivity() {
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
+        var thorDockDisconnectSleeps by remember(refreshToken) {
+            mutableStateOf(AppPreferences.thorDockDisconnectSleeps(this))
+        }
+        var thorClosedPowerSleeps by remember(refreshToken) {
+            mutableStateOf(AppPreferences.thorClosedPowerSleeps(this))
+        }
         var sleepGraceMs by remember(refreshToken) {
             mutableStateOf(AppPreferences.sleepGraceMs(this))
         }
@@ -1265,7 +1271,7 @@ class MainActivity : ComponentActivity() {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "AYN Thor closed-lid protection",
-                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed.",
+                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed. Dock-safe: external displays won\'t trigger false sleeps.",
                                 checked = thorProtectionEnabled && thorAdminActive,
                                 enabled = true,
                                 onCheckedChange = { enabled ->
@@ -1273,6 +1279,46 @@ class MainActivity : ComponentActivity() {
                                     thorProtectionEnabled =
                                         AppPreferences.manageThorProtection(this@MainActivity)
                                     activityRefreshToken++
+                                }
+                            )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            SettingRow(
+                                icon = R.drawable.ic_lid_lock,
+                                title = "Sleep when external display disconnects",
+                                subtitle = "With the lid closed, put the Thor to sleep when dock video is unplugged. Off keeps AYN's default awake behavior.",
+                                checked = thorDockDisconnectSleeps,
+                                enabled = thorProtectionEnabled && thorAdminActive,
+                                onCheckedChange = {
+                                    thorDockDisconnectSleeps = it
+                                    AppPreferences.setThorDockDisconnectSleeps(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                }
+                            )
+
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            SettingRow(
+                                icon = R.drawable.ic_lid_lock,
+                                title = "Power button sleeps with lid closed",
+                                subtitle = "With the lid closed and Thor awake, press Power to sleep—docked or after disconnecting the external display. Off keeps AYN's default behavior.",
+                                checked = thorClosedPowerSleeps,
+                                enabled = thorProtectionEnabled && thorAdminActive,
+                                onCheckedChange = {
+                                    thorClosedPowerSleeps = it
+                                    AppPreferences.setThorClosedPowerSleeps(
+                                        this@MainActivity,
+                                        it
+                                    )
                                 }
                             )
 
@@ -1984,7 +2030,7 @@ private fun BatteryStatsPage(
                 )
             )
             Text(
-                "Standby estimates use the measured 7-day sleep average and are only indicative.",
+                "Standby estimates use eligible sleep sessions of at least 3 hours from the last 7 days and are only indicative.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2023,7 +2069,7 @@ private fun BatteryStatsPage(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                "Sessions shorter than 10 minutes or containing charging are excluded from averages. Capacity is an estimate when Android does not expose a readable full-capacity value.",
+                "Sessions shorter than 3 hours or containing charging are excluded from battery statistics. Shorter sleeps still appear in Last sleep and history. Capacity is an estimate when Android does not expose a readable full-capacity value.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -13,6 +13,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -20,6 +21,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import android.view.Display
 import com.med.sleepmanager.MainActivity
 import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
@@ -33,6 +35,7 @@ import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.network.NetworkReadyGate
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
+import com.med.sleepmanager.protection.ThorPowerButtonMonitor
 import com.med.sleepmanager.rules.SleepConditionEvaluator
 import com.med.sleepmanager.rules.SleepWakePolicy
 
@@ -50,6 +53,7 @@ class SleepManagerService : Service() {
         private const val SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS = 3000L
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
+        private const val THOR_DOCK_DISCONNECT_DEBOUNCE_MS = 500L
         private const val THOR_LOCK_COOLDOWN_MS = 900L
         const val ACTION_DISABLE_AND_RESTORE =
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
@@ -68,6 +72,9 @@ class SleepManagerService : Service() {
 
     private var lastWakeWifiManaged = false
     private var lastWakeWifiChanged = false
+    private var lastWakeWifiAttempted = false
+    private var lastWakeWifiToggleSuccess = true
+    private var lastWakeWifiAirplaneMode = false
     private var lastWakeBluetoothManaged = false
     private var lastWakeBluetoothChanged = false
     private var sleepActionsApplied = false
@@ -90,7 +97,18 @@ class SleepManagerService : Service() {
     private var thorLidClosed = false
 
     private var thorLidMonitor: ThorLidMonitor? = null
+    private var thorPowerButtonMonitor: ThorPowerButtonMonitor? = null
+    private var thorDisplayListenerRegistered = false
+    private var thorExternalDisplayConnected = false
+    private var thorExternalDisplayActive = false
+    private var thorClosedAwakeOverride = false
+    private var thorClosedSleepIntent = false
+    private var thorSleepRequestPending = false
     private var lastThorLockAt = 0L
+
+    private val displayManager by lazy {
+        getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+    }
 
     private val thorAdminComponent by lazy {
         ComponentName(this, ThorDeviceAdminReceiver::class.java)
@@ -158,6 +176,24 @@ class SleepManagerService : Service() {
         maybeReturnThorToSleep("closed-lid wake")
     }
 
+    private val thorDockDisconnectRunnable = Runnable {
+        handleThorDockDisconnect()
+    }
+
+    private val thorDisplayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {
+            refreshThorExternalDisplayState("display added")
+        }
+
+        override fun onDisplayRemoved(displayId: Int) {
+            refreshThorExternalDisplayState("display removed")
+        }
+
+        override fun onDisplayChanged(displayId: Int) {
+            refreshThorExternalDisplayState("display changed")
+        }
+    }
+
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -177,6 +213,14 @@ class SleepManagerService : Service() {
             val phase = intent.getStringExtra(HelperController.EXTRA_PHASE) ?: return
             val wifiManaged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_MANAGED, false)
             val wifiChanged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_CHANGED, false)
+            val wifiAttempted =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_ATTEMPTED, false)
+            val wifiAction =
+                intent.getStringExtra(HelperController.EXTRA_WIFI_ACTION) ?: "NONE"
+            val wifiToggleSuccess =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_TOGGLE_SUCCESS, true)
+            val airplaneMode =
+                intent.getBooleanExtra(HelperController.EXTRA_AIRPLANE_MODE, false)
             val bluetoothManaged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_MANAGED, false)
             val bluetoothChanged = intent.getBooleanExtra(HelperController.EXTRA_BLUETOOTH_CHANGED, false)
             val restoreSuccess = intent.getBooleanExtra(
@@ -186,6 +230,20 @@ class SleepManagerService : Service() {
             val helperStatus =
                 intent.getStringExtra(HelperController.EXTRA_STATUS)
                     ?: HelperController.STATUS_OK
+
+            if (
+                wifiManaged &&
+                helperStatus != HelperController.STATUS_ALREADY_SLEEPING
+            ) {
+                AppPreferences.recordWifiToggleDiagnostic(
+                    context = this@SleepManagerService,
+                    phase = phase,
+                    action = wifiAction,
+                    attempted = wifiAttempted,
+                    success = wifiToggleSuccess,
+                    airplaneMode = airplaneMode
+                )
+            }
 
             when (phase) {
                 HelperController.PHASE_SLEEP -> {
@@ -198,6 +256,9 @@ class SleepManagerService : Service() {
                         buildSleepSummary(
                             wifiManaged = wifiManaged,
                             wifiChanged = wifiChanged,
+                            wifiAttempted = wifiAttempted,
+                            wifiToggleSuccess = wifiToggleSuccess,
+                            wifiAirplaneMode = airplaneMode,
                             bluetoothManaged = bluetoothManaged,
                             bluetoothChanged = bluetoothChanged,
                             syncthing = AppPreferences.manageSyncthing(this@SleepManagerService)
@@ -208,6 +269,9 @@ class SleepManagerService : Service() {
                 HelperController.PHASE_WAKE -> {
                     lastWakeWifiManaged = wifiManaged
                     lastWakeWifiChanged = wifiChanged
+                    lastWakeWifiAttempted = wifiAttempted
+                    lastWakeWifiToggleSuccess = wifiToggleSuccess
+                    lastWakeWifiAirplaneMode = airplaneMode
                     lastWakeBluetoothManaged = bluetoothManaged
                     lastWakeBluetoothChanged = bluetoothChanged
 
@@ -216,18 +280,39 @@ class SleepManagerService : Service() {
                             TAG,
                             "Helper restore failed status=$helperStatus; preserving sleep transaction"
                         )
+
+                        val wifiRestoreFailed =
+                            wifiManaged && wifiAttempted && !wifiToggleSuccess
+                        val wifiFailureText =
+                            if (wifiRestoreFailed) {
+                                "Wi-Fi toggle failed" +
+                                    if (airplaneMode) {
+                                        " · Airplane mode is enabled"
+                                    } else {
+                                        ""
+                                    }
+                            } else {
+                                null
+                            }
+
                         SleepCycleStore.markRestoreProblem(
                             this@SleepManagerService,
-                            when (helperStatus) {
-                                HelperController.STATUS_NO_ACTIVE_CYCLE ->
+                            when {
+                                helperStatus == HelperController.STATUS_NO_ACTIVE_CYCLE ->
                                     "Compatibility Helper no longer has the pending sleep state."
+                                wifiFailureText != null ->
+                                    "$wifiFailureText. Wi-Fi restore is still pending."
                                 else ->
                                     "Compatibility Helper could not restore Wi-Fi / Bluetooth."
                             }
                         )
                         AppPreferences.recordEvent(
                             this@SleepManagerService,
-                            if (disableRestoreRequested) {
+                            if (wifiFailureText != null) {
+                                val prefix =
+                                    if (disableRestoreRequested) "Disable" else "Wake"
+                                "$prefix → $wifiFailureText"
+                            } else if (disableRestoreRequested) {
                                 "Disable → Helper restore pending"
                             } else {
                                 "Wake → Helper restore pending"
@@ -262,6 +347,9 @@ class SleepManagerService : Service() {
                                 buildWakeSummary(
                                     wifiManaged = wifiManaged,
                                     wifiChanged = wifiChanged,
+                                    wifiAttempted = wifiAttempted,
+                                    wifiToggleSuccess = wifiToggleSuccess,
+                                    wifiAirplaneMode = airplaneMode,
                                     bluetoothManaged = bluetoothManaged,
                                     bluetoothChanged = bluetoothChanged,
                                     syncthing = false
@@ -407,6 +495,7 @@ class SleepManagerService : Service() {
     }
 
     private fun onScreenOff() {
+        thorSleepRequestPending = false
         BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
         pendingNetworkRestoreAfterHelper = false
@@ -738,7 +827,11 @@ class SleepManagerService : Service() {
             getSystemService(Context.POWER_SERVICE) as? PowerManager
         val realWake =
             powerManager?.isInteractive == true &&
-                (!AppPreferences.manageThorProtection(this) || !thorLidClosed)
+                (
+                    !AppPreferences.manageThorProtection(this) ||
+                        !thorLidClosed ||
+                        shouldBypassThorProtectionForClosedLid()
+                )
 
         if (realWake || tailscaleVerificationNeedsWakeRestore) {
             pendingSleepWifi = false
@@ -1010,11 +1103,15 @@ class SleepManagerService : Service() {
     private fun onScreenOn() {
         cancelNetworkReadyWait()
 
+        val closedLidProtectionApplies =
+            AppPreferences.manageThorProtection(this) &&
+                thorLidClosed &&
+                !shouldBypassThorProtectionForClosedLid()
+
         val wakeDecision =
             SleepWakePolicy.onScreenOn(
-                thorProtectionEnabled =
-                    AppPreferences.manageThorProtection(this),
-                lidClosed = thorLidClosed,
+                thorProtectionEnabled = closedLidProtectionApplies,
+                lidClosed = closedLidProtectionApplies,
                 sleepDelayPending = sleepGracePending
             )
 
@@ -1156,7 +1253,11 @@ class SleepManagerService : Service() {
                 getSystemService(Context.POWER_SERVICE) as? PowerManager
             val realWake =
                 powerManager?.isInteractive == true &&
-                    (!AppPreferences.manageThorProtection(this) || !thorLidClosed)
+                    (
+                        !AppPreferences.manageThorProtection(this) ||
+                            !thorLidClosed ||
+                            shouldBypassThorProtectionForClosedLid()
+                    )
 
             if (!realWake) {
                 Log.i(
@@ -1196,6 +1297,9 @@ class SleepManagerService : Service() {
                                 buildWakeSummary(
                                     wifiManaged = lastWakeWifiManaged,
                                     wifiChanged = lastWakeWifiChanged,
+                                    wifiAttempted = lastWakeWifiAttempted,
+                                    wifiToggleSuccess = lastWakeWifiToggleSuccess,
+                                    wifiAirplaneMode = lastWakeWifiAirplaneMode,
                                     bluetoothManaged = lastWakeBluetoothManaged,
                                     bluetoothChanged = lastWakeBluetoothChanged,
                                     syncthing = true
@@ -1288,6 +1392,9 @@ class SleepManagerService : Service() {
             return
         }
 
+        registerThorDisplayListener()
+        startThorPowerButtonMonitor()
+
         if (thorLidMonitor != null) return
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -1303,31 +1410,56 @@ class SleepManagerService : Service() {
             AppPreferences.setLastKnownThorLidClosed(this, it)
         }
 
+        thorExternalDisplayConnected = hasExternalDisplayConnected()
+        thorExternalDisplayActive = hasActiveExternalDisplay()
+
         val monitor = ThorLidMonitor(
             onClosed = {
                 handler.post {
                     thorLidClosed = true
+                    thorClosedAwakeOverride = false
+                    thorClosedSleepIntent = false
                     AppPreferences.setLastKnownThorLidClosed(
                         this@SleepManagerService,
                         true
                     )
                     handler.removeCallbacks(thorCloseGuardRunnable)
-                    handler.postDelayed(
-                        thorCloseGuardRunnable,
-                        THOR_CLOSE_GUARD_DELAY_MS
-                    )
+                    handler.removeCallbacks(thorScreenOnRecheckRunnable)
+
+                    thorExternalDisplayConnected = hasExternalDisplayConnected()
+                    thorExternalDisplayActive = hasActiveExternalDisplay()
                     Log.i(TAG, "Thor SW_LID -> CLOSED")
+
+                    if (thorExternalDisplayConnected) {
+                        Log.i(
+                            TAG,
+                            if (thorExternalDisplayActive) {
+                                "Thor dock mode -> external display active; lid close ignored"
+                            } else {
+                                "Thor dock mode -> external display connected; lid close ignored"
+                            }
+                        )
+                    } else {
+                        handler.postDelayed(
+                            thorCloseGuardRunnable,
+                            THOR_CLOSE_GUARD_DELAY_MS
+                        )
+                    }
                 }
             },
             onOpened = {
                 handler.post {
                     thorLidClosed = false
+                    thorClosedAwakeOverride = false
+                    thorClosedSleepIntent = false
+                    thorSleepRequestPending = false
                     AppPreferences.setLastKnownThorLidClosed(
                         this@SleepManagerService,
                         false
                     )
                     handler.removeCallbacks(thorCloseGuardRunnable)
                     handler.removeCallbacks(thorScreenOnRecheckRunnable)
+                    handler.removeCallbacks(thorDockDisconnectRunnable)
                     Log.i(TAG, "Thor SW_LID -> OPEN")
                 }
             },
@@ -1351,26 +1483,207 @@ class SleepManagerService : Service() {
         }
     }
 
-    private fun stopThorLidMonitor() {
-        handler.removeCallbacks(thorCloseGuardRunnable)
-        handler.removeCallbacks(thorScreenOnRecheckRunnable)
-        thorLidClosed = false
-        thorLidMonitor?.stop()
-        thorLidMonitor = null
+    private fun registerThorDisplayListener() {
+        if (thorDisplayListenerRegistered) return
+        val manager = displayManager ?: return
+
+        manager.registerDisplayListener(thorDisplayListener, handler)
+        thorDisplayListenerRegistered = true
+        thorExternalDisplayConnected = hasExternalDisplayConnected()
+        thorExternalDisplayActive = hasActiveExternalDisplay()
+        Log.i(
+            TAG,
+            "Thor display monitor started connected=$thorExternalDisplayConnected " +
+                "active=$thorExternalDisplayActive"
+        )
     }
 
-    private fun maybeReturnThorToSleep(reason: String) {
+    private fun unregisterThorDisplayListener() {
+        if (!thorDisplayListenerRegistered) return
+        runCatching {
+            displayManager?.unregisterDisplayListener(thorDisplayListener)
+        }
+        thorDisplayListenerRegistered = false
+        thorExternalDisplayConnected = false
+        thorExternalDisplayActive = false
+    }
+
+    private fun startThorPowerButtonMonitor() {
+        if (thorPowerButtonMonitor != null) return
+
+        val monitor = ThorPowerButtonMonitor(
+            onPressed = {
+                handler.post { handleThorPowerButtonPressed() }
+            },
+            onError = { error ->
+                Log.e(TAG, "Thor power button monitor failed", error)
+                handler.post {
+                    thorPowerButtonMonitor?.stop()
+                    thorPowerButtonMonitor = null
+                }
+            }
+        )
+
+        if (monitor.start()) {
+            thorPowerButtonMonitor = monitor
+            Log.i(
+                TAG,
+                "Thor power button monitor started on " +
+                    ThorPowerButtonMonitor.findPowerButtonDevicePath()
+            )
+        } else {
+            Log.w(TAG, "No pmic_pwrkey input device found; closed-lid Power option unavailable")
+        }
+    }
+
+    private fun isThorExternalDisplay(display: Display): Boolean {
+        if (display.displayId == Display.DEFAULT_DISPLAY) return false
+        val name = display.name.lowercase()
+        return name.contains("dp screen") ||
+            name.contains("hdmi") ||
+            name.contains("external")
+    }
+
+    private fun hasExternalDisplayConnected(): Boolean =
+        displayManager
+            ?.displays
+            ?.any(::isThorExternalDisplay) == true
+
+    private fun hasActiveExternalDisplay(): Boolean =
+        displayManager
+            ?.displays
+            ?.any { display ->
+                isThorExternalDisplay(display) &&
+                    display.state == Display.STATE_ON
+            } == true
+
+    private fun refreshThorExternalDisplayState(reason: String) {
+        if (!AppPreferences.manageThorProtection(this)) return
+
+        val connected = hasExternalDisplayConnected()
+        val active = hasActiveExternalDisplay()
+        val wasConnected = thorExternalDisplayConnected
+
+        thorExternalDisplayConnected = connected
+        thorExternalDisplayActive = active
+
+        if (connected) {
+            handler.removeCallbacks(thorDockDisconnectRunnable)
+            if (thorLidClosed && !thorClosedSleepIntent) {
+                thorClosedAwakeOverride = false
+                if (active) {
+                    Log.i(TAG, "Thor dock mode -> external display active ($reason)")
+                }
+            }
+            return
+        }
+
+        if (wasConnected && thorLidClosed) {
+            handler.removeCallbacks(thorDockDisconnectRunnable)
+            handler.postDelayed(
+                thorDockDisconnectRunnable,
+                THOR_DOCK_DISCONNECT_DEBOUNCE_MS
+            )
+            Log.i(TAG, "Thor dock mode -> external display disconnected; debounce started")
+        }
+    }
+
+    private fun handleThorDockDisconnect() {
+        if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
+
+        if (hasExternalDisplayConnected()) {
+            thorExternalDisplayConnected = true
+            thorExternalDisplayActive = hasActiveExternalDisplay()
+            thorClosedAwakeOverride = false
+            return
+        }
+
+        thorExternalDisplayConnected = false
+        thorExternalDisplayActive = false
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (!powerManager.isInteractive) {
+            thorClosedAwakeOverride = false
+            return
+        }
+
+        if (AppPreferences.thorDockDisconnectSleeps(this)) {
+            thorClosedAwakeOverride = false
+            thorClosedSleepIntent = true
+            Log.i(TAG, "Thor dock mode -> display disconnected; requesting sleep")
+            requestThorSleep("dock display disconnected")
+        } else {
+            thorClosedSleepIntent = false
+            thorClosedAwakeOverride = true
+            Log.i(TAG, "Thor dock mode -> display disconnected; keeping awake (AYN default)")
+            AppPreferences.recordEvent(
+                this,
+                "Dock → display disconnected · kept awake"
+            )
+        }
+    }
+
+    private fun handleThorPowerButtonPressed() {
         if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
 
         val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
         if (!powerManager.isInteractive) return
 
+        if (!AppPreferences.thorClosedPowerSleeps(this)) {
+            Log.i(TAG, "Thor KEY_POWER while lid closed -> AYN default")
+            return
+        }
+
+        thorClosedAwakeOverride = false
+        thorClosedSleepIntent = true
+        Log.i(TAG, "Thor KEY_POWER while lid closed -> requesting sleep")
+        requestThorSleep("closed-lid power button")
+    }
+
+    private fun shouldBypassThorProtectionForClosedLid(): Boolean {
+        if (!thorLidClosed || thorClosedSleepIntent) return false
+        return hasExternalDisplayConnected() || thorClosedAwakeOverride
+    }
+
+    private fun stopThorLidMonitor() {
+        handler.removeCallbacks(thorCloseGuardRunnable)
+        handler.removeCallbacks(thorScreenOnRecheckRunnable)
+        handler.removeCallbacks(thorDockDisconnectRunnable)
+        thorLidClosed = false
+        thorClosedAwakeOverride = false
+        thorClosedSleepIntent = false
+        thorSleepRequestPending = false
+        thorLidMonitor?.stop()
+        thorLidMonitor = null
+        thorPowerButtonMonitor?.stop()
+        thorPowerButtonMonitor = null
+        unregisterThorDisplayListener()
+    }
+
+    private fun maybeReturnThorToSleep(reason: String) {
+        if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
+
+        if (shouldBypassThorProtectionForClosedLid()) {
+            Log.i(TAG, "Thor protection bypassed -> dock/keep-awake state ($reason)")
+            return
+        }
+
+        requestThorSleep(reason)
+    }
+
+    private fun requestThorSleep(reason: String) {
+        if (!AppPreferences.manageThorProtection(this) || !thorLidClosed) return
+
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        if (!powerManager.isInteractive) {
+            thorSleepRequestPending = false
+            return
+        }
+        if (thorSleepRequestPending) return
+
         val now = SystemClock.elapsedRealtime()
         val sinceLastLock = now - lastThorLockAt
         if (sinceLastLock < THOR_LOCK_COOLDOWN_MS) {
-            // AYN Thor can briefly bounce awake again after lockNow(). Do not
-            // fire duplicate calls immediately, but always schedule a retry
-            // after the cooldown so a second closed-lid wake cannot remain awake.
             handler.removeCallbacks(thorScreenOnRecheckRunnable)
             handler.postDelayed(
                 thorScreenOnRecheckRunnable,
@@ -1386,6 +1699,8 @@ class SleepManagerService : Service() {
         }
 
         try {
+            thorSleepRequestPending = true
+            thorClosedSleepIntent = true
             lastThorLockAt = now
             cancelNetworkReadyWait()
             pendingNetworkRestoreAfterHelper = false
@@ -1396,15 +1711,13 @@ class SleepManagerService : Service() {
             )
             dpm.lockNow()
 
-            // Verify again after the transition. If the Thor is asleep this is
-            // a no-op; if its controller caused another bounce while still
-            // closed, the same guarded path puts it back to sleep.
             handler.removeCallbacks(thorScreenOnRecheckRunnable)
             handler.postDelayed(
                 thorScreenOnRecheckRunnable,
                 THOR_LOCK_COOLDOWN_MS + 150L
             )
         } catch (t: Throwable) {
+            thorSleepRequestPending = false
             Log.e(TAG, "Unable to return Thor to sleep", t)
         }
     }
@@ -1412,12 +1725,29 @@ class SleepManagerService : Service() {
     private fun buildSleepSummary(
         wifiManaged: Boolean,
         wifiChanged: Boolean,
+        wifiAttempted: Boolean = false,
+        wifiToggleSuccess: Boolean = true,
+        wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
         bluetoothChanged: Boolean,
         syncthing: Boolean
     ): String {
         val actions = buildList {
-            if (wifiManaged) add(if (wifiChanged) "Wi‑Fi off" else "Wi‑Fi unchanged")
+            if (wifiManaged) {
+                add(
+                    when {
+                        wifiAttempted && !wifiToggleSuccess ->
+                            "Wi-Fi toggle failed" +
+                                if (wifiAirplaneMode) {
+                                    " · Airplane mode is enabled"
+                                } else {
+                                    ""
+                                }
+                        wifiChanged -> "Wi-Fi off"
+                        else -> "Wi-Fi unchanged"
+                    }
+                )
+            }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth off" else "Bluetooth unchanged")
             if (syncthing) add("Syncthing paused")
         }
@@ -1427,12 +1757,29 @@ class SleepManagerService : Service() {
     private fun buildWakeSummary(
         wifiManaged: Boolean,
         wifiChanged: Boolean,
+        wifiAttempted: Boolean = false,
+        wifiToggleSuccess: Boolean = true,
+        wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
         bluetoothChanged: Boolean,
         syncthing: Boolean
     ): String {
         val actions = buildList {
-            if (wifiManaged) add(if (wifiChanged) "Wi‑Fi restored to previous state" else "Wi‑Fi unchanged")
+            if (wifiManaged) {
+                add(
+                    when {
+                        wifiAttempted && !wifiToggleSuccess ->
+                            "Wi-Fi toggle failed" +
+                                if (wifiAirplaneMode) {
+                                    " · Airplane mode is enabled"
+                                } else {
+                                    ""
+                                }
+                        wifiChanged -> "Wi-Fi restored to previous state"
+                        else -> "Wi-Fi unchanged"
+                    }
+                )
+            }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth restored to previous state" else "Bluetooth unchanged")
             if (syncthing) add("Syncthing resumed")
         }
@@ -1546,6 +1893,7 @@ class SleepManagerService : Service() {
         cancelTailscaleVerification()
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
+        handler.removeCallbacks(thorDockDisconnectRunnable)
         pendingSleepWifi = false
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
