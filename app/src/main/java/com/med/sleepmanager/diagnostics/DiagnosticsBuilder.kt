@@ -5,10 +5,12 @@ import android.os.Build
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.BasicSyncConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
@@ -52,6 +54,9 @@ object DiagnosticsBuilder {
         val jamesDsp = JamesDspController.selectedTarget(context)
         val jamesDspPending =
             SleepCycleStore.connectorChange(context, JamesDspConnector.id)
+        val basicSyncVersion = BasicSyncController.versionName(context)
+        val basicSyncPending =
+            SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
         val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
@@ -80,6 +85,7 @@ object DiagnosticsBuilder {
             appendLine("- Syncthing-Fork: ${AppPreferences.manageSyncthing(context)}")
             appendLine("- Tailscale: ${AppPreferences.manageTailscale(context)}")
             appendLine("- JamesDSP: ${AppPreferences.manageJamesDsp(context)}")
+            appendLine("- BasicSync: ${AppPreferences.manageBasicSync(context)}")
             appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
             appendLine()
             appendLine("Advanced conditions")
@@ -127,6 +133,15 @@ object DiagnosticsBuilder {
                         "not installed"
                     }
             )
+            appendLine(
+                "- BasicSync: " +
+                    if (basicSyncVersion != null) {
+                        "installed • $basicSyncVersion • ${BasicSyncController.PACKAGE}"
+                    } else {
+                        "not installed"
+                    }
+            )
+            appendLine("- BasicSync state: unknown (no public state-query API)")
             appendLine()
             appendLine("Last Wi-Fi toggle")
             if (wifiDiagnostic == null) {
@@ -172,6 +187,10 @@ object DiagnosticsBuilder {
             appendLine(
                 "- JamesDSP transaction: " +
                     (jamesDspPending?.restoreToken ?: "none")
+            )
+            appendLine(
+                "- BasicSync transaction: " +
+                    (basicSyncPending?.restoreToken ?: "none")
             )
 
             val events = EventHistoryStore.recent(context)
