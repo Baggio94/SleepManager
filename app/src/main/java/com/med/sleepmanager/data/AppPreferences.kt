@@ -37,6 +37,22 @@ object AppPreferences {
     private const val KEY_LATEST_RELEASE_APK_URL = "latest_release_apk_url"
     private const val KEY_LATEST_RELEASE_SHA256 = "latest_release_sha256"
     private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "last_notified_update_version"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_KNOWN = "last_wifi_diagnostic_known"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_PHASE = "last_wifi_diagnostic_phase"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_ACTION = "last_wifi_diagnostic_action"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_ATTEMPTED = "last_wifi_diagnostic_attempted"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_SUCCESS = "last_wifi_diagnostic_success"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_AIRPLANE = "last_wifi_diagnostic_airplane"
+    private const val KEY_LAST_WIFI_DIAGNOSTIC_TIME = "last_wifi_diagnostic_time"
+
+    data class WifiToggleDiagnostic(
+        val phase: String,
+        val action: String,
+        val attempted: Boolean,
+        val success: Boolean,
+        val airplaneMode: Boolean,
+        val timestamp: Long
+    )
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -284,4 +300,37 @@ object AppPreferences {
 
     fun setLastNotifiedUpdateVersion(context: Context, version: String) =
         prefs(context).edit().putString(KEY_LAST_NOTIFIED_UPDATE_VERSION, version).apply()
+
+    fun recordWifiToggleDiagnostic(
+        context: Context,
+        phase: String,
+        action: String,
+        attempted: Boolean,
+        success: Boolean,
+        airplaneMode: Boolean
+    ) {
+        prefs(context).edit()
+            .putBoolean(KEY_LAST_WIFI_DIAGNOSTIC_KNOWN, true)
+            .putString(KEY_LAST_WIFI_DIAGNOSTIC_PHASE, phase)
+            .putString(KEY_LAST_WIFI_DIAGNOSTIC_ACTION, action)
+            .putBoolean(KEY_LAST_WIFI_DIAGNOSTIC_ATTEMPTED, attempted)
+            .putBoolean(KEY_LAST_WIFI_DIAGNOSTIC_SUCCESS, success)
+            .putBoolean(KEY_LAST_WIFI_DIAGNOSTIC_AIRPLANE, airplaneMode)
+            .putLong(KEY_LAST_WIFI_DIAGNOSTIC_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun lastWifiToggleDiagnostic(context: Context): WifiToggleDiagnostic? {
+        val p = prefs(context)
+        if (!p.getBoolean(KEY_LAST_WIFI_DIAGNOSTIC_KNOWN, false)) return null
+
+        return WifiToggleDiagnostic(
+            phase = p.getString(KEY_LAST_WIFI_DIAGNOSTIC_PHASE, "unknown") ?: "unknown",
+            action = p.getString(KEY_LAST_WIFI_DIAGNOSTIC_ACTION, "unknown") ?: "unknown",
+            attempted = p.getBoolean(KEY_LAST_WIFI_DIAGNOSTIC_ATTEMPTED, false),
+            success = p.getBoolean(KEY_LAST_WIFI_DIAGNOSTIC_SUCCESS, false),
+            airplaneMode = p.getBoolean(KEY_LAST_WIFI_DIAGNOSTIC_AIRPLANE, false),
+            timestamp = p.getLong(KEY_LAST_WIFI_DIAGNOSTIC_TIME, 0L)
+        )
+    }
 }
