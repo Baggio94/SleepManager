@@ -118,10 +118,12 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
+import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.BasicSyncConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
@@ -602,6 +604,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreBasicSyncTransactionNow() {
+        val change =
+            SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
+                ?: return
+
+        val result = BasicSyncConnector.wake(this, change.restoreToken)
+
+        if (result.success) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+        } else {
+            AppPreferences.recordEvent(this, "BasicSync restore pending")
+        }
+    }
+
     private fun launchExternalActivity(
         intent: Intent,
         failureMessage: String? = null
@@ -819,6 +835,9 @@ class MainActivity : ComponentActivity() {
         var jamesDspEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageJamesDsp(this))
         }
+        var basicSyncEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageBasicSync(this))
+        }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
@@ -887,6 +906,12 @@ class MainActivity : ComponentActivity() {
         }
         val jamesDspTarget = remember(refreshToken) {
             JamesDspController.selectedTarget(this)
+        }
+        val basicSyncInstalled = remember(refreshToken) {
+            BasicSyncController.isInstalled(this)
+        }
+        val basicSyncVersion = remember(refreshToken) {
+            BasicSyncController.versionName(this)
         }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
@@ -1461,6 +1486,51 @@ class MainActivity : ComponentActivity() {
                                 null
                             }
                         )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        CompactIntegrationRow(
+                            icon = R.drawable.ic_sync,
+                            title = "BasicSync",
+                            version = if (basicSyncInstalled) {
+                                basicSyncVersion ?: "Installed"
+                            } else {
+                                "Not detected"
+                            },
+                            status = if (basicSyncInstalled) {
+                                "Remote control required"
+                            } else {
+                                null
+                            },
+                            checked = basicSyncEnabled && basicSyncInstalled,
+                            enabled = basicSyncInstalled,
+                            onCheckedChange = {
+                                basicSyncEnabled = it
+                                AppPreferences.setManageBasicSync(
+                                    this@MainActivity,
+                                    it
+                                )
+
+                                if (it) {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        "Enable Allow remote control in BasicSync",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else if (managerEnabled) {
+                                    restoreBasicSyncTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
+                                }
+                            },
+                            onOpen = if (basicSyncInstalled) {
+                                { BasicSyncController.open(this@MainActivity) }
+                            } else {
+                                null
+                            }
+                        )
                     }
                 }
                 item {
@@ -1470,6 +1540,7 @@ class MainActivity : ComponentActivity() {
                         syncthing = syncthingEnabled && selectedTarget != null,
                         tailscale = tailscaleEnabled && tailscaleInstalled,
                         jamesDsp = jamesDspEnabled && jamesDspTarget != null,
+                        basicSync = basicSyncEnabled && basicSyncInstalled,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
@@ -3739,12 +3810,14 @@ private fun BehaviorCard(
     syncthing: Boolean,
     tailscale: Boolean,
     jamesDsp: Boolean,
+    basicSync: Boolean,
     thorProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasSleepAction = wifi || bluetooth || syncthing || tailscale || jamesDsp
+    val hasSleepAction =
+        wifi || bluetooth || syncthing || tailscale || jamesDsp || basicSync
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
@@ -3754,6 +3827,7 @@ private fun BehaviorCard(
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
         if (jamesDsp) add("Power off JamesDSP")
+        if (basicSync) add("Stop BasicSync")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -3766,6 +3840,7 @@ private fun BehaviorCard(
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
         if (jamesDsp) add("Restore JamesDSP")
+        if (basicSync) add("Return BasicSync to auto mode")
     }
 
     val compactSleepSummary = buildList {
@@ -3775,6 +3850,7 @@ private fun BehaviorCard(
         if (syncthing) add("Syncthing")
         if (tailscale) add("Tailscale")
         if (jamesDsp) add("JamesDSP")
+        if (basicSync) add("BasicSync")
         if (advancedConditions.isNotEmpty()) {
             add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
         }
