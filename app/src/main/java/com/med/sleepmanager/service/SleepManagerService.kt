@@ -429,6 +429,8 @@ class SleepManagerService : Service() {
         releaseSleepTransitionWakeLock()
 
         prepareTailscaleVerificationForWake()
+        restorePendingJamesDsp()
+        restorePendingBasicSync()
 
         var cycle = SleepCycleStore.current(this)
         if (
