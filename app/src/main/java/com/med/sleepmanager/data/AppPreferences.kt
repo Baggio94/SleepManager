@@ -10,6 +10,7 @@ object AppPreferences {
     private const val KEY_SYNCTHING = "syncthing"
     private const val KEY_TAILSCALE = "tailscale"
     private const val KEY_JAMES_DSP = "james_dsp"
+    private const val KEY_BASICSYNC = "basicsync"
     private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_THOR_DOCK_DISCONNECT_SLEEP = "thor_dock_disconnect_sleep"
     private const val KEY_THOR_CLOSED_POWER_SLEEP = "thor_closed_power_sleep"
@@ -84,6 +85,12 @@ object AppPreferences {
 
     fun setManageJamesDsp(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_JAMES_DSP, value).apply()
+
+    fun manageBasicSync(context: Context) =
+        prefs(context).getBoolean(KEY_BASICSYNC, false)
+
+    fun setManageBasicSync(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_BASICSYNC, value).apply()
 
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
