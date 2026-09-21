@@ -2030,7 +2030,7 @@ private fun BatteryStatsPage(
                 )
             )
             Text(
-                "Standby estimates use the measured 7-day sleep average and are only indicative.",
+                "Standby estimates use eligible sleep sessions of at least 3 hours from the last 7 days and are only indicative.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2069,7 +2069,7 @@ private fun BatteryStatsPage(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                "Sessions shorter than 10 minutes or containing charging are excluded from averages. Capacity is an estimate when Android does not expose a readable full-capacity value.",
+                "Sessions shorter than 3 hours or containing charging are excluded from battery statistics. Shorter sleeps still appear in Last sleep and history. Capacity is an estimate when Android does not expose a readable full-capacity value.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
