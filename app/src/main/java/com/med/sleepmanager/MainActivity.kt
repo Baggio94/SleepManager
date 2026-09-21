@@ -1501,7 +1501,7 @@ class MainActivity : ComponentActivity() {
                                 "Not detected"
                             },
                             status = if (basicSyncInstalled) {
-                                "Remote control required"
+                                "STOP → Auto mode"
                             } else {
                                 null
                             },
@@ -1517,7 +1517,7 @@ class MainActivity : ComponentActivity() {
                                 if (it) {
                                     Toast.makeText(
                                         this@MainActivity,
-                                        "Enable Allow remote control in BasicSync",
+                                        "Enable Allow remote control in BasicSync. SleepManager will STOP on sleep and return BasicSync to Auto mode on wake.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 } else if (managerEnabled) {
