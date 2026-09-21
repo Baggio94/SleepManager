@@ -1310,7 +1310,7 @@ class MainActivity : ComponentActivity() {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "Power button sleeps with lid closed",
-                                subtitle = "When the Thor is awake with the lid closed—while docked or after disconnecting the external display—press Power to start a normal sleep cycle. Off keeps AYN's default behavior.",
+                                subtitle = "With the lid closed and Thor awake, press Power to sleep—docked or after disconnecting the external display.",
                                 checked = thorClosedPowerSleeps,
                                 enabled = thorProtectionEnabled && thorAdminActive,
                                 onCheckedChange = {
