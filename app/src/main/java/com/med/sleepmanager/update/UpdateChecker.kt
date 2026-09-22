@@ -211,6 +211,19 @@ object UpdateChecker {
 
     private fun fetchLatestStableRelease(): UpdateInfo =
         runCatching { fetchReleaseManifest(RELEASE_MANIFEST) }
+            .map { manifest ->
+                if (manifest.helper != null) {
+                    manifest
+                } else {
+                    runCatching { fetchLatestStableReleaseFromApi() }
+                        .getOrNull()
+                        ?.takeIf { it.versionName == manifest.versionName }
+                        ?.let { apiRelease ->
+                            manifest.copy(helper = apiRelease.helper)
+                        }
+                        ?: manifest
+                }
+            }
             .getOrElse { fetchLatestStableReleaseFromApi() }
 
     private fun fetchReleaseManifest(url: String): UpdateInfo {
