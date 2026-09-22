@@ -133,6 +133,11 @@ object BasicSyncController {
             context.packageManager.getPackageInfo(PACKAGE, 0)
         }.isSuccess
 
+    fun versionName(context: Context): String? =
+        runCatching {
+            context.packageManager.getPackageInfo(PACKAGE, 0).versionName
+        }.getOrNull()
+
     fun supportsStateApi(context: Context): Boolean =
         runCatching {
             context.packageManager
