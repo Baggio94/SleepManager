@@ -37,10 +37,23 @@ object BatterySleepStore {
     data class BatterySnapshot(
         val percent: Int?,
         val charging: Boolean,
-        val chargeCounterUah: Int?
+        val chargeCounterUah: Int?,
+        val fullChargeUah: Long?,
+        val designChargeUah: Long?
     ) {
         val chargeMah: Double?
             get() = chargeCounterUah?.div(1000.0)
+
+        val precisePercent: Double?
+            get() {
+                val current = chargeCounterUah ?: return null
+                val full = fullChargeUah ?: return null
+                if (current < 0 || full <= 0L) return null
+
+                val value = current.toDouble() / full.toDouble() * 100.0
+                return value.takeIf { it.isFinite() && it in 0.0..105.0 }
+                    ?.coerceIn(0.0, 100.0)
+            }
     }
 
     data class SleepSession(
@@ -87,6 +100,7 @@ object BatterySleepStore {
 
     data class Stats(
         val currentPercent: Int?,
+        val currentPrecisePercent: Double?,
         val currentChargeMah: Double?,
         val estimatedCapacityMah: Double?,
         val lastSession: SleepSession?,
@@ -151,7 +165,13 @@ object BatterySleepStore {
         return BatterySnapshot(
             percent = percent,
             charging = charging,
-            chargeCounterUah = chargeCounter
+            chargeCounterUah = chargeCounter,
+            fullChargeUah = readChargeUahFromSysfs(
+                "/sys/class/power_supply/battery/charge_full"
+            ),
+            designChargeUah = readChargeUahFromSysfs(
+                "/sys/class/power_supply/battery/charge_full_design"
+            )
         )
     }
 
@@ -350,6 +370,7 @@ object BatterySleepStore {
 
         return Stats(
             currentPercent = percent,
+            currentPrecisePercent = current.precisePercent,
             currentChargeMah = current.chargeMah,
             estimatedCapacityMah = estimateCapacityMah(current),
             lastSession = sessions.maxByOrNull { it.endedAt },
@@ -461,62 +482,35 @@ object BatterySleepStore {
     }
 
     private fun estimateCapacityMah(snapshot: BatterySnapshot): Double? {
+        snapshot.fullChargeUah
+            ?.takeIf { it > 0L }
+            ?.let { return it / 1000.0 }
+
+        snapshot.designChargeUah
+            ?.takeIf { it > 0L }
+            ?.let { return it / 1000.0 }
+
         val percent = snapshot.percent
         val chargeMah = snapshot.chargeMah
-
-        val chargeBasedEstimate =
-            if (
-                percent != null &&
-                percent > 0 &&
-                chargeMah != null &&
-                chargeMah > 0.0
-            ) {
-                chargeMah * 100.0 / percent.toDouble()
-            } else {
-                null
-            }
-
-        val sysfsCapacity = readCapacityMahFromSysfs()
-
-        // Some emulators expose a tiny fixed sysfs design capacity even while
-        // BatteryService is being overridden for tests. Reject a sysfs value
-        // that is clearly inconsistent with the live charge estimate.
-        if (sysfsCapacity != null) {
-            if (
-                chargeBasedEstimate == null ||
-                sysfsCapacity >= chargeBasedEstimate * 0.70
-            ) {
-                return sysfsCapacity
-            }
+        return if (
+            percent != null &&
+            percent > 0 &&
+            chargeMah != null &&
+            chargeMah > 0.0
+        ) {
+            chargeMah * 100.0 / percent.toDouble()
+        } else {
+            null
         }
-
-        return chargeBasedEstimate
     }
 
-    private fun readCapacityMahFromSysfs(): Double? {
-        val paths = listOf(
-            "/sys/class/power_supply/battery/charge_full_design",
-            "/sys/class/power_supply/battery/charge_full"
-        )
-
-        paths.forEach { path ->
-            val raw =
-                runCatching {
-                    File(path).takeIf { it.canRead() }
-                        ?.readText()
-                        ?.trim()
-                        ?.toLongOrNull()
-                }.getOrNull() ?: return@forEach
-
-            if (raw > 0L) {
-                return if (raw > 100_000L) {
-                    raw / 1000.0
-                } else {
-                    raw.toDouble()
-                }
-            }
-        }
-
-        return null
-    }
+    private fun readChargeUahFromSysfs(path: String): Long? =
+        runCatching {
+            File(path)
+                .takeIf { it.canRead() }
+                ?.readText()
+                ?.trim()
+                ?.toLongOrNull()
+                ?.takeIf { it > 0L }
+        }.getOrNull()
 }
