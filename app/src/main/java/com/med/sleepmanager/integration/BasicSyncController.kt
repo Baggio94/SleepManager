@@ -7,11 +7,14 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 object BasicSyncController {
+    private const val TAG = "SleepManagerBasicSync"
+
     const val PACKAGE = "com.chiller3.basicsync"
 
     private const val ACTION_STOP = "$PACKAGE.STOP"
@@ -22,7 +25,7 @@ object BasicSyncController {
 
     private const val EXTRA_MODE = "mode"
     private const val EXTRA_RUN_STATE = "run_state"
-    private const val STATE_QUERY_TIMEOUT_MS = 1000L
+    private const val STATE_QUERY_TIMEOUT_MS = 5000L
 
     enum class Mode {
         AUTO_MODE,
@@ -116,6 +119,7 @@ object BasicSyncController {
                         }
                         ?: return
 
+                Log.i(TAG, "STATE_CHANGED received: mode=$mode runState=$runState")
                 result.set(RemoteState(mode, runState))
                 latch.countDown()
             }
@@ -144,10 +148,15 @@ object BasicSyncController {
             registered = true
 
             if (!sendRemoteControl(appContext, ACTION_REQUEST_STATE)) {
+                Log.w(TAG, "REQUEST_STATE could not be sent")
                 return null
             }
 
-            latch.await(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
+            Log.i(TAG, "REQUEST_STATE sent; waiting up to ${timeoutMs}ms")
+            val received = latch.await(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
+            if (!received) {
+                Log.w(TAG, "Timed out waiting for STATE_CHANGED")
+            }
             result.get()
         } catch (_: Throwable) {
             null
