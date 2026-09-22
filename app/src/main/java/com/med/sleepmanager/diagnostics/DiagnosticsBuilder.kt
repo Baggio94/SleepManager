@@ -141,7 +141,7 @@ object DiagnosticsBuilder {
                         "not installed"
                     }
             )
-            appendLine("- BasicSync state: unknown (no public state-query API)")
+            appendLine("- BasicSync state API: ${if (BasicSyncController.supportsStateApi(context)) "supported (3.18+)" else "legacy / unavailable"}")
             appendLine()
             appendLine("Last Wi-Fi toggle")
             if (wifiDiagnostic == null) {
