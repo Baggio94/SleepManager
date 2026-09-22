@@ -1501,7 +1501,11 @@ class MainActivity : ComponentActivity() {
                                 "Not detected"
                             },
                             status = if (basicSyncInstalled) {
-                                "STOP → Auto mode"
+                                if (BasicSyncController.supportsStateApi(this@MainActivity)) {
+                                    "State-aware restore"
+                                } else {
+                                    "Legacy: STOP → Auto mode"
+                                }
                             } else {
                                 null
                             },
@@ -1517,7 +1521,11 @@ class MainActivity : ComponentActivity() {
                                 if (it) {
                                     Toast.makeText(
                                         this@MainActivity,
-                                        "Enable Allow remote control in BasicSync. SleepManager will STOP on sleep and return BasicSync to Auto mode on wake.",
+                                        if (BasicSyncController.supportsStateApi(this@MainActivity)) {
+                                            "Enable Allow remote control in BasicSync. SleepManager will preserve and restore BasicSync's previous mode."
+                                        } else {
+                                            "Enable Allow remote control in BasicSync. This BasicSync version uses legacy STOP → Auto mode behavior."
+                                        },
                                         Toast.LENGTH_LONG
                                     ).show()
                                 } else if (managerEnabled) {
@@ -3827,7 +3835,7 @@ private fun BehaviorCard(
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
         if (jamesDsp) add("Power off JamesDSP")
-        if (basicSync) add("Stop BasicSync")
+        if (basicSync) add("Stop BasicSync when active")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -3840,7 +3848,7 @@ private fun BehaviorCard(
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
         if (jamesDsp) add("Restore JamesDSP")
-        if (basicSync) add("Return BasicSync to auto mode")
+        if (basicSync) add("Restore BasicSync previous mode")
     }
 
     val compactSleepSummary = buildList {
