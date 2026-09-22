@@ -25,7 +25,7 @@ object BasicSyncController {
 
     private const val EXTRA_MODE = "mode"
     private const val EXTRA_RUN_STATE = "run_state"
-    private const val STATE_QUERY_TIMEOUT_MS = 5000L
+    private const val STATE_QUERY_TIMEOUT_MS = 7000L
 
     enum class Mode {
         AUTO_MODE,
