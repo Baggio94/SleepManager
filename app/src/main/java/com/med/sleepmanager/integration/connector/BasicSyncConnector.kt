@@ -23,7 +23,7 @@ object BasicSyncConnector : AppConnector {
         }
 
     override fun currentState(context: Context): ConnectorState {
-        val state = BasicSyncController.requestState(context)
+        val state = BasicSyncController.lastObservedState()
             ?: return ConnectorState.UNKNOWN
 
         return when (state.runState) {
