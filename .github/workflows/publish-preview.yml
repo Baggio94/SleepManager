@@ -60,7 +60,8 @@ jobs:
           set -euo pipefail
           VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)
           VERSION_CODE=$(sed -n 's/^SLEEPMANAGER_VERSION_CODE=//p' gradle.properties)
-          MIN_HELPER_VERSION_CODE=$(sed -n 's/^SLEEPMANAGER_MIN_HELPER_VERSION_CODE=//p' gradle.properties)
+          HELPER_VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_HELPER_VERSION_NAME=//p' gradle.properties)
+          HELPER_VERSION_CODE=$(sed -n 's/^SLEEPMANAGER_HELPER_VERSION_CODE=//p' gradle.properties)
           [ -n "$VERSION_NAME" ] || {
             echo "::error::Version name is missing."
             exit 1
@@ -69,24 +70,29 @@ jobs:
             echo "::error::Version code is missing."
             exit 1
           }
-          [ -n "$MIN_HELPER_VERSION_CODE" ] || {
-            echo "::error::Minimum Helper version code is missing."
+          [ -n "$HELPER_VERSION_NAME" ] || {
+            echo "::error::Helper version name is missing."
             exit 1
           }
-          case "$MIN_HELPER_VERSION_CODE" in
+          [ -n "$HELPER_VERSION_CODE" ] || {
+            echo "::error::Helper version code is missing."
+            exit 1
+          }
+          case "$HELPER_VERSION_CODE" in
             *[!0-9]*)
-              echo "::error::Minimum Helper version code must be numeric."
+              echo "::error::Helper version code must be numeric."
               exit 1
               ;;
           esac
-          if [ "$MIN_HELPER_VERSION_CODE" -lt 1 ] || [ "$MIN_HELPER_VERSION_CODE" -gt "$VERSION_CODE" ]; then
-            echo "::error::Minimum Helper version code must be between 1 and the published Helper version code."
+          if [ "$HELPER_VERSION_CODE" -lt 1 ]; then
+            echo "::error::Helper version code must be greater than zero."
             exit 1
           fi
 
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
-          echo "MIN_HELPER_VERSION_CODE=$MIN_HELPER_VERSION_CODE" >> "$GITHUB_ENV"
+          echo "HELPER_VERSION_NAME=$HELPER_VERSION_NAME" >> "$GITHUB_ENV"
+          echo "HELPER_VERSION_CODE=$HELPER_VERSION_CODE" >> "$GITHUB_ENV"
           echo "RELEASE_TAG=v$VERSION_NAME" >> "$GITHUB_ENV"
 
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION_NAME" ]; then
@@ -127,17 +133,17 @@ jobs:
           mkdir -p dist
 
           cp app/build/outputs/apk/release/app-release.apk             "dist/SleepManager-$VERSION_NAME.apk"
-          cp helper/build/outputs/apk/release/helper-release.apk             "dist/SleepManager-Helper-$VERSION_NAME.apk"
+          cp helper/build/outputs/apk/release/helper-release.apk             "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
 
           MAIN_APK="dist/SleepManager-$VERSION_NAME.apk"
-          HELPER_APK="dist/SleepManager-Helper-$VERSION_NAME.apk"
+          HELPER_APK="dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
           APK_SHA256=$(sha256sum "$MAIN_APK" | awk '{print $1}')
           HELPER_APK_SHA256=$(sha256sum "$HELPER_APK" | awk '{print $1}')
           RELEASE_URL="https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
           APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-$VERSION_NAME.apk"
-          HELPER_APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-Helper-$VERSION_NAME.apk"
+          HELPER_APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
 
-          export VERSION_NAME VERSION_CODE MIN_HELPER_VERSION_CODE APK_SHA256 HELPER_APK_SHA256 RELEASE_URL APK_URL HELPER_APK_URL
+          export VERSION_NAME VERSION_CODE HELPER_VERSION_NAME HELPER_VERSION_CODE APK_SHA256 HELPER_APK_SHA256 RELEASE_URL APK_URL HELPER_APK_URL
           python3 - <<'PY'
           import json
           import os
@@ -148,9 +154,8 @@ jobs:
               "releaseUrl": os.environ["RELEASE_URL"],
               "apkUrl": os.environ["APK_URL"],
               "sha256": os.environ["APK_SHA256"],
-              "helperVersionName": os.environ["VERSION_NAME"],
-              "helperVersionCode": int(os.environ["VERSION_CODE"]),
-              "minimumHelperVersionCode": int(os.environ["MIN_HELPER_VERSION_CODE"]),
+              "helperVersionName": os.environ["HELPER_VERSION_NAME"],
+              "helperVersionCode": int(os.environ["HELPER_VERSION_CODE"]),
               "helperApkUrl": os.environ["HELPER_APK_URL"],
               "helperSha256": os.environ["HELPER_APK_SHA256"],
           }
@@ -172,4 +177,4 @@ jobs:
             gh release create "$RELEASE_TAG"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "SleepManager $VERSION_NAME"               --notes-file RELEASE_NOTES.md               --prerelease
           fi
 
-          gh release upload "$RELEASE_TAG"             "dist/SleepManager-$VERSION_NAME.apk"             "dist/SleepManager-Helper-$VERSION_NAME.apk"             "dist/update.json"             --repo "$GITHUB_REPOSITORY"             --clobber
+          gh release upload "$RELEASE_TAG"             "dist/SleepManager-$VERSION_NAME.apk"             "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"             "dist/update.json"             --repo "$GITHUB_REPOSITORY"             --clobber
