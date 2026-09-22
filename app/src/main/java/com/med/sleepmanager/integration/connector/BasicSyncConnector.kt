@@ -2,12 +2,15 @@ package com.med.sleepmanager.integration.connector
 
 import android.content.Context
 import com.med.sleepmanager.integration.BasicSyncController
+import com.med.sleepmanager.integration.BasicSyncController.Mode
+import com.med.sleepmanager.integration.BasicSyncController.RunState
 
 object BasicSyncConnector : AppConnector {
     override val id: String = "basicsync"
     override val wakeRequiresNetwork: Boolean = false
 
     const val TOKEN_AUTO_MODE = "auto_mode"
+    const val TOKEN_MANUAL_MODE_STARTED = "manual_mode_started"
 
     override fun isInstalled(context: Context): Boolean =
         BasicSyncController.isInstalled(context)
@@ -19,10 +22,21 @@ object BasicSyncConnector : AppConnector {
             ConnectorAvailability.Unavailable("BasicSync is not installed")
         }
 
-    // BasicSync exposes remote-control broadcasts for START/STOP/AUTO_MODE/
-    // MANUAL_MODE, but no public state-query API for other normal apps.
-    override fun currentState(context: Context): ConnectorState =
-        ConnectorState.UNKNOWN
+    override fun currentState(context: Context): ConnectorState {
+        val state = BasicSyncController.requestState(context)
+            ?: return ConnectorState.UNKNOWN
+
+        return when (state.runState) {
+            RunState.RUNNING,
+            RunState.PAUSED,
+            RunState.STARTING -> ConnectorState.ACTIVE
+
+            RunState.NOT_RUNNING,
+            RunState.STOPPING,
+            RunState.IMPORTING,
+            RunState.EXPORTING -> ConnectorState.INACTIVE
+        }
+    }
 
     override fun sleep(context: Context): ConnectorSleepResult {
         if (!isInstalled(context)) {
@@ -33,14 +47,58 @@ object BasicSyncConnector : AppConnector {
             )
         }
 
+        if (!BasicSyncController.supportsStateApi(context)) {
+            val sent = BasicSyncController.sendStop(context)
+            return ConnectorSleepResult(
+                attempted = sent,
+                changed = sent,
+                restoreToken = if (sent) TOKEN_AUTO_MODE else null,
+                detail =
+                    if (sent) {
+                        "Legacy STOP sent; restore target is AUTO_MODE"
+                    } else {
+                        "Legacy STOP not sent"
+                    }
+            )
+        }
+
+        val state = BasicSyncController.requestState(context)
+            ?: return ConnectorSleepResult(
+                attempted = true,
+                changed = false,
+                detail = "No BasicSync state response; Allow remote control may be disabled"
+            )
+
+        if (!shouldStop(state.runState)) {
+            return ConnectorSleepResult(
+                attempted = false,
+                changed = false,
+                detail = "BasicSync already inactive (${state.mode}/${state.runState})"
+            )
+        }
+
+        val restoreToken = when (state.mode) {
+            Mode.AUTO_MODE -> TOKEN_AUTO_MODE
+            Mode.MANUAL_MODE_STARTED -> TOKEN_MANUAL_MODE_STARTED
+            Mode.MANUAL_MODE_STOPPED -> null
+        }
+
+        if (restoreToken == null) {
+            return ConnectorSleepResult(
+                attempted = false,
+                changed = false,
+                detail = "BasicSync is manually stopped; leaving it untouched"
+            )
+        }
+
         val sent = BasicSyncController.sendStop(context)
         return ConnectorSleepResult(
             attempted = sent,
             changed = sent,
-            restoreToken = if (sent) TOKEN_AUTO_MODE else null,
+            restoreToken = if (sent) restoreToken else null,
             detail =
                 if (sent) {
-                    "STOP sent; BasicSync remote control must be enabled"
+                    "STOP sent; restore target=${restoreTargetName(restoreToken)}"
                 } else {
                     "STOP not sent"
                 }
@@ -51,24 +109,49 @@ object BasicSyncConnector : AppConnector {
         context: Context,
         restoreToken: String?
     ): ConnectorWakeResult {
-        if (restoreToken != TOKEN_AUTO_MODE) {
-            return ConnectorWakeResult(
-                attempted = false,
-                success = false,
-                detail = "Missing BasicSync restore token"
-            )
+        val sent = when (restoreToken) {
+            TOKEN_AUTO_MODE ->
+                BasicSyncController.sendAutoMode(context)
+
+            TOKEN_MANUAL_MODE_STARTED ->
+                BasicSyncController.sendStart(context)
+
+            else ->
+                return ConnectorWakeResult(
+                    attempted = false,
+                    success = false,
+                    detail = "Missing or unknown BasicSync restore token"
+                )
         }
 
-        val sent = BasicSyncController.sendAutoMode(context)
         return ConnectorWakeResult(
             attempted = sent,
             success = sent,
             detail =
                 if (sent) {
-                    "AUTO_MODE sent"
+                    "${restoreTargetName(restoreToken)} sent"
                 } else {
-                    "AUTO_MODE not sent"
+                    "${restoreTargetName(restoreToken)} not sent"
                 }
         )
     }
+
+    fun restoreTargetName(restoreToken: String?): String =
+        when (restoreToken) {
+            TOKEN_AUTO_MODE -> "AUTO_MODE"
+            TOKEN_MANUAL_MODE_STARTED -> "START"
+            else -> "UNKNOWN"
+        }
+
+    private fun shouldStop(runState: RunState): Boolean =
+        when (runState) {
+            RunState.RUNNING,
+            RunState.PAUSED,
+            RunState.STARTING -> true
+
+            RunState.NOT_RUNNING,
+            RunState.STOPPING,
+            RunState.IMPORTING,
+            RunState.EXPORTING -> false
+        }
 }
