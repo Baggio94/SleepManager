@@ -140,7 +140,15 @@ object UpdateChecker {
             val helperUpdate = helperUpdateForRelease(appContext, release.helper)
             if (VersionComparator.isNewer(release.versionName, BuildConfig.VERSION_NAME)) {
                 if (notify) {
-                    UpdateNotifier.notifyIfNeeded(appContext, release)
+                    if (helperUpdate != null) {
+                        UpdateNotifier.notifyCombinedIfNeeded(
+                            appContext,
+                            release,
+                            helperUpdate
+                        )
+                    } else {
+                        UpdateNotifier.notifyIfNeeded(appContext, release)
+                    }
                 }
                 UpdateCheckResult.Available(
                     info = release,

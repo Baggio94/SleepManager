@@ -967,6 +967,9 @@ class MainActivity : ComponentActivity() {
         val availableUpdate = remember(refreshToken) {
             UpdateChecker.cachedUpdate(this)
         }
+        val availableHelperUpdate = remember(refreshToken) {
+            UpdateChecker.cachedHelperUpdate(this)
+        }
         val updateNotificationsAllowed = remember(refreshToken) {
             UpdateNotifier.notificationsAllowed(this)
         }
@@ -1231,10 +1234,11 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                availableUpdate?.let { update ->
+                if (availableUpdate != null || availableHelperUpdate != null) {
                     item {
                         UpdateAvailableCard(
-                            update = update,
+                            update = availableUpdate,
+                            helperUpdate = availableHelperUpdate,
                             onUpdate = { currentSection = AppSection.ABOUT }
                         )
                     }
@@ -2004,7 +2008,8 @@ private fun OnboardingCard(
 
 @Composable
 private fun UpdateAvailableCard(
-    update: UpdateInfo,
+    update: UpdateInfo?,
+    helperUpdate: HelperUpdateInfo?,
     onUpdate: () -> Unit
 ) {
     Card(
@@ -2023,12 +2028,24 @@ private fun UpdateAvailableCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Update available",
+                    if (update != null && helperUpdate != null) {
+                        "Updates available"
+                    } else {
+                        "Update available"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "SleepManager ${update.versionName} is available on GitHub.",
+                    when {
+                        update != null && helperUpdate != null ->
+                            "SleepManager ${update.versionName} and Helper ${helperUpdate.versionName} are available."
+                        update != null ->
+                            "SleepManager ${update.versionName} is available on GitHub."
+                        helperUpdate != null ->
+                            "SleepManager Helper ${helperUpdate.versionName} is available."
+                        else -> "An update is available."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
