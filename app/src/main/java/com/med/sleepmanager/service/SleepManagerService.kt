@@ -27,6 +27,7 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.connector.BasicSyncConnector
@@ -373,6 +374,7 @@ class SleepManagerService : Service() {
         startForegroundCompat()
         registerScreenReceiver()
         registerHelperResultReceiver()
+        BasicSyncController.startStateObserver(this)
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
     }
@@ -1970,6 +1972,7 @@ class SleepManagerService : Service() {
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
         releaseSleepTransitionWakeLock()
+        BasicSyncController.stopStateObserver()
         stopThorLidMonitor()
 
         if (receiverRegistered) {
