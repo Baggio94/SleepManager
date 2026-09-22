@@ -286,8 +286,25 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            SleepManagerTheme {
-                SleepManagerScreen()
+            var useSystemColors by rememberSaveable {
+                mutableStateOf(
+                    AppPreferences.useSystemColors(this@MainActivity)
+                )
+            }
+
+            SleepManagerTheme(
+                useSystemColors = useSystemColors
+            ) {
+                SleepManagerScreen(
+                    useSystemColors = useSystemColors,
+                    onUseSystemColorsChanged = { value ->
+                        AppPreferences.setUseSystemColors(
+                            this@MainActivity,
+                            value
+                        )
+                        useSystemColors = value
+                    }
+                )
             }
         }
     }
@@ -792,7 +809,10 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    private fun SleepManagerScreen() {
+    private fun SleepManagerScreen(
+        useSystemColors: Boolean,
+        onUseSystemColorsChanged: (Boolean) -> Unit
+    ) {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
@@ -1054,6 +1074,52 @@ class MainActivity : ComponentActivity() {
                                     currentSection = section
                                     drawerScope.launch { drawerState.close() }
                                 }
+                            )
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = 12.dp,
+                                vertical = 8.dp
+                            ),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = 16.dp,
+                                    end = 8.dp,
+                                    top = 4.dp,
+                                    bottom = 4.dp
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Use system colors",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    if (Build.VERSION.SDK_INT >= 31) {
+                                        "Material You"
+                                    } else {
+                                        "Requires Android 12+"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Switch(
+                                checked = useSystemColors,
+                                onCheckedChange = feedbackChange(
+                                    onUseSystemColorsChanged
+                                ),
+                                enabled = Build.VERSION.SDK_INT >= 31
                             )
                         }
                     }
@@ -2013,7 +2079,11 @@ private fun StatusCard(
                             else -> "Enable it once, and it will run automatically in the background."
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (active) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
