@@ -10,7 +10,6 @@ import java.net.URL
 data class HelperUpdateInfo(
     val versionName: String,
     val versionCode: Long? = null,
-    val minimumCompatibleVersionCode: Long? = null,
     val releaseUrl: String,
     val apkUrl: String? = null,
     val sha256: String? = null
@@ -170,8 +169,6 @@ object UpdateChecker {
         return HelperUpdateInfo(
             versionName = version,
             versionCode = AppPreferences.latestHelperVersionCode(context),
-            minimumCompatibleVersionCode =
-                AppPreferences.minimumHelperVersionCode(context),
             releaseUrl = releaseUrl,
             apkUrl = AppPreferences.latestHelperApkUrl(context),
             sha256 = AppPreferences.latestHelperSha256(context)
@@ -200,18 +197,13 @@ object UpdateChecker {
         installedVersionCode: Long,
         installedVersionName: String,
         helper: HelperUpdateInfo
-    ): Boolean {
-        helper.minimumCompatibleVersionCode?.let { minimumCode ->
-            return installedVersionCode < minimumCode
-        }
-
-        return helper.versionCode?.let { latestCode ->
+    ): Boolean =
+        helper.versionCode?.let { latestCode ->
             latestCode > installedVersionCode
         } ?: VersionComparator.isNewer(
             helper.versionName,
             installedVersionName
         )
-    }
 
     private fun cacheRelease(context: Context, release: UpdateInfo) {
         AppPreferences.setLatestRelease(
@@ -223,7 +215,6 @@ object UpdateChecker {
             sha256 = release.sha256,
             helperVersion = release.helper?.versionName,
             helperVersionCode = release.helper?.versionCode,
-            minimumHelperVersionCode = release.helper?.minimumCompatibleVersionCode,
             helperApkUrl = release.helper?.apkUrl,
             helperSha256 = release.helper?.sha256
         )
@@ -282,13 +273,6 @@ object UpdateChecker {
                     } else {
                         null
                     }
-                val minimumHelperVersionCode =
-                    if (json.has("minimumHelperVersionCode")) {
-                        json.optLong("minimumHelperVersionCode")
-                            .takeIf { it > 0L }
-                    } else {
-                        null
-                    }
                 val helperApkUrl =
                     json.optString("helperApkUrl")
                         .takeIf { it.isNotBlank() }
@@ -301,19 +285,9 @@ object UpdateChecker {
                 helperSha256?.let {
                     require(it.length == 64) { "Invalid Helper SHA-256" }
                 }
-                if (
-                    minimumHelperVersionCode != null &&
-                    helperVersionCode != null
-                ) {
-                    require(minimumHelperVersionCode <= helperVersionCode) {
-                        "Minimum Helper version code exceeds published Helper version"
-                    }
-                }
-
                 HelperUpdateInfo(
                     versionName = helperVersionName,
                     versionCode = helperVersionCode,
-                    minimumCompatibleVersionCode = minimumHelperVersionCode,
                     releaseUrl = releaseUrl,
                     apkUrl = helperApkUrl,
                     sha256 = helperSha256
@@ -362,8 +336,8 @@ object UpdateChecker {
             var sha256: String? = null
             var helperApkUrl: String? = null
             var helperSha256: String? = null
+            var helperVersionName: String? = null
             val expectedApkName = "SleepManager-$version.apk"
-            val expectedHelperName = "SleepManager-Helper-$version.apk"
             val assets = json.optJSONArray("assets")
             if (assets != null) {
                 for (index in 0 until assets.length()) {
@@ -379,17 +353,29 @@ object UpdateChecker {
                             null
                         }
 
-                    when (assetName) {
-                        expectedApkName -> {
+                    when {
+                        assetName == expectedApkName -> {
                             runCatching { validateApkUrl(candidateUrl) }
                                 .onSuccess { apkUrl = candidateUrl }
                             sha256 = candidateSha
                         }
 
-                        expectedHelperName -> {
-                            runCatching { validateApkUrl(candidateUrl) }
-                                .onSuccess { helperApkUrl = candidateUrl }
-                            helperSha256 = candidateSha
+                        assetName.startsWith("SleepManager-Helper-") &&
+                            assetName.endsWith(".apk") -> {
+                            val candidateHelperVersion =
+                                assetName
+                                    .removePrefix("SleepManager-Helper-")
+                                    .removeSuffix(".apk")
+                                    .takeIf { it.isNotBlank() }
+
+                            if (candidateHelperVersion != null) {
+                                runCatching { validateApkUrl(candidateUrl) }
+                                    .onSuccess {
+                                        helperApkUrl = candidateUrl
+                                        helperVersionName = candidateHelperVersion
+                                    }
+                                helperSha256 = candidateSha
+                            }
                         }
                     }
                 }
@@ -397,7 +383,7 @@ object UpdateChecker {
 
             val helper = helperApkUrl?.let { url ->
                 HelperUpdateInfo(
-                    versionName = version,
+                    versionName = helperVersionName ?: version,
                     releaseUrl = releaseUrl,
                     apkUrl = url,
                     sha256 = helperSha256

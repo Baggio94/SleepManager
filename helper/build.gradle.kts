@@ -5,8 +5,10 @@ plugins {
 }
 
 val helperId = providers.gradleProperty("SLEEPMANAGER_HELPER_ID").get()
-val appVersionCode = providers.gradleProperty("SLEEPMANAGER_VERSION_CODE").get().toInt()
-val appVersionName = providers.gradleProperty("SLEEPMANAGER_VERSION_NAME").get()
+val helperVersionCode =
+    providers.gradleProperty("SLEEPMANAGER_HELPER_VERSION_CODE").get().toInt()
+val helperVersionName =
+    providers.gradleProperty("SLEEPMANAGER_HELPER_VERSION_NAME").get()
 
 val signingProperties = Properties().apply {
     val propertiesFile = rootProject.file("signing.properties")
@@ -46,8 +48,8 @@ android {
         applicationId = helperId
         minSdk = 28
         targetSdk = 28
-        versionCode = appVersionCode
-        versionName = appVersionName
+        versionCode = helperVersionCode
+        versionName = helperVersionName
     }
 
     signingConfigs {
