@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SleepManager – Android Handheld Sleep & Standby Battery Manager</title>
+  <meta name="description" content="SleepManager is an Android sleep and wake manager for gaming handhelds, phones and tablets. Reduce standby battery drain by managing Wi-Fi, Bluetooth, Syncthing, BasicSync, Tailscale and more while the device sleeps.">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="https://baggio94.github.io/SleepManager/">
+  <meta property="og:title" content="SleepManager – Android Handheld Sleep & Standby Battery Manager">
+  <meta property="og:description" content="Reduce Android handheld standby battery drain by managing Wi-Fi, Bluetooth, Syncthing, BasicSync, Tailscale and more during sleep.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://baggio94.github.io/SleepManager/">
+  <meta name="twitter:card" content="summary">
+  <meta name="theme-color" content="#0f3f8c">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SleepManager",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Android 9+",
+    "description": "Android sleep and wake manager for gaming handhelds, phones and tablets that helps reduce standby battery drain by managing radios and background integrations during sleep.",
+    "url": "https://baggio94.github.io/SleepManager/",
+    "downloadUrl": "https://github.com/Baggio94/SleepManager/releases/latest",
+    "softwareHelp": "https://github.com/Baggio94/SleepManager"
+  }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071426;
+      --panel: #0e2440;
+      --panel-2: #11305a;
+      --text: #f7fbff;
+      --muted: #b9c9dc;
+      --accent: #72d7ff;
+      --accent-2: #8fa8ff;
+      --border: rgba(255,255,255,.12);
+      --shadow: 0 24px 70px rgba(0,0,0,.28);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(71,145,255,.22), transparent 32rem),
+        radial-gradient(circle at 85% 10%, rgba(91,215,255,.14), transparent 28rem),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    a { color: inherit; }
+    .wrap { width: min(1080px, calc(100% - 36px)); margin: 0 auto; }
+    header { padding: 24px 0; }
+    nav { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+    .brand { font-weight: 800; letter-spacing: -.02em; }
+    .navlinks { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: .95rem; }
+    .navlinks a { text-decoration: none; }
+    .hero { padding: 72px 0 58px; display: grid; grid-template-columns: 1.3fr .7fr; gap: 36px; align-items: center; }
+    .eyebrow { color: var(--accent); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: .82rem; }
+    h1 { font-size: clamp(2.7rem, 7vw, 5.5rem); line-height: .95; letter-spacing: -.055em; margin: 12px 0 22px; }
+    .lead { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.28rem); max-width: 760px; }
+    .buttons { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 13px 18px; border-radius: 12px; text-decoration: none; font-weight: 750; border: 1px solid var(--border); }
+    .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #071426; border: 0; }
+    .btn.secondary { background: rgba(255,255,255,.05); }
+    .device-card {
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      border: 1px solid var(--border); border-radius: 28px; padding: 28px; box-shadow: var(--shadow);
+    }
+    .moon { font-size: 5rem; line-height: 1; }
+    .device-card strong { display:block; font-size:1.35rem; margin-top:18px; }
+    .device-card p { color: var(--muted); margin-bottom:0; }
+    section { padding: 54px 0; }
+    h2 { font-size: clamp(1.9rem, 4vw, 2.8rem); letter-spacing: -.035em; margin: 0 0 12px; }
+    .section-lead { color: var(--muted); max-width: 760px; margin-bottom: 28px; }
+    .grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 22px; }
+    .card h3 { margin: 0 0 8px; font-size: 1.08rem; }
+    .card p { color: var(--muted); margin: 0; }
+    .wide { background: linear-gradient(135deg, var(--panel), var(--panel-2)); border:1px solid var(--border); border-radius: 22px; padding: 28px; }
+    .wide ul { margin: 18px 0 0; padding-left: 22px; color: var(--muted); }
+    .wide li + li { margin-top: 8px; }
+    footer { color: var(--muted); border-top:1px solid var(--border); padding: 28px 0 44px; font-size:.93rem; }
+    footer a { color: var(--text); }
+    @media (max-width: 820px) {
+      .hero { grid-template-columns: 1fr; padding-top: 46px; }
+      .grid { grid-template-columns: 1fr; }
+      .device-card { max-width: 520px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <nav>
+        <div class="brand">SleepManager</div>
+        <div class="navlinks">
+          <a href="#features">Features</a>
+          <a href="#handhelds">Handhelds</a>
+          <a href="https://github.com/Baggio94/SleepManager">GitHub</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap">
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Android sleep & wake manager</div>
+          <h1>Let your handheld actually sleep.</h1>
+          <p class="lead">
+            SleepManager helps reduce unnecessary standby activity on Android gaming handhelds, phones and tablets.
+            It can manage Wi-Fi, Bluetooth, Syncthing-Fork, BasicSync, Tailscale and other integrations while the device sleeps,
+            then restore only the state it changed when you wake it.
+          </p>
+          <div class="buttons">
+            <a class="btn primary" href="https://github.com/Baggio94/SleepManager/releases/latest">Download latest release</a>
+            <a class="btn secondary" href="https://github.com/Baggio94/SleepManager">View on GitHub</a>
+          </div>
+        </div>
+        <div class="device-card">
+          <div class="moon">🌙</div>
+          <strong>Built for real standby use</strong>
+          <p>Useful when an Android handheld spends hours or days asleep between gaming sessions.</p>
+        </div>
+      </section>
+
+      <section id="features">
+        <h2>What SleepManager does</h2>
+        <p class="section-lead">
+          Choose what should be managed during sleep. SleepManager keeps track of the state it actually changed so it can restore things conservatively after wake.
+        </p>
+        <div class="grid">
+          <div class="card"><h3>Wi-Fi & Bluetooth</h3><p>Temporarily disable radios during sleep and restore them only when SleepManager changed them.</p></div>
+          <div class="card"><h3>Syncthing-Fork</h3><p>Stop Syncthing during sleep and return control to its normal FOLLOW behavior after wake and network recovery.</p></div>
+          <div class="card"><h3>BasicSync</h3><p>State-aware sleep and wake handling with BasicSync 3.18+ remote-control and state broadcasts.</p></div>
+          <div class="card"><h3>Tailscale & JamesDSP</h3><p>Manage supported integrations automatically as part of the same sleep and wake cycle.</p></div>
+          <div class="card"><h3>Battery statistics</h3><p>Track sleep duration, drain per hour, deep-sleep percentage, recent sessions and standby estimates.</p></div>
+          <div class="card"><h3>Conditions & delays</h3><p>Use grace periods, custom delays, battery level, charging state, Battery Saver and time windows.</p></div>
+        </div>
+      </section>
+
+      <section id="handhelds">
+        <div class="wide">
+          <h2>Made with Android handhelds in mind</h2>
+          <p class="section-lead">
+            SleepManager was created around the way gaming handhelds are actually used: play for a while, put the device down, and come back hours or days later.
+          </p>
+          <ul>
+            <li>Android 9 / API 28 or newer</li>
+            <li>No root, Shizuku or ADB required for normal use</li>
+            <li>Designed for Android handhelds such as Retroid, Odin, AYN Thor and similar devices</li>
+            <li>Extra closed-lid protection and dock controls are available on the AYN Thor</li>
+            <li>Also works on Android phones and tablets</li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <h2>Why SleepManager?</h2>
+        <p class="section-lead">
+          Android handhelds can sit in standby much longer than a typical phone. Background radios, sync tools and network services may keep doing work even when you are not using the device.
+          SleepManager gives you one place to quiet selected activity during sleep and restore it when the device wakes.
+        </p>
+        <div class="buttons">
+          <a class="btn primary" href="https://github.com/Baggio94/SleepManager/releases/latest">Get SleepManager</a>
+          <a class="btn secondary" href="https://github.com/Baggio94/SleepManager/issues">Report a bug or suggest a feature</a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      SleepManager by Baggio94 · <a href="https://github.com/Baggio94/SleepManager">Source and releases on GitHub</a>
+    </div>
+  </footer>
+</body>
+</html>
