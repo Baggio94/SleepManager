@@ -7,7 +7,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class UpdateInfo(
+data class HelperUpdateInfo(
     val versionName: String,
     val versionCode: Long? = null,
     val releaseUrl: String,
@@ -18,8 +18,25 @@ data class UpdateInfo(
         get() = apkUrl != null && sha256 != null
 }
 
+data class UpdateInfo(
+    val versionName: String,
+    val versionCode: Long? = null,
+    val releaseUrl: String,
+    val apkUrl: String? = null,
+    val sha256: String? = null,
+    val helper: HelperUpdateInfo? = null
+) {
+    val directInstallAvailable: Boolean
+        get() = apkUrl != null && sha256 != null
+}
+
 sealed class UpdateCheckResult {
-    data class Available(val info: UpdateInfo) : UpdateCheckResult()
+    data class Available(
+        val info: UpdateInfo,
+        val helperInfo: HelperUpdateInfo? = null
+    ) : UpdateCheckResult()
+
+    data class HelperAvailable(val info: HelperUpdateInfo) : UpdateCheckResult()
     data class UpToDate(val latestVersion: String) : UpdateCheckResult()
     data class Error(val cause: Throwable) : UpdateCheckResult()
     object Disabled : UpdateCheckResult()
@@ -27,6 +44,7 @@ sealed class UpdateCheckResult {
 }
 
 object UpdateChecker {
+    private const val HELPER_PACKAGE = "com.med.sleepmanager.helper"
     private const val RELEASE_API =
         "https://api.github.com/repos/Baggio94/SleepManager/releases/latest"
     private const val RELEASE_MANIFEST =
@@ -43,9 +61,6 @@ object UpdateChecker {
         val version = AppPreferences.latestReleaseVersion(context) ?: return null
         val url = AppPreferences.latestReleaseUrl(context) ?: return null
 
-        // Developer-only simulations and updater test prereleases can persist
-        // across an in-place install because app preferences are preserved.
-        // Never surface those cached test entries in RC/stable builds.
         if (!BuildConfig.VERSION_NAME.contains("-dev")) {
             val developerTestCache =
                 url == "https://github.com/Baggio94/SleepManager/releases" ||
@@ -59,12 +74,16 @@ object UpdateChecker {
                 versionCode = AppPreferences.latestReleaseVersionCode(context),
                 releaseUrl = url,
                 apkUrl = AppPreferences.latestReleaseApkUrl(context),
-                sha256 = AppPreferences.latestReleaseSha256(context)
+                sha256 = AppPreferences.latestReleaseSha256(context),
+                helper = cachedHelperRelease(context)
             )
         } else {
             null
         }
     }
+
+    fun cachedHelperUpdate(context: Context): HelperUpdateInfo? =
+        helperUpdateForRelease(context, cachedHelperRelease(context))
 
     fun simulateAvailableUpdate(
         context: Context,
@@ -118,11 +137,20 @@ object UpdateChecker {
             val release = fetchLatestStableRelease()
             cacheRelease(appContext, release)
 
+            val helperUpdate = helperUpdateForRelease(appContext, release.helper)
             if (VersionComparator.isNewer(release.versionName, BuildConfig.VERSION_NAME)) {
                 if (notify) {
                     UpdateNotifier.notifyIfNeeded(appContext, release)
                 }
-                UpdateCheckResult.Available(release)
+                UpdateCheckResult.Available(
+                    info = release,
+                    helperInfo = helperUpdate
+                )
+            } else if (helperUpdate != null) {
+                if (notify) {
+                    UpdateNotifier.notifyHelperIfNeeded(appContext, helperUpdate)
+                }
+                UpdateCheckResult.HelperAvailable(helperUpdate)
             } else {
                 UpdateCheckResult.UpToDate(release.versionName)
             }
@@ -135,6 +163,37 @@ object UpdateChecker {
         }
     }
 
+    private fun cachedHelperRelease(context: Context): HelperUpdateInfo? {
+        val version = AppPreferences.latestHelperVersion(context) ?: return null
+        val releaseUrl = AppPreferences.latestReleaseUrl(context) ?: return null
+        return HelperUpdateInfo(
+            versionName = version,
+            versionCode = AppPreferences.latestHelperVersionCode(context),
+            releaseUrl = releaseUrl,
+            apkUrl = AppPreferences.latestHelperApkUrl(context),
+            sha256 = AppPreferences.latestHelperSha256(context)
+        )
+    }
+
+    private fun helperUpdateForRelease(
+        context: Context,
+        helper: HelperUpdateInfo?
+    ): HelperUpdateInfo? {
+        helper ?: return null
+        val installed = runCatching {
+            context.packageManager.getPackageInfo(HELPER_PACKAGE, 0)
+        }.getOrNull() ?: return null
+
+        val newer = helper.versionCode?.let { latestCode ->
+            latestCode > installed.longVersionCode
+        } ?: VersionComparator.isNewer(
+            helper.versionName,
+            installed.versionName.orEmpty()
+        )
+
+        return helper.takeIf { newer }
+    }
+
     private fun cacheRelease(context: Context, release: UpdateInfo) {
         AppPreferences.setLatestRelease(
             context = context,
@@ -142,7 +201,11 @@ object UpdateChecker {
             versionCode = release.versionCode,
             url = release.releaseUrl,
             apkUrl = release.apkUrl,
-            sha256 = release.sha256
+            sha256 = release.sha256,
+            helperVersion = release.helper?.versionName,
+            helperVersionCode = release.helper?.versionCode,
+            helperApkUrl = release.helper?.apkUrl,
+            helperSha256 = release.helper?.sha256
         )
     }
 
@@ -175,12 +238,48 @@ object UpdateChecker {
             require(versionCode > 0L) { "Invalid release version code" }
             require(sha256.length == 64) { "Invalid release SHA-256" }
 
+            val helper = if (json.has("helperApkUrl")) {
+                val helperVersionName =
+                    json.optString("helperVersionName", versionName)
+                        .ifBlank { versionName }
+                val helperVersionCode =
+                    if (json.has("helperVersionCode")) {
+                        json.optLong("helperVersionCode")
+                            .takeIf { it > 0L }
+                    } else {
+                        null
+                    }
+                val helperApkUrl =
+                    json.optString("helperApkUrl")
+                        .takeIf { it.isNotBlank() }
+                val helperSha256 =
+                    json.optString("helperSha256")
+                        .takeIf { it.isNotBlank() }
+                        ?.let(::normalizeSha256)
+
+                helperApkUrl?.let(::validateApkUrl)
+                helperSha256?.let {
+                    require(it.length == 64) { "Invalid Helper SHA-256" }
+                }
+
+                HelperUpdateInfo(
+                    versionName = helperVersionName,
+                    versionCode = helperVersionCode,
+                    releaseUrl = releaseUrl,
+                    apkUrl = helperApkUrl,
+                    sha256 = helperSha256
+                )
+            } else {
+                null
+            }
+
             return UpdateInfo(
                 versionName = versionName,
                 versionCode = versionCode,
                 releaseUrl = releaseUrl,
                 apkUrl = apkUrl,
-                sha256 = sha256
+                sha256 = sha256,
+                helper = helper
             )
         } finally {
             connection.disconnect()
@@ -212,34 +311,56 @@ object UpdateChecker {
 
             var apkUrl: String? = null
             var sha256: String? = null
+            var helperApkUrl: String? = null
+            var helperSha256: String? = null
             val expectedApkName = "SleepManager-$version.apk"
+            val expectedHelperName = "SleepManager-Helper-$version.apk"
             val assets = json.optJSONArray("assets")
             if (assets != null) {
                 for (index in 0 until assets.length()) {
                     val asset = assets.optJSONObject(index) ?: continue
-                    if (asset.optString("name") != expectedApkName) continue
-
+                    val assetName = asset.optString("name")
                     val candidateUrl = asset.optString("browser_download_url")
-                    runCatching { validateApkUrl(candidateUrl) }
-                        .onSuccess { apkUrl = candidateUrl }
-
                     val digest = asset.optString("digest")
-                    if (digest.startsWith("sha256:", ignoreCase = true)) {
-                        val candidateSha =
+                    val candidateSha =
+                        if (digest.startsWith("sha256:", ignoreCase = true)) {
                             normalizeSha256(digest.substringAfter(':'))
-                        if (candidateSha.length == 64) {
+                                .takeIf { it.length == 64 }
+                        } else {
+                            null
+                        }
+
+                    when (assetName) {
+                        expectedApkName -> {
+                            runCatching { validateApkUrl(candidateUrl) }
+                                .onSuccess { apkUrl = candidateUrl }
                             sha256 = candidateSha
                         }
+
+                        expectedHelperName -> {
+                            runCatching { validateApkUrl(candidateUrl) }
+                                .onSuccess { helperApkUrl = candidateUrl }
+                            helperSha256 = candidateSha
+                        }
                     }
-                    break
                 }
+            }
+
+            val helper = helperApkUrl?.let { url ->
+                HelperUpdateInfo(
+                    versionName = version,
+                    releaseUrl = releaseUrl,
+                    apkUrl = url,
+                    sha256 = helperSha256
+                )
             }
 
             return UpdateInfo(
                 versionName = version,
                 releaseUrl = releaseUrl,
                 apkUrl = apkUrl,
-                sha256 = sha256
+                sha256 = sha256,
+                helper = helper
             )
         } finally {
             connection.disconnect()
