@@ -688,10 +688,20 @@ class SleepManagerService : Service() {
                 BasicSyncConnector.id,
                 basicSyncResult.restoreToken
             )
+            val restoreTarget =
+                BasicSyncConnector.restoreTargetName(
+                    basicSyncResult.restoreToken
+                )
             AppPreferences.recordEvent(
                 this,
-                "Sleep → BasicSync stopped"
+                "Sleep → BasicSync STOP sent · restore $restoreTarget"
             )
+            Log.i(
+                TAG,
+                "BasicSync STOP sent; restore target=$restoreTarget"
+            )
+        } else if (basicSyncResult?.detail != null) {
+            Log.i(TAG, "BasicSync unchanged: ${basicSyncResult.detail}")
         }
 
         val stopSent = syncthingResult?.changed == true
@@ -956,14 +966,16 @@ class SleepManagerService : Service() {
             BasicSyncConnector.wake(this, change.restoreToken)
 
         if (wakeResult.success) {
+            val restoreTarget =
+                BasicSyncConnector.restoreTargetName(change.restoreToken)
             SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
             if (!disableRestoreRequested) {
                 AppPreferences.recordEvent(
                     this,
-                    "Wake → BasicSync returned to auto mode"
+                    "Wake → BasicSync restored · $restoreTarget"
                 )
             }
-            Log.i(TAG, "BasicSync AUTO_MODE sent")
+            Log.i(TAG, "BasicSync restore sent: $restoreTarget")
         } else {
             SleepCycleStore.markRestoreProblem(
                 this,
