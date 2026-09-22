@@ -17,7 +17,7 @@ SleepManager can manage these actions when the screen turns off:
 - **Syncthing-Fork** — send STOP during sleep and FOLLOW again after usable network connectivity returns.
 - **Tailscale** — disconnect during sleep and reconnect only when SleepManager verified that it disconnected it.
 - **JamesDSP** — apply OFF during sleep and ON again after wake.
-- **BasicSync** — send STOP during sleep and return BasicSync to AUTO mode after wake.
+- **BasicSync** — with BasicSync 3.18+, query the current mode before sleep, stop it only when active, then restore the exact previous mode on wake.
 
 ### Sleep rules
 
@@ -137,15 +137,20 @@ Install and sign in to the official Tailscale Android app, then enable Tailscale
 
 SleepManager uses BasicSync's official Android remote-control broadcasts.
 
-In BasicSync, enable:
+In BasicSync, enable **Allow remote control**.
 
-**Settings → Advanced → Allow remote control**
+With **BasicSync 3.18 or newer**, SleepManager requests the current BasicSync state before applying a sleep action. It preserves the previous mode and only changes BasicSync when needed:
 
-When BasicSync management is enabled, SleepManager applies this explicit policy:
+- **AUTO mode + active** → STOP during sleep → restore **AUTO mode** on wake
+- **Manual mode + started** → STOP during sleep → restore **started manual mode** on wake
+- **Manual mode + stopped** → leave BasicSync untouched
+- Already inactive/transitional states are left untouched when there is nothing useful to stop
+
+If BasicSync 3.18+ does not answer the state request, SleepManager leaves it unchanged. This normally means **Allow remote control** is disabled.
+
+Older BasicSync versions remain supported with the legacy policy:
 
 **STOP during sleep → AUTO mode after wake**
-
-BasicSync currently does not expose a public state-query API to other normal apps, so SleepManager cannot know whether BasicSync was already manually stopped before sleep.
 
 ### JamesDSP
 
