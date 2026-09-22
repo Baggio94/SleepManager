@@ -27,6 +27,12 @@ object BasicSyncController {
     private const val EXTRA_RUN_STATE = "run_state"
     private const val STATE_QUERY_TIMEOUT_MS = 7000L
 
+    @Volatile
+    private var observedState: RemoteState? = null
+
+    private var observerContext: Context? = null
+    private var observerReceiver: BroadcastReceiver? = null
+
     enum class Mode {
         AUTO_MODE,
         MANUAL_MODE_STARTED,
@@ -47,6 +53,79 @@ object BasicSyncController {
         val mode: Mode,
         val runState: RunState
     )
+
+
+    fun lastObservedState(): RemoteState? = observedState
+
+    @Synchronized
+    fun startStateObserver(context: Context) {
+        val appContext = context.applicationContext
+        if (!isInstalled(appContext) || !supportsStateApi(appContext)) {
+            observedState = null
+            return
+        }
+        if (observerReceiver != null) return
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                parseState(intent)?.let { state ->
+                    observedState = state
+                    Log.i(
+                        TAG,
+                        "STATE_CHANGED observed: mode=${state.mode} runState=${state.runState}"
+                    )
+                }
+            }
+        }
+
+        val filter = IntentFilter(ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            appContext.registerReceiver(
+                receiver,
+                filter,
+                Context.RECEIVER_EXPORTED
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.registerReceiver(receiver, filter)
+        }
+
+        observerContext = appContext
+        observerReceiver = receiver
+        sendRemoteControl(appContext, ACTION_REQUEST_STATE)
+        Log.i(TAG, "BasicSync state observer started")
+    }
+
+    @Synchronized
+    fun stopStateObserver() {
+        val context = observerContext
+        val receiver = observerReceiver
+        if (context != null && receiver != null) {
+            runCatching { context.unregisterReceiver(receiver) }
+        }
+        observerContext = null
+        observerReceiver = null
+    }
+
+    private fun parseState(intent: Intent?): RemoteState? {
+        if (intent?.action != ACTION_STATE_CHANGED) return null
+
+        val mode =
+            intent.getStringExtra(EXTRA_MODE)
+                ?.let { raw ->
+                    runCatching { Mode.valueOf(raw) }.getOrNull()
+                }
+                ?: return null
+
+        val runState =
+            intent.getStringExtra(EXTRA_RUN_STATE)
+                ?.let { raw ->
+                    runCatching { RunState.valueOf(raw) }.getOrNull()
+                }
+                ?: return null
+
+        return RemoteState(mode, runState)
+    }
 
     fun isInstalled(context: Context): Boolean =
         runCatching {
@@ -105,22 +184,13 @@ object BasicSyncController {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action != ACTION_STATE_CHANGED) return
 
-                val mode =
-                    intent.getStringExtra(EXTRA_MODE)
-                        ?.let { raw ->
-                            runCatching { Mode.valueOf(raw) }.getOrNull()
-                        }
-                        ?: return
-
-                val runState =
-                    intent.getStringExtra(EXTRA_RUN_STATE)
-                        ?.let { raw ->
-                            runCatching { RunState.valueOf(raw) }.getOrNull()
-                        }
-                        ?: return
-
-                Log.i(TAG, "STATE_CHANGED received: mode=$mode runState=$runState")
-                result.set(RemoteState(mode, runState))
+                val state = parseState(intent) ?: return
+                observedState = state
+                Log.i(
+                    TAG,
+                    "STATE_CHANGED received: mode=${state.mode} runState=${state.runState}"
+                )
+                result.set(state)
                 latch.countDown()
             }
         }
