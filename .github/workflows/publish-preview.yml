@@ -70,6 +70,16 @@ jobs:
             echo "::error::Version code is missing."
             exit 1
           }
+          case "$VERSION_CODE" in
+            *[!0-9]*)
+              echo "::error::Version code must be numeric."
+              exit 1
+              ;;
+          esac
+          if [ "$VERSION_CODE" -lt 1 ]; then
+            echo "::error::Version code must be greater than zero."
+            exit 1
+          fi
           [ -n "$HELPER_VERSION_NAME" ] || {
             echo "::error::Helper version name is missing."
             exit 1
