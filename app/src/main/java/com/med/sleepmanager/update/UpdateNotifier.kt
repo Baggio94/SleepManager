@@ -22,6 +22,60 @@ object UpdateNotifier {
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
 
+    fun notifyHelperIfNeeded(context: Context, update: HelperUpdateInfo) {
+        if (!notificationsAllowed(context)) return
+        if (
+            AppPreferences.lastNotifiedHelperUpdateVersion(context) ==
+            update.versionName
+        ) {
+            return
+        }
+
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                "SleepManager updates",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notifications when a new stable SleepManager release is available."
+            }
+        )
+
+        val releaseIntent =
+            Intent(context, MainActivity::class.java).apply {
+                putExtra(MainActivity.EXTRA_OPEN_UPDATES, true)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+        val releasePendingIntent = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID + 1,
+            releaseIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification =
+            Notification.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification_sleepmanager)
+                .setContentTitle("SleepManager Helper update available")
+                .setContentText("Helper ${update.versionName} is ready to install.")
+                .setStyle(
+                    Notification.BigTextStyle().bigText(
+                        "SleepManager Helper ${update.versionName} is available. Tap to open the in-app updater."
+                    )
+                )
+                .setContentIntent(releasePendingIntent)
+                .setAutoCancel(true)
+                .build()
+
+        manager.notify(NOTIFICATION_ID + 1, notification)
+        AppPreferences.setLastNotifiedHelperUpdateVersion(
+            context,
+            update.versionName
+        )
+    }
+
     fun notifyIfNeeded(context: Context, update: UpdateInfo) {
         if (!notificationsAllowed(context)) return
         if (
