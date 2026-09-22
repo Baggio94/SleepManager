@@ -206,6 +206,7 @@ class MainActivity : ComponentActivity() {
     private var currentBluetoothState by mutableStateOf<Boolean?>(null)
     private var currentSyncthingState by mutableStateOf<SyncthingController.RuntimeState?>(null)
     private var currentTailscaleConnected by mutableStateOf<Boolean?>(null)
+    private var currentBasicSyncState by mutableStateOf<BasicSyncController.RemoteState?>(null)
     @Volatile
     private var syncthingStateProbeRunning = false
     private var helperStateReceiverRegistered = false
@@ -237,6 +238,17 @@ class MainActivity : ComponentActivity() {
         currentTailscaleConnected =
             if (TailscaleController.isInstalled(this)) {
                 TailscaleController.isConnected(this)
+            } else {
+                null
+            }
+
+        currentBasicSyncState =
+            if (
+                BasicSyncController.isInstalled(this) &&
+                BasicSyncController.supportsStateApi(this)
+            ) {
+                BasicSyncController.startStateObserver(this)
+                BasicSyncController.lastObservedState()
             } else {
                 null
             }
@@ -1568,7 +1580,23 @@ class MainActivity : ComponentActivity() {
                             },
                             status = if (basicSyncInstalled) {
                                 if (BasicSyncController.supportsStateApi(this@MainActivity)) {
-                                    "State-aware restore"
+                                    currentBasicSyncState?.let { state ->
+                                        val mode = when (state.mode) {
+                                            BasicSyncController.Mode.AUTO_MODE -> "Auto mode"
+                                            BasicSyncController.Mode.MANUAL_MODE_STARTED -> "Manual mode"
+                                            BasicSyncController.Mode.MANUAL_MODE_STOPPED -> "Manual mode"
+                                        }
+                                        val runState = when (state.runState) {
+                                            BasicSyncController.RunState.RUNNING -> "Running"
+                                            BasicSyncController.RunState.NOT_RUNNING -> "Stopped"
+                                            BasicSyncController.RunState.PAUSED -> "Paused"
+                                            BasicSyncController.RunState.STARTING -> "Starting"
+                                            BasicSyncController.RunState.STOPPING -> "Stopping"
+                                            BasicSyncController.RunState.IMPORTING -> "Importing"
+                                            BasicSyncController.RunState.EXPORTING -> "Exporting"
+                                        }
+                                        "$mode · $runState"
+                                    } ?: "Checking…"
                                 } else {
                                     "Legacy: STOP → Auto mode"
                                 }
