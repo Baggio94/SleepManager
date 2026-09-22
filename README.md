@@ -1,10 +1,16 @@
 # SleepManager
 
-SleepManager is a lightweight Android app that reduces unnecessary background activity while your device sleeps and restores the state when it wakes.
+SleepManager is an Android sleep and wake manager for gaming handhelds, phones and tablets designed to reduce unnecessary standby battery drain by managing Wi-Fi, Bluetooth, Syncthing-Fork, BasicSync, Tailscale and other background integrations while the device sleeps.
 
-It is designed for Android handhelds, phones and tablets, with extra protection and dock controls for the **AYN Thor**.
+It restores only the state it actually changed when the device wakes, with extra closed-lid protection and dock controls for the **AYN Thor**.
 
 **No root, Shizuku or ADB is required for normal use.**
+
+## Why SleepManager?
+
+Android gaming handhelds can stay asleep for hours or days between sessions. SleepManager helps reduce unnecessary standby activity by temporarily disabling selected radios and services during sleep, then restoring only the state it changed when the device wakes.
+
+It is designed for devices such as **Retroid**, **Odin**, **AYN Thor** and other Android handhelds, while also working on Android phones and tablets.
 
 ## Features
 
