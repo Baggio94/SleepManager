@@ -152,11 +152,14 @@ jobs:
             "dist/SleepManager-Helper-$VERSION_NAME.apk"
 
           MAIN_APK="dist/SleepManager-$VERSION_NAME.apk"
+          HELPER_APK="dist/SleepManager-Helper-$VERSION_NAME.apk"
           APK_SHA256=$(sha256sum "$MAIN_APK" | awk '{print $1}')
+          HELPER_APK_SHA256=$(sha256sum "$HELPER_APK" | awk '{print $1}')
           RELEASE_URL="https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
           APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-$VERSION_NAME.apk"
+          HELPER_APK_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/SleepManager-Helper-$VERSION_NAME.apk"
 
-          export APK_SHA256 RELEASE_URL APK_URL
+          export VERSION_NAME VERSION_CODE APK_SHA256 HELPER_APK_SHA256 RELEASE_URL APK_URL HELPER_APK_URL
           python3 - <<'PY'
           import json
           import os
@@ -167,6 +170,10 @@ jobs:
               "releaseUrl": os.environ["RELEASE_URL"],
               "apkUrl": os.environ["APK_URL"],
               "sha256": os.environ["APK_SHA256"],
+              "helperVersionName": os.environ["VERSION_NAME"],
+              "helperVersionCode": int(os.environ["VERSION_CODE"]),
+              "helperApkUrl": os.environ["HELPER_APK_URL"],
+              "helperSha256": os.environ["HELPER_APK_SHA256"],
           }
 
           with open("dist/update.json", "w", encoding="utf-8") as handle:
