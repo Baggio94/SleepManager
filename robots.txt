@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://baggio94.github.io/SleepManager/sitemap.xml
