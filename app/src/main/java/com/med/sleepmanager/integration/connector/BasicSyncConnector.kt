@@ -62,12 +62,13 @@ object BasicSyncConnector : AppConnector {
             )
         }
 
-        val state = BasicSyncController.requestState(context)
-            ?: return ConnectorSleepResult(
-                attempted = true,
-                changed = false,
-                detail = "No BasicSync state response; Allow remote control may be disabled"
-            )
+        val state =
+            BasicSyncController.lastObservedState()
+                ?: return ConnectorSleepResult(
+                    attempted = false,
+                    changed = false,
+                    detail = "No pre-sleep BasicSync state observed yet; leaving it untouched"
+                )
 
         if (!shouldStop(state.runState)) {
             return ConnectorSleepResult(
