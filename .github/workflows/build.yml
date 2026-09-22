@@ -136,13 +136,14 @@ jobs:
           set -euo pipefail
 
           VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)
+          HELPER_VERSION_NAME=$(sed -n 's/^SLEEPMANAGER_HELPER_VERSION_NAME=//p' gradle.properties)
           echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           mkdir -p dist
 
           cp app/build/outputs/apk/release/app-release.apk \
             "dist/SleepManager-$VERSION_NAME.apk"
           cp helper/build/outputs/apk/release/helper-release.apk \
-            "dist/SleepManager-Helper-$VERSION_NAME.apk"
+            "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
