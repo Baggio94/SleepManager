@@ -14,15 +14,72 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
 
-private val LightFallback = lightColorScheme(
-    primary = Color(0xFF1F5F8B),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFCDE7FF),
-    onPrimaryContainer = Color(0xFF001D32),
-    secondary = Color(0xFF52606C),
-    secondaryContainer = Color(0xFFD6E4F0),
-    background = Color(0xFFF7F9FC),
-    surface = Color(0xFFF7F9FC)
+private val SleepManagerLight = lightColorScheme(
+    primary = Color(0xFF2A4174),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF5E73A9),
+    onPrimaryContainer = Color(0xFF10182D),
+    secondary = Color(0xFF596078),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD9DEEF),
+    onSecondaryContainer = Color(0xFF171B2A),
+    tertiary = Color(0xFF4C5F88),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFDCE4FF),
+    onTertiaryContainer = Color(0xFF101B33),
+    background = Color(0xFFFAF8FF),
+    onBackground = Color(0xFF1A1B20),
+    surface = Color(0xFFFAF8FF),
+    onSurface = Color(0xFF1A1B20),
+    surfaceVariant = Color(0xFFBCC1D5),
+    onSurfaceVariant = Color(0xFF40434B),
+    outline = Color(0xFF6E7488),
+    outlineVariant = Color(0xFFE1E2EC),
+    inverseSurface = Color(0xFF2F3036),
+    inverseOnSurface = Color(0xFFF1F0F7),
+    inversePrimary = Color(0xFFB7CAFF),
+    surfaceTint = Color(0xFF2A4174),
+    surfaceBright = Color(0xFFFAF8FF),
+    surfaceDim = Color(0xFFDAD8E0),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF4F3FA),
+    surfaceContainer = Color(0xFFF0EFF6),
+    surfaceContainerHigh = Color(0xFFEAE9F0),
+    surfaceContainerHighest = Color(0xFFE4E3EA)
+)
+
+private val SleepManagerDark = darkColorScheme(
+    primary = Color(0xFFB7CAFF),
+    onPrimary = Color(0xFF223961),
+    primaryContainer = Color(0xFF7A90C8),
+    onPrimaryContainer = Color(0xFF10182D),
+    secondary = Color(0xFFC6CAE0),
+    onSecondary = Color(0xFF2E3244),
+    secondaryContainer = Color(0xFF444A5E),
+    onSecondaryContainer = Color(0xFFE1E4F7),
+    tertiary = Color(0xFFB8CAF7),
+    onTertiary = Color(0xFF20365C),
+    tertiaryContainer = Color(0xFF354B74),
+    onTertiaryContainer = Color(0xFFDCE4FF),
+    background = Color(0xFF121318),
+    onBackground = Color(0xFFE4E1E9),
+    surface = Color(0xFF121318),
+    onSurface = Color(0xFFE4E1E9),
+    surfaceVariant = Color(0xFF444A5E),
+    onSurfaceVariant = Color(0xFFC9CAD4),
+    outline = Color(0xFF8A90A5),
+    outlineVariant = Color(0xFF44464F),
+    inverseSurface = Color(0xFFE4E1E9),
+    inverseOnSurface = Color(0xFF303036),
+    inversePrimary = Color(0xFF2A4174),
+    surfaceTint = Color(0xFFB7CAFF),
+    surfaceBright = Color(0xFF393A40),
+    surfaceDim = Color(0xFF121318),
+    surfaceContainerLowest = Color(0xFF0D0E12),
+    surfaceContainerLow = Color(0xFF1A1B20),
+    surfaceContainer = Color(0xFF1E1F24),
+    surfaceContainerHigh = Color(0xFF28292F),
+    surfaceContainerHighest = Color(0xFF33343A)
 )
 
 private val AppTypography = Typography(
@@ -37,27 +94,21 @@ private val AppTypography = Typography(
     labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 )
 
-private val DarkFallback = darkColorScheme(
-    primary = Color(0xFF96CCF7),
-    onPrimary = Color(0xFF00344F),
-    primaryContainer = Color(0xFF114B70),
-    onPrimaryContainer = Color(0xFFCDE7FF),
-    secondary = Color(0xFFBAC8D5),
-    secondaryContainer = Color(0xFF344956),
-    background = Color(0xFF0D141A),
-    surface = Color(0xFF0D141A)
-)
-
 @Composable
-fun SleepManagerTheme(content: @Composable () -> Unit) {
+fun SleepManagerTheme(
+    useSystemColors: Boolean = false,
+    content: @Composable () -> Unit
+) {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
 
     val colors = when {
-        Build.VERSION.SDK_INT >= 31 && dark -> dynamicDarkColorScheme(context)
-        Build.VERSION.SDK_INT >= 31 && !dark -> dynamicLightColorScheme(context)
-        dark -> DarkFallback
-        else -> LightFallback
+        useSystemColors && Build.VERSION.SDK_INT >= 31 && dark ->
+            dynamicDarkColorScheme(context)
+        useSystemColors && Build.VERSION.SDK_INT >= 31 && !dark ->
+            dynamicLightColorScheme(context)
+        dark -> SleepManagerDark
+        else -> SleepManagerLight
     }
 
     MaterialTheme(
