@@ -3011,7 +3011,10 @@ private fun CompactIntegrationRow(
                 )
 
                 status?.let {
-                    val active = it == "Running" || it == "Connected"
+                    val active =
+                        it.contains("Running", ignoreCase = true) ||
+                            it.contains("Connected", ignoreCase = true) ||
+                            it.contains("Starting", ignoreCase = true)
                     Text(
                         "•",
                         style = MaterialTheme.typography.bodyMedium,
