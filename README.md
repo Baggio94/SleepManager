@@ -17,7 +17,7 @@ SleepManager can manage these actions when the screen turns off:
 - **Syncthing-Fork** — send STOP during sleep and FOLLOW again after usable network connectivity returns.
 - **Tailscale** — disconnect during sleep and reconnect only when SleepManager verified that it disconnected it.
 - **JamesDSP** — apply OFF during sleep and ON again after wake.
-- **BasicSync** — with BasicSync 3.18+, query the current mode before sleep, stop it only when active, then restore the exact previous mode on wake.
+- **BasicSync** — with BasicSync 3.18+, observe the current mode/run state while awake, stop it only when active, then restore the exact previous mode on wake.
 
 ### Sleep rules
 
@@ -41,6 +41,8 @@ SleepManager records sleep-session information such as:
 - 7-day drain averages
 - estimated standby time
 - best / worst measured drain
+- a more precise current battery percentage when Android exposes charge-counter and full-charge data
+- learned full-charge capacity when available, with design capacity and level-based fallbacks
 
 To keep long-term estimates meaningful, only **eligible sleep sessions of at least 3 hours** are used for battery statistics and standby estimates.
 
@@ -71,6 +73,12 @@ For a direct update, SleepManager verifies:
 - the permanent SleepManager signing certificate
 
 The verified APK is then handed to Android's official package installer.
+
+### Appearance
+
+SleepManager uses its own fixed light/dark palette by default.
+
+On Android 12 / API 31 or newer, **Use system colors** can be enabled to use Material You dynamic colors instead. Active integration states such as **Running**, **Starting** and **Connected** use the same highlighted status treatment throughout the app.
 
 ## AYN Thor
 
@@ -135,18 +143,22 @@ Install and sign in to the official Tailscale Android app, then enable Tailscale
 
 ### BasicSync
 
-SleepManager uses BasicSync's official Android remote-control broadcasts.
+SleepManager uses BasicSync's official Android remote-control and state broadcasts.
 
 In BasicSync, enable **Allow remote control**.
 
-With **BasicSync 3.18 or newer**, SleepManager requests the current BasicSync state before applying a sleep action. It preserves the previous mode and only changes BasicSync when needed:
+With **BasicSync 3.18 or newer**, SleepManager observes BasicSync's mode and run state while the SleepManager service is active. This preserves the state from before screen-off instead of trying to discover it after BasicSync may already have reacted to sleep.
+
+The Integrations page also shows the latest observed BasicSync state, such as **Auto mode · Running** or **Manual mode · Stopped**.
+
+Sleep behavior is state-aware:
 
 - **AUTO mode + active** → STOP during sleep → restore **AUTO mode** on wake
 - **Manual mode + started** → STOP during sleep → restore **started manual mode** on wake
 - **Manual mode + stopped** → leave BasicSync untouched
 - Already inactive/transitional states are left untouched when there is nothing useful to stop
 
-If BasicSync 3.18+ does not answer the state request, SleepManager leaves it unchanged. This normally means **Allow remote control** is disabled.
+If no reliable pre-sleep state has been observed yet, SleepManager leaves BasicSync unchanged rather than guessing. If **Allow remote control** is disabled, BasicSync ignores the remote-control/state requests and SleepManager likewise leaves it untouched.
 
 Older BasicSync versions remain supported with the legacy policy:
 

@@ -1,47 +1,54 @@
-# SleepManager 0.5.2
+# SleepManager 0.5.3
 
-SleepManager 0.5.2 adds better AYN Thor dock behavior, more reliable battery statistics, and clearer Wi-Fi diagnostics.
+SleepManager 0.5.3 adds state-aware BasicSync support, live integration status, more precise battery reporting and optional Material You colors.
 
 ## What's new
 
-### Better AYN Thor dock support
+### BasicSync integration
 
-Closed-lid protection is now dock-aware.
+SleepManager now supports **BasicSync** through its official Android remote-control API.
 
-- Closing the Thor while an external display is active no longer triggers a false sleep.
-- **Sleep when external display disconnects** can put the Thor to sleep automatically if the external display is unplugged while the lid is still closed.
-- **Power button sleeps with lid closed** lets the Power button start a normal sleep cycle while the Thor is awake with the lid closed.
-- Turning these optional controls off keeps AYN's default behavior.
-- SleepManager never wakes an already sleeping Thor to implement these options.
+In BasicSync, enable:
 
-### More reliable battery statistics
+**Allow remote control**
 
-Short sleeps can distort hourly drain estimates, so SleepManager now uses only eligible sleep sessions of **3 hours or longer** for:
+With **BasicSync 3.18 or newer**, SleepManager observes BasicSync's current mode and run state while the SleepManager service is active. This lets it preserve the state from before screen-off and restore it correctly after wake.
 
-- 7-day drain average
-- charge drain
-- deep-sleep average
-- measured sleep total
-- best / worst drain
-- standby estimates
+- **Auto mode + active** → STOP during sleep → restore **Auto mode** on wake
+- **Manual mode + started** → STOP during sleep → restore **started manual mode** on wake
+- **Manual mode + stopped** → left untouched
+- Inactive or transitional states are left untouched when there is nothing useful to stop
 
-Shorter sleeps are still visible in **Last sleep** and history.
+The Integrations page also shows the latest observed BasicSync state, such as:
 
-Sessions containing charging remain excluded from drain statistics.
+- **Auto mode · Running**
+- **Manual mode · Running**
+- **Manual mode · Stopped**
+- **Paused / Starting / Stopping** when reported by BasicSync
 
-### Clearer Wi-Fi failure diagnostics
+If SleepManager has not yet observed a reliable pre-sleep state, it leaves BasicSync unchanged rather than guessing.
 
-SleepManager can now distinguish between Wi-Fi already being in the requested state and a Wi-Fi toggle that was actually attempted but failed.
+Older BasicSync versions remain supported with the legacy behavior:
 
-The Activity log and copied diagnostics now include:
+**STOP during sleep → AUTO mode after wake**
 
-- attempted action
-- success / failure
-- Airplane-mode state
+### More precise battery information
 
-When relevant, the Activity log can show:
+When Android exposes the relevant battery counters, SleepManager can now show a more precise current battery percentage in Stats instead of being limited to the rounded Android level.
 
-**Wi-Fi toggle failed · Airplane mode is enabled**
+Capacity estimation now prefers the battery's learned **full-charge capacity** when available, then falls back to design capacity or the existing level-based estimate.
+
+This does not change the existing sleep-session rules: long-term drain and standby estimates still use eligible non-charging sessions of at least **3 hours**.
+
+### Appearance and UI polish
+
+SleepManager now includes **Use system colors**.
+
+- The existing SleepManager light/dark palette remains the default.
+- On Android 12 / API 31 or newer, enabling **Use system colors** applies Material You dynamic colors.
+- Fixed light and dark palettes were refined for closer visual consistency.
+- Active integration states such as **Running**, **Starting** and **Connected** now use the same highlighted status color across integrations.
+- Syncthing and BasicSync use distinct integration icons.
 
 ## Main features
 
@@ -52,6 +59,7 @@ SleepManager can manage during sleep:
 - Syncthing-Fork
 - Tailscale
 - JamesDSP
+- BasicSync
 
 It also includes:
 
@@ -68,6 +76,7 @@ It also includes:
 - Android 9 / API 28 or newer
 - Main app package: `com.med.sleepmanager`
 - Helper package: `com.med.sleepmanager.helper`
+- BasicSync 3.18+ recommended for state-aware restore
 - No root, Shizuku or ADB required for normal use
 
 ## Installation
@@ -76,13 +85,13 @@ It also includes:
 
 Download and install:
 
-**SleepManager-0.5.2.apk**
+**SleepManager-0.5.3.apk**
 
 ### 2. Install the Helper if you want Wi-Fi / Bluetooth control
 
 Install:
 
-**SleepManager-Helper-0.5.2.apk**
+**SleepManager-Helper-0.5.3.apk**
 
 The Helper has no launcher icon or separate interface.
 
@@ -90,12 +99,14 @@ The Helper has no launcher icon or separate interface.
 
 Open SleepManager, choose what should be managed during sleep, configure any optional rules, then enable SleepManager.
 
-## Updating from 0.5.1
+For BasicSync, enable **Allow remote control** inside BasicSync before enabling the integration in SleepManager.
+
+## Updating from 0.5.2
 
 SleepManager 0.5.1 and newer can check for stable updates from:
 
 **About → Updates**
 
-The built-in updater verifies the downloaded APK before handing it to Android's official installer.
+The built-in updater verifies the downloaded APK before handing it to Android's official package installer.
 
 Official releases keep the same package IDs and permanent signing certificate, so normal updates preserve existing settings.
