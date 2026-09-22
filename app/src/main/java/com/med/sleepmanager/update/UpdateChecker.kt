@@ -10,6 +10,7 @@ import java.net.URL
 data class HelperUpdateInfo(
     val versionName: String,
     val versionCode: Long? = null,
+    val minimumCompatibleVersionCode: Long? = null,
     val releaseUrl: String,
     val apkUrl: String? = null,
     val sha256: String? = null
@@ -169,6 +170,8 @@ object UpdateChecker {
         return HelperUpdateInfo(
             versionName = version,
             versionCode = AppPreferences.latestHelperVersionCode(context),
+            minimumCompatibleVersionCode =
+                AppPreferences.minimumHelperVersionCode(context),
             releaseUrl = releaseUrl,
             apkUrl = AppPreferences.latestHelperApkUrl(context),
             sha256 = AppPreferences.latestHelperSha256(context)
@@ -184,14 +187,30 @@ object UpdateChecker {
             context.packageManager.getPackageInfo(HELPER_PACKAGE, 0)
         }.getOrNull() ?: return null
 
-        val newer = helper.versionCode?.let { latestCode ->
-            latestCode > installed.longVersionCode
+        return helper.takeIf {
+            helperNeedsUpdate(
+                installedVersionCode = installed.longVersionCode,
+                installedVersionName = installed.versionName.orEmpty(),
+                helper = helper
+            )
+        }
+    }
+
+    internal fun helperNeedsUpdate(
+        installedVersionCode: Long,
+        installedVersionName: String,
+        helper: HelperUpdateInfo
+    ): Boolean {
+        helper.minimumCompatibleVersionCode?.let { minimumCode ->
+            return installedVersionCode < minimumCode
+        }
+
+        return helper.versionCode?.let { latestCode ->
+            latestCode > installedVersionCode
         } ?: VersionComparator.isNewer(
             helper.versionName,
-            installed.versionName.orEmpty()
+            installedVersionName
         )
-
-        return helper.takeIf { newer }
     }
 
     private fun cacheRelease(context: Context, release: UpdateInfo) {
@@ -204,6 +223,7 @@ object UpdateChecker {
             sha256 = release.sha256,
             helperVersion = release.helper?.versionName,
             helperVersionCode = release.helper?.versionCode,
+            minimumHelperVersionCode = release.helper?.minimumCompatibleVersionCode,
             helperApkUrl = release.helper?.apkUrl,
             helperSha256 = release.helper?.sha256
         )
@@ -262,6 +282,13 @@ object UpdateChecker {
                     } else {
                         null
                     }
+                val minimumHelperVersionCode =
+                    if (json.has("minimumHelperVersionCode")) {
+                        json.optLong("minimumHelperVersionCode")
+                            .takeIf { it > 0L }
+                    } else {
+                        null
+                    }
                 val helperApkUrl =
                     json.optString("helperApkUrl")
                         .takeIf { it.isNotBlank() }
@@ -274,10 +301,19 @@ object UpdateChecker {
                 helperSha256?.let {
                     require(it.length == 64) { "Invalid Helper SHA-256" }
                 }
+                if (
+                    minimumHelperVersionCode != null &&
+                    helperVersionCode != null
+                ) {
+                    require(minimumHelperVersionCode <= helperVersionCode) {
+                        "Minimum Helper version code exceeds published Helper version"
+                    }
+                }
 
                 HelperUpdateInfo(
                     versionName = helperVersionName,
                     versionCode = helperVersionCode,
+                    minimumCompatibleVersionCode = minimumHelperVersionCode,
                     releaseUrl = releaseUrl,
                     apkUrl = helperApkUrl,
                     sha256 = helperSha256

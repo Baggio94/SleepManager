@@ -40,6 +40,7 @@ object AppPreferences {
     private const val KEY_LATEST_RELEASE_SHA256 = "latest_release_sha256"
     private const val KEY_LATEST_HELPER_VERSION = "latest_helper_version"
     private const val KEY_LATEST_HELPER_VERSION_CODE = "latest_helper_version_code"
+    private const val KEY_MINIMUM_HELPER_VERSION_CODE = "minimum_helper_version_code"
     private const val KEY_LATEST_HELPER_APK_URL = "latest_helper_apk_url"
     private const val KEY_LATEST_HELPER_SHA256 = "latest_helper_sha256"
     private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "last_notified_update_version"
@@ -293,6 +294,11 @@ object AppPreferences {
             .getLong(KEY_LATEST_HELPER_VERSION_CODE, -1L)
             .takeIf { it >= 0L }
 
+    fun minimumHelperVersionCode(context: Context): Long? =
+        prefs(context)
+            .getLong(KEY_MINIMUM_HELPER_VERSION_CODE, -1L)
+            .takeIf { it >= 0L }
+
     fun latestHelperApkUrl(context: Context): String? =
         prefs(context).getString(KEY_LATEST_HELPER_APK_URL, null)
 
@@ -308,6 +314,7 @@ object AppPreferences {
         sha256: String?,
         helperVersion: String?,
         helperVersionCode: Long?,
+        minimumHelperVersionCode: Long?,
         helperApkUrl: String?,
         helperSha256: String?
     ) =
@@ -338,6 +345,14 @@ object AppPreferences {
                     putLong(KEY_LATEST_HELPER_VERSION_CODE, helperVersionCode)
                 } else {
                     remove(KEY_LATEST_HELPER_VERSION_CODE)
+                }
+                if (minimumHelperVersionCode != null) {
+                    putLong(
+                        KEY_MINIMUM_HELPER_VERSION_CODE,
+                        minimumHelperVersionCode
+                    )
+                } else {
+                    remove(KEY_MINIMUM_HELPER_VERSION_CODE)
                 }
                 if (helperApkUrl != null) {
                     putString(KEY_LATEST_HELPER_APK_URL, helperApkUrl)

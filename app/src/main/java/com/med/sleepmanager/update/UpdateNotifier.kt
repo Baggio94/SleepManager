@@ -59,10 +59,10 @@ object UpdateNotifier {
             Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification_sleepmanager)
                 .setContentTitle("SleepManager Helper update available")
-                .setContentText("Helper ${update.versionName} is ready to install.")
+                .setContentText("Update the Helper to keep Wi-Fi and Bluetooth control fully compatible.")
                 .setStyle(
                     Notification.BigTextStyle().bigText(
-                        "SleepManager Helper ${update.versionName} is available. Tap to open the in-app updater."
+                        "SleepManager Helper ${update.versionName} is required for full Wi-Fi and Bluetooth compatibility. Tap to open the in-app updater."
                     )
                 )
                 .setContentIntent(releasePendingIntent)
