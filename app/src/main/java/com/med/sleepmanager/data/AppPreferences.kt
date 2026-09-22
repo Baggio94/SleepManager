@@ -10,6 +10,7 @@ object AppPreferences {
     private const val KEY_SYNCTHING = "syncthing"
     private const val KEY_TAILSCALE = "tailscale"
     private const val KEY_JAMES_DSP = "james_dsp"
+    private const val KEY_BASICSYNC = "basicsync"
     private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_THOR_DOCK_DISCONNECT_SLEEP = "thor_dock_disconnect_sleep"
     private const val KEY_THOR_CLOSED_POWER_SLEEP = "thor_closed_power_sleep"
@@ -30,6 +31,7 @@ object AppPreferences {
     private const val KEY_LAST_EVENT = "last_event"
     private const val KEY_LAST_EVENT_TIME = "last_event_time"
     private const val KEY_AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
+    private const val KEY_USE_SYSTEM_COLORS = "use_system_colors"
     private const val KEY_LAST_UPDATE_CHECK_ATTEMPT = "last_update_check_attempt"
     private const val KEY_LATEST_RELEASE_VERSION = "latest_release_version"
     private const val KEY_LATEST_RELEASE_VERSION_CODE = "latest_release_version_code"
@@ -84,6 +86,12 @@ object AppPreferences {
 
     fun setManageJamesDsp(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_JAMES_DSP, value).apply()
+
+    fun manageBasicSync(context: Context) =
+        prefs(context).getBoolean(KEY_BASICSYNC, false)
+
+    fun setManageBasicSync(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_BASICSYNC, value).apply()
 
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)
@@ -241,6 +249,12 @@ object AppPreferences {
 
     fun setAutomaticUpdateChecks(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_AUTOMATIC_UPDATE_CHECKS, value).apply()
+
+    fun useSystemColors(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_USE_SYSTEM_COLORS, false)
+
+    fun setUseSystemColors(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_USE_SYSTEM_COLORS, value).apply()
 
     fun lastUpdateCheckAttempt(context: Context): Long =
         prefs(context).getLong(KEY_LAST_UPDATE_CHECK_ATTEMPT, 0L)

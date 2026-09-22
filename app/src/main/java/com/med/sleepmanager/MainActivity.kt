@@ -118,10 +118,12 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
+import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
+import com.med.sleepmanager.integration.connector.BasicSyncConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
@@ -204,6 +206,7 @@ class MainActivity : ComponentActivity() {
     private var currentBluetoothState by mutableStateOf<Boolean?>(null)
     private var currentSyncthingState by mutableStateOf<SyncthingController.RuntimeState?>(null)
     private var currentTailscaleConnected by mutableStateOf<Boolean?>(null)
+    private var currentBasicSyncState by mutableStateOf<BasicSyncController.RemoteState?>(null)
     @Volatile
     private var syncthingStateProbeRunning = false
     private var helperStateReceiverRegistered = false
@@ -235,6 +238,17 @@ class MainActivity : ComponentActivity() {
         currentTailscaleConnected =
             if (TailscaleController.isInstalled(this)) {
                 TailscaleController.isConnected(this)
+            } else {
+                null
+            }
+
+        currentBasicSyncState =
+            if (
+                BasicSyncController.isInstalled(this) &&
+                BasicSyncController.supportsStateApi(this)
+            ) {
+                BasicSyncController.startStateObserver(this)
+                BasicSyncController.lastObservedState()
             } else {
                 null
             }
@@ -284,8 +298,25 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            SleepManagerTheme {
-                SleepManagerScreen()
+            var useSystemColors by rememberSaveable {
+                mutableStateOf(
+                    AppPreferences.useSystemColors(this@MainActivity)
+                )
+            }
+
+            SleepManagerTheme(
+                useSystemColors = useSystemColors
+            ) {
+                SleepManagerScreen(
+                    useSystemColors = useSystemColors,
+                    onUseSystemColorsChanged = { value ->
+                        AppPreferences.setUseSystemColors(
+                            this@MainActivity,
+                            value
+                        )
+                        useSystemColors = value
+                    }
+                )
             }
         }
     }
@@ -602,6 +633,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun restoreBasicSyncTransactionNow() {
+        val change =
+            SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
+                ?: return
+
+        val result = BasicSyncConnector.wake(this, change.restoreToken)
+
+        if (result.success) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+        } else {
+            AppPreferences.recordEvent(this, "BasicSync restore pending")
+        }
+    }
+
     private fun launchExternalActivity(
         intent: Intent,
         failureMessage: String? = null
@@ -776,7 +821,10 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    private fun SleepManagerScreen() {
+    private fun SleepManagerScreen(
+        useSystemColors: Boolean,
+        onUseSystemColorsChanged: (Boolean) -> Unit
+    ) {
         val refreshToken = activityRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var showTestDialog by remember { mutableStateOf(false) }
@@ -818,6 +866,9 @@ class MainActivity : ComponentActivity() {
         }
         var jamesDspEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageJamesDsp(this))
+        }
+        var basicSyncEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageBasicSync(this))
         }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
@@ -887,6 +938,12 @@ class MainActivity : ComponentActivity() {
         }
         val jamesDspTarget = remember(refreshToken) {
             JamesDspController.selectedTarget(this)
+        }
+        val basicSyncInstalled = remember(refreshToken) {
+            BasicSyncController.isInstalled(this)
+        }
+        val basicSyncVersion = remember(refreshToken) {
+            BasicSyncController.versionName(this)
         }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
@@ -1029,6 +1086,52 @@ class MainActivity : ComponentActivity() {
                                     currentSection = section
                                     drawerScope.launch { drawerState.close() }
                                 }
+                            )
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                horizontal = 12.dp,
+                                vertical = 8.dp
+                            ),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = 16.dp,
+                                    end = 8.dp,
+                                    top = 4.dp,
+                                    bottom = 4.dp
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Use system colors",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    if (Build.VERSION.SDK_INT >= 31) {
+                                        "Material You"
+                                    } else {
+                                        "Requires Android 12+"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Switch(
+                                checked = useSystemColors,
+                                onCheckedChange = feedbackChange(
+                                    onUseSystemColorsChanged
+                                ),
+                                enabled = Build.VERSION.SDK_INT >= 31
                             )
                         }
                     }
@@ -1353,7 +1456,7 @@ class MainActivity : ComponentActivity() {
                 item {
                     SettingsCard {
                         CompactIntegrationRow(
-                            icon = R.drawable.ic_sync,
+                            icon = R.drawable.ic_syncthing,
                             title = "Syncthing‑Fork",
                             version = selectedTarget?.displayName
                                 ?.substringAfter("•")
@@ -1461,6 +1564,75 @@ class MainActivity : ComponentActivity() {
                                 null
                             }
                         )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        CompactIntegrationRow(
+                            icon = R.drawable.ic_sync,
+                            title = "BasicSync",
+                            version = if (basicSyncInstalled) {
+                                basicSyncVersion ?: "Installed"
+                            } else {
+                                "Not detected"
+                            },
+                            status = if (basicSyncInstalled) {
+                                if (BasicSyncController.supportsStateApi(this@MainActivity)) {
+                                    currentBasicSyncState?.let { state ->
+                                        val mode = when (state.mode) {
+                                            BasicSyncController.Mode.AUTO_MODE -> "Auto mode"
+                                            BasicSyncController.Mode.MANUAL_MODE_STARTED -> "Manual mode"
+                                            BasicSyncController.Mode.MANUAL_MODE_STOPPED -> "Manual mode"
+                                        }
+                                        val runState = when (state.runState) {
+                                            BasicSyncController.RunState.RUNNING -> "Running"
+                                            BasicSyncController.RunState.NOT_RUNNING -> "Stopped"
+                                            BasicSyncController.RunState.PAUSED -> "Paused"
+                                            BasicSyncController.RunState.STARTING -> "Starting"
+                                            BasicSyncController.RunState.STOPPING -> "Stopping"
+                                            BasicSyncController.RunState.IMPORTING -> "Importing"
+                                            BasicSyncController.RunState.EXPORTING -> "Exporting"
+                                        }
+                                        "$mode · $runState"
+                                    } ?: "Checking…"
+                                } else {
+                                    "Legacy: STOP → Auto mode"
+                                }
+                            } else {
+                                null
+                            },
+                            checked = basicSyncEnabled && basicSyncInstalled,
+                            enabled = basicSyncInstalled,
+                            onCheckedChange = {
+                                basicSyncEnabled = it
+                                AppPreferences.setManageBasicSync(
+                                    this@MainActivity,
+                                    it
+                                )
+
+                                if (it) {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        if (BasicSyncController.supportsStateApi(this@MainActivity)) {
+                                            "Enable Allow remote control in BasicSync. SleepManager will preserve and restore BasicSync's previous mode."
+                                        } else {
+                                            "Enable Allow remote control in BasicSync. This BasicSync version uses legacy STOP → Auto mode behavior."
+                                        },
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else if (managerEnabled) {
+                                    restoreBasicSyncTransactionNow()
+                                    SleepCycleStore.completeIfRestored(this@MainActivity)
+                                }
+                            },
+                            onOpen = if (basicSyncInstalled) {
+                                { BasicSyncController.open(this@MainActivity) }
+                            } else {
+                                null
+                            }
+                        )
                     }
                 }
                 item {
@@ -1470,6 +1642,7 @@ class MainActivity : ComponentActivity() {
                         syncthing = syncthingEnabled && selectedTarget != null,
                         tailscale = tailscaleEnabled && tailscaleInstalled,
                         jamesDsp = jamesDspEnabled && jamesDspTarget != null,
+                        basicSync = basicSyncEnabled && basicSyncInstalled,
                         thorProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
@@ -1934,7 +2107,11 @@ private fun StatusCard(
                             else -> "Enable it once, and it will run automatically in the background."
                         },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (active) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
@@ -1964,7 +2141,11 @@ private fun BatteryStatsPage(
         StatsCard(title = "Battery") {
             StatsGrid(
                 metrics = listOf(
-                    "Current" to (stats.currentPercent?.let { "$it%" } ?: "—"),
+                    "Current" to (
+                        stats.currentPrecisePercent?.let {
+                            "${formatPercentTwoDecimals(it)}%"
+                        } ?: stats.currentPercent?.let { "$it%" } ?: "—"
+                    ),
                     "Estimated capacity" to (
                         stats.estimatedCapacityMah?.let {
                             "~${formatMah(it)} mAh"
@@ -2138,6 +2319,9 @@ private fun formatMahRate(value: Double): String =
 
 private fun formatPercentOneDecimal(value: Double): String =
     String.format(Locale.US, "%.1f", value)
+
+private fun formatPercentTwoDecimals(value: Double): String =
+    String.format(Locale.getDefault(), "%.2f", value)
 
 private fun formatStandbyEstimate(hours: Double): String {
     if (!hours.isFinite() || hours <= 0.0) return "—"
@@ -2827,7 +3011,10 @@ private fun CompactIntegrationRow(
                 )
 
                 status?.let {
-                    val active = it == "Running" || it == "Connected"
+                    val active =
+                        it.contains("Running", ignoreCase = true) ||
+                            it.contains("Connected", ignoreCase = true) ||
+                            it.contains("Starting", ignoreCase = true)
                     Text(
                         "•",
                         style = MaterialTheme.typography.bodyMedium,
@@ -3739,12 +3926,14 @@ private fun BehaviorCard(
     syncthing: Boolean,
     tailscale: Boolean,
     jamesDsp: Boolean,
+    basicSync: Boolean,
     thorProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasSleepAction = wifi || bluetooth || syncthing || tailscale || jamesDsp
+    val hasSleepAction =
+        wifi || bluetooth || syncthing || tailscale || jamesDsp || basicSync
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
@@ -3754,6 +3943,7 @@ private fun BehaviorCard(
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
         if (jamesDsp) add("Power off JamesDSP")
+        if (basicSync) add("Stop BasicSync when active")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
@@ -3766,6 +3956,7 @@ private fun BehaviorCard(
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
         if (jamesDsp) add("Restore JamesDSP")
+        if (basicSync) add("Restore BasicSync previous mode")
     }
 
     val compactSleepSummary = buildList {
@@ -3775,6 +3966,7 @@ private fun BehaviorCard(
         if (syncthing) add("Syncthing")
         if (tailscale) add("Tailscale")
         if (jamesDsp) add("JamesDSP")
+        if (basicSync) add("BasicSync")
         if (advancedConditions.isNotEmpty()) {
             add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
         }

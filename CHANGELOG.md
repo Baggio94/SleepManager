@@ -2,6 +2,31 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.3 — 2026-09-22
+
+### Highlights
+
+- Added **BasicSync** integration using its official Android remote-control API.
+- With **BasicSync 3.18+**, SleepManager observes the live mode/run state before sleep, stops BasicSync only when it is actually active, and restores the exact previous mode on wake.
+- Added live BasicSync status in the Integrations UI, including Auto/Manual mode and Running/Stopped/Paused/Starting/Stopping states.
+- Older BasicSync versions remain supported with the legacy **STOP during sleep → AUTO mode on wake** policy.
+- Improved battery reporting with a precise current percentage when charge-counter/full-charge data is available and better capacity estimation using learned full-charge capacity before design/fallback values.
+- Added an optional **Use system colors** setting for Material You dynamic colors on Android 12+, while keeping SleepManager's fixed palette as the default.
+- Refined the fixed light/dark palettes and unified active integration status colors so Running, Starting and Connected states use the same highlighted treatment.
+- Updated Syncthing/BasicSync integration icons and related UI polish.
+
+### Notes
+
+- Stable version code is **528**.
+- BasicSync state-aware control requires **BasicSync 3.18+** and **Allow remote control** enabled in BasicSync.
+- Package IDs and the permanent signing certificate remain unchanged.
+- Existing settings are preserved when updating an official signed build.
+- No root, Shizuku or ADB is required for normal use.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.3 summary.
+
+---
+
 ## 0.5.2 — 2026-09-21
 
 ### Highlights
