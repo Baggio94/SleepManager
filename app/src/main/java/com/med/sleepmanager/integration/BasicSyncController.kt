@@ -26,6 +26,7 @@ object BasicSyncController {
     private const val EXTRA_MODE = "mode"
     private const val EXTRA_RUN_STATE = "run_state"
     private const val STATE_QUERY_TIMEOUT_MS = 7000L
+    private const val MIN_STATE_API_VERSION_CODE = 0x03_12_00L
 
     @Volatile
     private var observedState: RemoteState? = null
@@ -132,18 +133,12 @@ object BasicSyncController {
             context.packageManager.getPackageInfo(PACKAGE, 0)
         }.isSuccess
 
-    fun versionName(context: Context): String? =
+    fun supportsStateApi(context: Context): Boolean =
         runCatching {
-            context.packageManager.getPackageInfo(PACKAGE, 0).versionName
-        }.getOrNull()
-
-    fun supportsStateApi(context: Context): Boolean {
-        val version = versionName(context) ?: return false
-        val match = Regex("""^(\d+)\.(\d+)""").find(version) ?: return false
-        val major = match.groupValues[1].toIntOrNull() ?: return false
-        val minor = match.groupValues[2].toIntOrNull() ?: return false
-        return major > 3 || (major == 3 && minor >= 18)
-    }
+            context.packageManager
+                .getPackageInfo(PACKAGE, 0)
+                .longVersionCode >= MIN_STATE_API_VERSION_CODE
+        }.getOrDefault(false)
 
     fun open(context: Context): Boolean {
         val launchIntent =
