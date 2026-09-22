@@ -2113,7 +2113,11 @@ private fun BatteryStatsPage(
         StatsCard(title = "Battery") {
             StatsGrid(
                 metrics = listOf(
-                    "Current" to (stats.currentPercent?.let { "$it%" } ?: "—"),
+                    "Current" to (
+                        stats.currentPrecisePercent?.let {
+                            "${formatPercentTwoDecimals(it)}%"
+                        } ?: stats.currentPercent?.let { "$it%" } ?: "—"
+                    ),
                     "Estimated capacity" to (
                         stats.estimatedCapacityMah?.let {
                             "~${formatMah(it)} mAh"
@@ -2287,6 +2291,9 @@ private fun formatMahRate(value: Double): String =
 
 private fun formatPercentOneDecimal(value: Double): String =
     String.format(Locale.US, "%.1f", value)
+
+private fun formatPercentTwoDecimals(value: Double): String =
+    String.format(Locale.getDefault(), "%.2f", value)
 
 private fun formatStandbyEstimate(hours: Double): String {
     if (!hours.isFinite() || hours <= 0.0) return "—"
