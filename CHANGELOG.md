@@ -32,6 +32,8 @@ Release notes are organized by version and focus on user-visible behavior first.
 - The maintenance runner is now created only when a sync-maintenance feature can actually run, avoiding needless objects/work on ordinary screen transitions.
 - Service teardown/restart while the device remains asleep explicitly requests the Helper-owned Wi-Fi back to sleep state, preventing an interrupted periodic maintenance from leaving Wi-Fi enabled.
 - BasicSync's passive state observer now stays registered in background only when BasicSync is actually managed; foreground UI state remains live and the 3-second visible refresh is unchanged.
+- Advanced sleep conditions now gate the sync-maintenance session itself: failed conditions clear wake-sync entitlement, periodic maintenance re-evaluates battery/charging/Battery Saver/schedule before running, and wake sync is tied to a sleep session that actually passed those conditions.
+- AYN Thor closed-lid false wakes no longer cancel an in-flight pre-sleep/periodic sync; periodic alarms that land during a suppressed closed-lid wake are retried shortly instead of being discarded.
 
 ---
 

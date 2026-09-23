@@ -56,6 +56,9 @@ class SyncMaintenanceRunner(
     val active: Boolean
         get() = coordinator != null
 
+    val activeTrigger: SyncMaintenanceTrigger?
+        get() = if (active) trigger else null
+
     private val pollRunnable = object : Runnable {
         override fun run() {
             val current = coordinator ?: return

@@ -42,9 +42,12 @@ import com.med.sleepmanager.protection.ThorPowerButtonMonitor
 import com.med.sleepmanager.rules.SleepConditionEvaluator
 import com.med.sleepmanager.rules.SleepWakePolicy
 import com.med.sleepmanager.sync.ManagedSyncProviders
+import com.med.sleepmanager.sync.PeriodicAlarmDeviceDecision
+import com.med.sleepmanager.sync.SyncMaintenancePolicy
 import com.med.sleepmanager.sync.SyncMaintenanceRunner
 import com.med.sleepmanager.sync.SyncMaintenanceScheduler
 import com.med.sleepmanager.sync.SyncMaintenanceTrigger
+import com.med.sleepmanager.sync.SyncTransitionStore
 
 class SleepManagerService : Service() {
     companion object {
@@ -481,6 +484,7 @@ class SleepManagerService : Service() {
     private fun beginDisableAndRestore() {
         disableRestoreRequested = true
         pendingWakeTransitionSync = false
+        SyncTransitionStore.clear(this)
 
         cancelNetworkReadyWait()
         SyncMaintenanceScheduler.cancel(this)
@@ -565,7 +569,15 @@ class SleepManagerService : Service() {
     private fun onScreenOff() {
         thorSleepRequestPending = false
         pendingWakeTransitionSync = false
-        cancelSyncMaintenance(restoreSleepWifi = false)
+
+        if (
+            SyncMaintenancePolicy.shouldCancelMaintenanceOnScreenOff(
+                syncMaintenanceRunner?.activeTrigger
+            )
+        ) {
+            cancelSyncMaintenance(restoreSleepWifi = false)
+        }
+
         BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
         pendingNetworkRestoreAfterHelper = false
@@ -659,6 +671,7 @@ class SleepManagerService : Service() {
         val conditions = SleepConditionEvaluator.evaluate(this)
         if (!conditions.met) {
             SyncMaintenanceScheduler.cancel(this)
+            SyncTransitionStore.clear(this)
             sleepSkippedByConditions = true
             val reason = conditions.failedReasons.joinToString(" · ")
             Log.i(TAG, "Sleep actions skipped -> $reason")
@@ -671,7 +684,14 @@ class SleepManagerService : Service() {
 
         sleepSkippedByConditions = false
 
-        if (syncThenStopAvailable()) {
+        val transitionSyncAvailable = syncThenStopAvailable()
+        if (transitionSyncAvailable) {
+            SyncTransitionStore.armWakeSync(this)
+        } else {
+            SyncTransitionStore.clear(this)
+        }
+
+        if (transitionSyncAvailable) {
             val started =
                 syncRunner().start(
                     SyncMaintenanceTrigger.BEFORE_SLEEP
@@ -708,7 +728,7 @@ class SleepManagerService : Service() {
         }
 
         applyFreshSleepActions(
-            keepSyncClientsStopped = syncThenStopAvailable()
+            keepSyncClientsStopped = transitionSyncAvailable
         )
     }
 
@@ -1240,13 +1260,55 @@ class SleepManagerService : Service() {
     private fun handlePeriodicSyncAlarm() {
         val powerManager =
             getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val interactive = powerManager?.isInteractive == true
+        val thorClosedLidWakeSuppressed =
+            interactive &&
+                AppPreferences.manageThorProtection(this) &&
+                thorLidClosed &&
+                !shouldBypassThorProtectionForClosedLid()
 
-        if (
-            powerManager?.isInteractive != false ||
-            !SyncMaintenanceScheduler.canArm(this)
+        when (
+            SyncMaintenancePolicy.periodicAlarmDeviceDecision(
+                interactive = interactive,
+                thorClosedLidWakeSuppressed = thorClosedLidWakeSuppressed
+            )
         ) {
+            PeriodicAlarmDeviceDecision.RETRY_AFTER_THOR_FALSE_WAKE -> {
+                SyncMaintenanceScheduler.scheduleThorFalseWakeRetry(this)
+                Log.i(
+                    TAG,
+                    "Periodic sync deferred: transient closed-lid Thor wake"
+                )
+                return
+            }
+
+            PeriodicAlarmDeviceDecision.CANCEL_AWAKE -> {
+                SyncMaintenanceScheduler.cancel(this)
+                Log.i(TAG, "Periodic sync ignored: device is genuinely awake")
+                return
+            }
+
+            PeriodicAlarmDeviceDecision.RUN -> Unit
+        }
+
+        if (!SyncMaintenanceScheduler.canArm(this)) {
             SyncMaintenanceScheduler.cancel(this)
-            Log.i(TAG, "Periodic sync ignored: device awake or feature unavailable")
+            Log.i(TAG, "Periodic sync ignored: feature unavailable")
+            return
+        }
+
+        val conditions = SleepConditionEvaluator.evaluate(this)
+        if (!conditions.met) {
+            val reason = conditions.failedReasons.joinToString(" · ")
+            AppPreferences.recordEvent(
+                this,
+                "Periodic sync skipped → $reason"
+            )
+            Log.i(
+                TAG,
+                "Periodic sync skipped by Advanced sleep conditions -> $reason"
+            )
+            SyncMaintenanceScheduler.scheduleNext(this)
             return
         }
 
@@ -1409,7 +1471,16 @@ class SleepManagerService : Service() {
 
         SyncMaintenanceScheduler.cancel(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
-        pendingWakeTransitionSync = syncThenStopAvailable()
+
+        val wakeSyncWasArmed =
+            SyncTransitionStore.isWakeSyncArmed(this)
+        pendingWakeTransitionSync =
+            wakeSyncWasArmed && syncThenStopAvailable()
+
+        if (wakeSyncWasArmed && !pendingWakeTransitionSync) {
+            SyncTransitionStore.clear(this)
+        }
+
         BatterySleepStore.finishSession(this)
 
         if (wakeDecision.cancelSleepDelay) {
@@ -1560,6 +1631,7 @@ class SleepManagerService : Service() {
             syncRunner().start(
                 SyncMaintenanceTrigger.AFTER_WAKE
             ) { snapshot ->
+                SyncTransitionStore.clear(this)
                 AppPreferences.recordEvent(
                     this,
                     "Wake sync → ${snapshot.outcome} · clients stopped"
@@ -1568,6 +1640,8 @@ class SleepManagerService : Service() {
 
         if (started) {
             Log.i(TAG, "Wake sync maintenance started")
+        } else {
+            SyncTransitionStore.clear(this)
         }
     }
 
