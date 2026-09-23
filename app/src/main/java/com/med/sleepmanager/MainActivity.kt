@@ -879,6 +879,12 @@ class MainActivity : ComponentActivity() {
         var basicSyncEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageBasicSync(this))
         }
+        var periodicSyncWhileSleeping by remember(refreshToken) {
+            mutableStateOf(AppPreferences.periodicSyncWhileSleeping(this))
+        }
+        var syncThenStopOnSleepWake by remember(refreshToken) {
+            mutableStateOf(AppPreferences.syncThenStopOnSleepWake(this))
+        }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
@@ -1198,7 +1204,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     when (currentSection) {
                                         AppSection.HOME -> "Quiet on sleep. Ready on wake."
-                                        AppSection.ADVANCED -> "Custom delay and sleep conditions"
+                                        AppSection.ADVANCED -> "Fine-tune synchronization and sleep behavior"
                                         AppSection.STATS -> "Sleep and battery measurements"
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
                                         AppSection.ABOUT -> "App information"
@@ -1722,7 +1728,26 @@ class MainActivity : ComponentActivity() {
 
                     AppSection.ADVANCED -> {
                         item {
-                            AdvancedSleepRulesPage(
+                            AdvancedSettingsPage(
+                                periodicSyncWhileSleeping = periodicSyncWhileSleeping,
+                                syncThenStopOnSleepWake = syncThenStopOnSleepWake,
+                                syncConditionsAvailable =
+                                    (syncthingEnabled && selectedTarget != null) ||
+                                        (basicSyncEnabled && basicSyncInstalled),
+                                onPeriodicSyncWhileSleepingChange = {
+                                    periodicSyncWhileSleeping = it
+                                    AppPreferences.setPeriodicSyncWhileSleeping(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                },
+                                onSyncThenStopOnSleepWakeChange = {
+                                    syncThenStopOnSleepWake = it
+                                    AppPreferences.setSyncThenStopOnSleepWake(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                },
                                 customDelayEnabled = customDelayEnabled,
                                 customDelayMs = customDelayMs,
                                 batteryConditionEnabled = batteryConditionEnabled,
@@ -3237,7 +3262,12 @@ private fun SleepGraceSelector(
 }
 
 @Composable
-private fun AdvancedSleepRulesPage(
+private fun AdvancedSettingsPage(
+    periodicSyncWhileSleeping: Boolean,
+    syncThenStopOnSleepWake: Boolean,
+    syncConditionsAvailable: Boolean,
+    onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
+    onSyncThenStopOnSleepWakeChange: (Boolean) -> Unit,
     customDelayEnabled: Boolean,
     customDelayMs: Long,
     batteryConditionEnabled: Boolean,
@@ -3261,8 +3291,44 @@ private fun AdvancedSleepRulesPage(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SectionTitle(
-            title = "Custom delay",
-            subtitle = "Override the short Grace period shown on Home."
+            title = "Advanced sync conditions",
+            subtitle = "Control when managed sync clients run outside their normal sleep behavior."
+        )
+
+        SettingsCard {
+            AdvancedToggleRow(
+                title = "Periodic sync while sleeping",
+                subtitle = if (syncConditionsAvailable) {
+                    "Periodically sync managed clients during long sleep sessions."
+                } else {
+                    "Enable Syncthing-Fork or BasicSync on Home first."
+                },
+                checked = periodicSyncWhileSleeping,
+                enabled = syncConditionsAvailable,
+                onCheckedChange = onPeriodicSyncWhileSleepingChange
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AdvancedToggleRow(
+                title = "Sync then stop on sleep & wake",
+                subtitle = if (syncConditionsAvailable) {
+                    "Sync managed clients when the device wakes and before it sleeps, then keep them stopped to reduce background battery use."
+                } else {
+                    "Enable Syncthing-Fork or BasicSync on Home first."
+                },
+                checked = syncThenStopOnSleepWake,
+                enabled = syncConditionsAvailable,
+                onCheckedChange = onSyncThenStopOnSleepWakeChange
+            )
+        }
+
+        SectionTitle(
+            title = "Advanced sleep conditions",
+            subtitle = "Fine-tune when sleep actions are allowed and when they begin."
         )
 
         SettingsCard {
@@ -3465,6 +3531,7 @@ private fun AdvancedToggleRow(
     title: String,
     subtitle: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -3478,18 +3545,26 @@ private fun AdvancedToggleRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                }
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = if (enabled) 1f else 0.55f
+                )
             )
         }
 
         Switch(
             checked = checked,
             onCheckedChange = feedbackChange(onCheckedChange),
+            enabled = enabled,
             modifier = Modifier.semantics {
                 contentDescription = "$title toggle"
             }

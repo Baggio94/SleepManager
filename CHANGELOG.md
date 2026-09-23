@@ -7,7 +7,10 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Continue development from the stable **0.5.5** updater base.
 - Preserve the existing **3-second visible-state refresh** while the app is open for a snappy, live UI.
 - Avoid running the battery charging-pulse animation while the device is not charging.
-- Advanced sync conditions and deeper background battery-efficiency work will be developed here.
+- Added the first **Advanced sync conditions** UI and persisted settings for **Periodic sync while sleeping** and **Sync then stop on sleep & wake**.
+- Sync-condition toggles are disabled until Syncthing-Fork or BasicSync is selected on Home.
+- The existing delay/battery/charging/Battery Saver/schedule controls now sit under **Advanced sleep conditions**.
+- Sync execution is intentionally not active yet; completion-aware providers and the maintenance coordinator are the next step.
 
 ---
 
