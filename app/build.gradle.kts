@@ -92,6 +92,7 @@ android {
 dependencies {
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.core:core:1.17.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
 
     implementation("androidx.compose.ui:ui:1.11.4")
     implementation("androidx.compose.ui:ui-tooling-preview:1.11.4")
