@@ -1494,7 +1494,13 @@ class MainActivity : ComponentActivity() {
                                 syncthingEnabled = it
                                 AppPreferences.setManageSyncthing(this@MainActivity, it)
 
-                                if (!it && managerEnabled) {
+                                if (it) {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        "Enable Settings → Behaviour → Service control by broadcast in Syncthing-Fork.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else if (managerEnabled) {
                                     restoreSyncthingTransactionNow()
                                     SleepCycleStore.completeIfRestored(this@MainActivity)
                                 }
@@ -2012,7 +2018,7 @@ private fun OnboardingCard(
                 if (managerEnabled) {
                     "SleepManager is enabled. Finish setup when your selected actions look right."
                 } else {
-                    "Choose the actions you want below, then enable SleepManager."
+                    "Choose the actions you want below, enable SleepManager, then tap Finish setup."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

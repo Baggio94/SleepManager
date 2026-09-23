@@ -2,6 +2,35 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.4 — 2026-09-23
+
+### Highlights
+
+- Added a complete **independent Helper update flow**: SleepManager can detect, download, verify, install and update the optional Helper separately from the main app.
+- The Helper now has its own release version and versionCode. It is bumped only when the Helper itself changes; SleepManager 0.5.4 ships the unchanged **Helper 1.0.0 / versionCode 1000**.
+- Main and Helper updates are combined into one Home card/notification when both are available, while Helper-only and Main-only updates remain independent.
+- Fresh Helper installation is available directly from **About → Updates**. An absent Helper is offered as an install, not incorrectly reported as an outdated update.
+- Helper APK verification checks the trusted GitHub release URL, SHA-256, package identity, version metadata and permanent signing certificate before Android's installer opens.
+- BasicSync 3.18+ state-API compatibility now uses Android's **versionCode** instead of parsing the display version string, making detection reliable across version-name formats.
+- Added BasicSync detection/version information to **Quick setup**.
+- Added a Syncthing-Fork activation reminder for **Settings → Behaviour → Service control by broadcast**.
+- Quick setup now explicitly tells new users to enable SleepManager and then tap **Finish setup**.
+- Active option/integration icons now follow the active switch/theme primary color, including Material You themes.
+- Battery-statistics UI now consistently uses the same **3-hour minimum** as the statistics engine for long-term averages and standby estimates.
+- Fixed stale updater status text after returning from Android's package installer.
+
+### Notes
+
+- Main app version code is **529**.
+- Helper remains **1.0.0 / versionCode 1000** because the Helper code did not change in this release.
+- Package IDs and the permanent signing certificate remain unchanged.
+- Existing settings are preserved when updating an official signed build.
+- No root, Shizuku or ADB is required for normal use.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.4 summary.
+
+---
+
 ## 0.5.3 — 2026-09-22
 
 ### Highlights
