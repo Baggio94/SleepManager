@@ -1255,7 +1255,7 @@ class MainActivity : ComponentActivity() {
                             tailscaleVersion = tailscaleVersion,
                             jamesDspTarget = jamesDspTarget,
                             managerEnabled = managerEnabled,
-                            onGetHelper = { openProjectReleases() },
+                            onGetHelper = { currentSection = AppSection.ABOUT },
                             onShowTest = { showTestDialog = true }
                         )
                     }
@@ -1360,8 +1360,8 @@ class MainActivity : ComponentActivity() {
                         InfoCard(
                             title = "Compatibility helper not installed",
                             text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.",
-                            actionLabel = "Get Helper",
-                            onAction = { openProjectReleases() }
+                            actionLabel = "Install Helper",
+                            onAction = { currentSection = AppSection.ABOUT }
                         )
                     }
                 }
@@ -1943,7 +1943,7 @@ private fun OnboardingCard(
 
             if (!helperInstalled) {
                 TextButton(onClick = feedbackClick(onGetHelper)) {
-                    Text("Get Helper")
+                    Text("Install Helper")
                 }
             }
 
@@ -3536,24 +3536,23 @@ private fun AboutPage(
     onInstallVerifiedUpdate: (String) -> Unit,
     onUpdateStateChanged: () -> Unit
 ) {
-    val packageInfo = remember {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0)
-        }.getOrNull()
-    }
-    val helperVersion = remember {
-        runCatching {
-            context.packageManager
-                .getPackageInfo(HelperController.PACKAGE, 0)
-                .versionName
-        }.getOrNull()
-    }
+    val packageInfo = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }.getOrNull()
+    val helperVersion = runCatching {
+        context.packageManager
+            .getPackageInfo(HelperController.PACKAGE, 0)
+            .versionName
+    }.getOrNull()
     val updateScope = rememberCoroutineScope()
     var updateCheckRunning by remember { mutableStateOf(false) }
-    var updateDownloadRunning by remember { mutableStateOf(false) }
+    var mainDownloadRunning by remember { mutableStateOf(false) }
+    var helperDownloadRunning by remember { mutableStateOf(false) }
     var updateCheckMessage by remember { mutableStateOf<String?>(null) }
     val cachedUpdate = UpdateChecker.cachedUpdate(context)
     val cachedHelperUpdate = UpdateChecker.cachedHelperUpdate(context)
+    val cachedHelperRelease = UpdateChecker.cachedHelperReleaseInfo(context)
+    val latestMainVersion = AppPreferences.latestReleaseVersion(context)
 
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -3644,18 +3643,45 @@ private fun AboutPage(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
+            val updateStatusText =
+                updateCheckMessage ?: buildString {
+                    val installedMain = packageInfo?.versionName ?: "Unknown"
+                    append("SleepManager ")
+                    when {
+                        cachedUpdate != null ->
+                            append("$installedMain → ${cachedUpdate.versionName} available")
+                        latestMainVersion != null ->
+                            append("$installedMain • Up to date")
+                        else ->
+                            append("$installedMain • Not checked")
+                    }
+
+                    append("\nCompatibility Helper ")
+                    when {
+                        helperVersion == null && cachedHelperRelease != null ->
+                            append(
+                                "Not installed • ${cachedHelperRelease.versionName} available to install"
+                            )
+                        helperVersion == null ->
+                            append("Not installed • Not checked")
+                        cachedHelperUpdate != null ->
+                            append(
+                                "$helperVersion → ${cachedHelperUpdate.versionName} available"
+                            )
+                        cachedHelperRelease != null ->
+                            append("$helperVersion • Up to date")
+                        else ->
+                            append("$helperVersion • Not checked")
+                    }
+                }
+
             AboutActionRow(
                 title = "Check for updates",
-                subtitle = when {
-                    updateCheckMessage != null -> updateCheckMessage!!
-                    cachedUpdate != null ->
-                        "SleepManager ${cachedUpdate.versionName} is available."
-                    cachedHelperUpdate != null ->
-                        "SleepManager Helper ${cachedHelperUpdate.versionName} is available."
-                    else -> "Current version: ${packageInfo?.versionName ?: "Unknown"}"
-                },
+                subtitle = updateStatusText,
                 actionLabel = if (updateCheckRunning) "Checking…" else "Check",
-                enabled = !updateCheckRunning,
+                enabled = !updateCheckRunning &&
+                    !mainDownloadRunning &&
+                    !helperDownloadRunning,
                 onClick = {
                     updateCheckRunning = true
                     updateCheckMessage = null
@@ -3668,22 +3694,13 @@ private fun AboutPage(
                             )
                         }
                         updateCheckMessage = when (result) {
-                            is UpdateCheckResult.Available ->
-                                if (result.helperInfo != null) {
-                                    "SleepManager ${result.info.versionName} and Helper ${result.helperInfo.versionName} are available."
-                                } else {
-                                    "SleepManager ${result.info.versionName} is available."
-                                }
-                            is UpdateCheckResult.HelperAvailable ->
-                                "SleepManager Helper ${result.info.versionName} is available."
-                            is UpdateCheckResult.UpToDate ->
-                                "You're up to date. Latest stable: ${result.latestVersion}."
                             is UpdateCheckResult.Error ->
                                 "Unable to check right now."
                             UpdateCheckResult.Disabled ->
                                 "Automatic checks are disabled."
                             UpdateCheckResult.NotDue ->
                                 "Already checked recently."
+                            else -> null
                         }
                         updateCheckRunning = false
                         onUpdateStateChanged()
@@ -3704,16 +3721,16 @@ private fun AboutPage(
                         "Direct install metadata unavailable. Open the GitHub release."
                     },
                     actionLabel = when {
-                        updateDownloadRunning -> "Downloading…"
+                        mainDownloadRunning -> "Downloading…"
                         update.directInstallAvailable -> "Update"
                         else -> "Open"
                     },
-                    enabled = !updateDownloadRunning,
+                    enabled = !mainDownloadRunning && !helperDownloadRunning,
                     onClick = {
                         if (!update.directInstallAvailable) {
                             onOpenExternalUrl(update.releaseUrl)
                         } else {
-                            updateDownloadRunning = true
+                            mainDownloadRunning = true
                             updateCheckMessage =
                                 "Downloading SleepManager ${update.versionName}…"
                             updateScope.launch {
@@ -3726,7 +3743,7 @@ private fun AboutPage(
 
                                 when (result) {
                                     is UpdateDownloadResult.Success -> {
-                                        updateDownloadRunning = false
+                                        mainDownloadRunning = false
                                         updateCheckMessage =
                                             "APK verified. Opening Android installer…"
                                         onInstallVerifiedUpdate(
@@ -3735,7 +3752,7 @@ private fun AboutPage(
                                     }
 
                                     is UpdateDownloadResult.Failure -> {
-                                        updateDownloadRunning = false
+                                        mainDownloadRunning = false
                                         updateCheckMessage = result.message
                                     }
                                 }
@@ -3745,42 +3762,101 @@ private fun AboutPage(
                 )
             }
 
-            cachedHelperUpdate?.let { helperUpdate ->
+            val helperActionInfo =
+                cachedHelperUpdate ?: if (helperVersion == null) {
+                    cachedHelperRelease
+                } else {
+                    null
+                }
+
+            if (helperVersion == null || helperActionInfo != null) {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 AboutActionRow(
-                    title = "SleepManager Helper ${helperUpdate.versionName}",
-                    subtitle = if (helperUpdate.directInstallAvailable) {
-                        "Download, verify and install the signed Helper APK."
-                    } else {
-                        "Direct install metadata unavailable. Open the GitHub release."
+                    title = helperActionInfo?.let {
+                        "SleepManager Helper ${it.versionName}"
+                    } ?: "SleepManager Helper",
+                    subtitle = when {
+                        helperVersion == null &&
+                            helperActionInfo != null &&
+                            !helperActionInfo.directInstallAvailable ->
+                            "Direct install metadata unavailable. Open the GitHub release."
+                        helperVersion == null ->
+                            "Download, verify and install the signed Helper for Wi-Fi and Bluetooth."
+                        helperActionInfo?.directInstallAvailable == true ->
+                            "Download, verify and install the signed Helper APK."
+                        else ->
+                            "Direct install metadata unavailable. Open the GitHub release."
                     },
                     actionLabel = when {
-                        updateDownloadRunning -> "Downloading…"
-                        helperUpdate.directInstallAvailable -> "Update"
-                        else -> "Open"
+                        helperDownloadRunning -> "Downloading…"
+                        helperActionInfo != null &&
+                            !helperActionInfo.directInstallAvailable -> "Open"
+                        helperVersion == null -> "Install"
+                        else -> "Update"
                     },
-                    enabled = !updateDownloadRunning,
+                    enabled = !mainDownloadRunning && !helperDownloadRunning,
                     onClick = {
-                        if (!helperUpdate.directInstallAvailable) {
-                            onOpenExternalUrl(helperUpdate.releaseUrl)
+                        if (
+                            helperActionInfo != null &&
+                            !helperActionInfo.directInstallAvailable
+                        ) {
+                            onOpenExternalUrl(helperActionInfo.releaseUrl)
                         } else {
-                            updateDownloadRunning = true
+                            helperDownloadRunning = true
                             updateCheckMessage =
-                                "Downloading SleepManager Helper ${helperUpdate.versionName}…"
+                                if (helperVersion == null) {
+                                    "Preparing SleepManager Helper…"
+                                } else {
+                                    "Downloading SleepManager Helper ${helperActionInfo?.versionName.orEmpty()}…"
+                                }
+
                             updateScope.launch {
+                                val helperInfoResult = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        helperActionInfo
+                                            ?: UpdateChecker.fetchLatestHelperForInstall(
+                                                context
+                                            )
+                                            ?: error(
+                                                "No Helper APK is available in the latest release."
+                                            )
+                                    }
+                                }
+
+                                val helperInfo = helperInfoResult.getOrNull()
+                                if (helperInfo == null) {
+                                    helperDownloadRunning = false
+                                    updateCheckMessage =
+                                        helperInfoResult.exceptionOrNull()?.message
+                                            ?: "Unable to find the Helper release."
+                                    onUpdateStateChanged()
+                                    return@launch
+                                }
+
+                                if (!helperInfo.directInstallAvailable) {
+                                    helperDownloadRunning = false
+                                    updateCheckMessage =
+                                        "Direct install metadata is unavailable for the Helper."
+                                    onUpdateStateChanged()
+                                    return@launch
+                                }
+
+                                updateCheckMessage =
+                                    "Downloading SleepManager Helper ${helperInfo.versionName}…"
+
                                 val result = withContext(Dispatchers.IO) {
                                     UpdateInstaller.downloadAndVerifyHelper(
                                         context = context,
-                                        update = helperUpdate
+                                        update = helperInfo
                                     )
                                 }
 
                                 when (result) {
                                     is UpdateDownloadResult.Success -> {
-                                        updateDownloadRunning = false
+                                        helperDownloadRunning = false
                                         updateCheckMessage =
                                             "Helper APK verified. Opening Android installer…"
                                         onInstallVerifiedUpdate(
@@ -3789,8 +3865,9 @@ private fun AboutPage(
                                     }
 
                                     is UpdateDownloadResult.Failure -> {
-                                        updateDownloadRunning = false
+                                        helperDownloadRunning = false
                                         updateCheckMessage = result.message
+                                        onUpdateStateChanged()
                                     }
                                 }
                             }

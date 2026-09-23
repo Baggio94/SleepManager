@@ -47,6 +47,7 @@ object UpdateInstaller {
             expectedSha = update.sha256,
             expectedPackage = EXPECTED_PACKAGE,
             installedPackage = context.packageName,
+            allowFreshInstall = false,
             fileName = "SleepManager-${update.versionName}.apk"
         )
 
@@ -62,6 +63,7 @@ object UpdateInstaller {
             expectedSha = update.sha256,
             expectedPackage = EXPECTED_HELPER_PACKAGE,
             installedPackage = EXPECTED_HELPER_PACKAGE,
+            allowFreshInstall = true,
             fileName = "SleepManager-Helper-${update.versionName}.apk"
         )
 
@@ -73,6 +75,7 @@ object UpdateInstaller {
         expectedSha: String?,
         expectedPackage: String,
         installedPackage: String,
+        allowFreshInstall: Boolean,
         fileName: String
     ): UpdateDownloadResult {
         apkUrl
@@ -118,7 +121,8 @@ object UpdateInstaller {
                 versionName = versionName,
                 versionCode = versionCode,
                 expectedPackage = expectedPackage,
-                installedPackage = installedPackage
+                installedPackage = installedPackage,
+                allowFreshInstall = allowFreshInstall
             )
             if (verification is UpdateDownloadResult.Failure) {
                 partialFile.delete()
@@ -206,7 +210,8 @@ object UpdateInstaller {
         versionName: String,
         versionCode: Long?,
         expectedPackage: String,
-        installedPackage: String
+        installedPackage: String,
+        allowFreshInstall: Boolean
     ): UpdateDownloadResult {
         val packageManager = context.packageManager
         val archiveInfo =
@@ -234,13 +239,17 @@ object UpdateInstaller {
         val installedInfo = runCatching {
             packageManager.getPackageInfo(installedPackage, 0)
         }.getOrNull()
-            ?: return UpdateDownloadResult.Failure(
+        if (installedInfo == null && !allowFreshInstall) {
+            return UpdateDownloadResult.Failure(
                 "The app to update is not installed."
             )
-        val installedVersionCode = installedInfo.longVersionCode
-        val downloadedVersionCode = archiveInfo.longVersionCode
+        }
 
-        if (downloadedVersionCode <= installedVersionCode) {
+        val downloadedVersionCode = archiveInfo.longVersionCode
+        if (
+            installedInfo != null &&
+            downloadedVersionCode <= installedInfo.longVersionCode
+        ) {
             return UpdateDownloadResult.Failure(
                 "Downloaded APK is not newer than the installed build."
             )

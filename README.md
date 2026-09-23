@@ -69,9 +69,11 @@ This makes it easier to tell the difference between “nothing needed to change�
 
 ### Built-in updater
 
-SleepManager can check for stable updates from **About → Updates**.
+SleepManager can check both the main app and the optional Helper for stable updates from **About → Updates**.
 
-For a direct update, SleepManager verifies:
+If the Helper is not installed, SleepManager can download and install the signed Helper directly from the app. If it is already installed, SleepManager offers a Helper update only when a newer Helper version is published.
+
+For a direct install or update, SleepManager verifies:
 
 - SHA-256
 - package name
@@ -121,9 +123,9 @@ Install the latest:
 
 ### 2. Install the Helper if you want Wi-Fi / Bluetooth control
 
-Install:
+Open SleepManager and use **Install Helper**. SleepManager downloads, verifies and hands the signed Helper APK to Android's package installer.
 
-`SleepManager-Helper-<version>.apk`
+You can also install `SleepManager-Helper-<version>.apk` manually from the GitHub release if needed.
 
 The Helper has no launcher icon or separate UI.
 

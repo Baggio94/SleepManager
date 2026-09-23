@@ -85,6 +85,16 @@ object UpdateChecker {
     fun cachedHelperUpdate(context: Context): HelperUpdateInfo? =
         helperUpdateForRelease(context, cachedHelperRelease(context))
 
+    fun cachedHelperReleaseInfo(context: Context): HelperUpdateInfo? =
+        cachedHelperRelease(context)
+
+    fun fetchLatestHelperForInstall(context: Context): HelperUpdateInfo? {
+        val appContext = context.applicationContext
+        val release = fetchLatestStableRelease()
+        cacheRelease(appContext, release)
+        return release.helper
+    }
+
     fun simulateAvailableUpdate(
         context: Context,
         versionName: String = "0.5.2"
