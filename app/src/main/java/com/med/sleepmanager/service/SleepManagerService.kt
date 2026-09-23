@@ -101,10 +101,18 @@ class SleepManagerService : Service() {
     private var tailscaleVerificationNeedsWakeRestore = false
     private var disableRestoreRequested = false
     private var initialScreenStateApplied = false
-    private val syncMaintenanceRunner by lazy {
-        SyncMaintenanceRunner(this, handler)
-    }
+    private var syncMaintenanceRunner: SyncMaintenanceRunner? = null
     private var pendingWakeTransitionSync = false
+
+    private fun syncRunner(): SyncMaintenanceRunner =
+        syncMaintenanceRunner
+            ?: SyncMaintenanceRunner(this, handler).also {
+                syncMaintenanceRunner = it
+            }
+
+    private fun cancelSyncMaintenance(restoreSleepWifi: Boolean) {
+        syncMaintenanceRunner?.cancel(restoreSleepWifi)
+    }
 
     @Volatile
     private var thorLidClosed = false
@@ -388,9 +396,33 @@ class SleepManagerService : Service() {
         startForegroundCompat()
         registerScreenReceiver()
         registerHelperResultReceiver()
+        recoverInterruptedSleepWifiMaintenance()
         BasicSyncController.startStateObserver(this)
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
+    }
+
+    private fun recoverInterruptedSleepWifiMaintenance() {
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isInteractive != false) return
+
+        val cycle = SleepCycleStore.current(this)
+        if (
+            cycle.active &&
+            cycle.helperExpected &&
+            cycle.wifiManaged &&
+            !cycle.helperRestored &&
+            HelperController.isInstalled(this)
+        ) {
+            // Safe and idempotent: Helper 1.1+ accepts this only when it still
+            // owns the Wi-Fi change from the active sleep cycle.
+            HelperController.setTemporaryWifi(this, enabled = false)
+            Log.i(
+                TAG,
+                "Service recovery -> requested sleep Wi-Fi state after interrupted maintenance"
+            )
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -443,7 +475,7 @@ class SleepManagerService : Service() {
 
         cancelNetworkReadyWait()
         SyncMaintenanceScheduler.cancel(this)
-        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
+        cancelSyncMaintenance(restoreSleepWifi = false)
         cancelSleepDelay()
         handler.removeCallbacks(sleepRadioRunnable)
         pendingSleepWifi = false
@@ -524,7 +556,7 @@ class SleepManagerService : Service() {
     private fun onScreenOff() {
         thorSleepRequestPending = false
         pendingWakeTransitionSync = false
-        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
+        cancelSyncMaintenance(restoreSleepWifi = false)
         BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
         pendingNetworkRestoreAfterHelper = false
@@ -632,7 +664,7 @@ class SleepManagerService : Service() {
 
         if (syncThenStopAvailable()) {
             val started =
-                syncMaintenanceRunner.start(
+                syncRunner().start(
                     SyncMaintenanceTrigger.BEFORE_SLEEP
                 ) { snapshot ->
                     AppPreferences.recordEvent(
@@ -1206,14 +1238,14 @@ class SleepManagerService : Service() {
             return
         }
 
-        if (syncMaintenanceRunner.active) {
+        if (syncMaintenanceRunner?.active == true) {
             Log.i(TAG, "Periodic sync ignored: maintenance already active")
             SyncMaintenanceScheduler.scheduleNext(this)
             return
         }
 
         val started =
-            syncMaintenanceRunner.start(
+            syncRunner().start(
                 SyncMaintenanceTrigger.PERIODIC_SLEEP
             ) { snapshot ->
                 AppPreferences.recordEvent(
@@ -1364,7 +1396,7 @@ class SleepManagerService : Service() {
         }
 
         SyncMaintenanceScheduler.cancel(this)
-        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
+        cancelSyncMaintenance(restoreSleepWifi = false)
         pendingWakeTransitionSync = syncThenStopAvailable()
         BatterySleepStore.finishSession(this)
 
@@ -1506,14 +1538,14 @@ class SleepManagerService : Service() {
             return
         }
 
-        if (syncMaintenanceRunner.active) {
+        if (syncMaintenanceRunner?.active == true) {
             return
         }
 
         pendingWakeTransitionSync = false
 
         val started =
-            syncMaintenanceRunner.start(
+            syncRunner().start(
                 SyncMaintenanceTrigger.AFTER_WAKE
             ) { snapshot ->
                 AppPreferences.recordEvent(
@@ -2175,7 +2207,14 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         pendingWakeTransitionSync = false
-        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isInteractive == false) {
+            HelperController.setTemporaryWifi(this, enabled = false)
+        }
+
+        cancelSyncMaintenance(restoreSleepWifi = false)
         cancelNetworkReadyWait()
         pendingNetworkRestoreAfterHelper = false
         disableRestoreRequested = false

@@ -29,6 +29,8 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Wake during a pre-sleep sync cancels the maintenance and prevents deferred sleep actions from continuing.
 - With current production providers the mode remains inert because completionStateAvailable is still false.
 - Diagnostics now report completion-capability readiness, and responsive UI tests cover the new Advanced sync/sleep sections and disabled-state behavior.
+- The maintenance runner is now created only when a sync-maintenance feature can actually run, avoiding needless objects/work on ordinary screen transitions.
+- Service teardown/restart while the device remains asleep explicitly requests the Helper-owned Wi-Fi back to sleep state, preventing an interrupted periodic maintenance from leaving Wi-Fi enabled.
 
 ---
 
