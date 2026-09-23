@@ -40,6 +40,9 @@ import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.protection.ThorPowerButtonMonitor
 import com.med.sleepmanager.rules.SleepConditionEvaluator
 import com.med.sleepmanager.rules.SleepWakePolicy
+import com.med.sleepmanager.sync.SyncMaintenanceRunner
+import com.med.sleepmanager.sync.SyncMaintenanceScheduler
+import com.med.sleepmanager.sync.SyncMaintenanceTrigger
 
 class SleepManagerService : Service() {
     companion object {
@@ -61,6 +64,8 @@ class SleepManagerService : Service() {
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
         const val ACTION_SLEEP_DELAY_ELAPSED =
             "com.med.sleepmanager.action.SLEEP_DELAY_ELAPSED"
+        const val ACTION_PERIODIC_SYNC =
+            "com.med.sleepmanager.action.PERIODIC_SYNC"
         private const val SLEEP_DELAY_REQUEST_CODE = 5218
 
         @Volatile
@@ -94,6 +99,9 @@ class SleepManagerService : Service() {
     private var tailscaleVerificationNeedsWakeRestore = false
     private var disableRestoreRequested = false
     private var initialScreenStateApplied = false
+    private val syncMaintenanceRunner by lazy {
+        SyncMaintenanceRunner(this, handler)
+    }
 
     @Volatile
     private var thorLidClosed = false
@@ -385,6 +393,11 @@ class SleepManagerService : Service() {
             return START_NOT_STICKY
         }
 
+        if (intent?.action == ACTION_PERIODIC_SYNC) {
+            handlePeriodicSyncAlarm()
+            return START_STICKY
+        }
+
         if (intent?.action == ACTION_SLEEP_DELAY_ELAPSED) {
             cancelSleepDelay()
 
@@ -422,6 +435,8 @@ class SleepManagerService : Service() {
         disableRestoreRequested = true
 
         cancelNetworkReadyWait()
+        SyncMaintenanceScheduler.cancel(this)
+        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
         cancelSleepDelay()
         handler.removeCallbacks(sleepRadioRunnable)
         pendingSleepWifi = false
@@ -593,6 +608,7 @@ class SleepManagerService : Service() {
 
         val conditions = SleepConditionEvaluator.evaluate(this)
         if (!conditions.met) {
+            SyncMaintenanceScheduler.cancel(this)
             sleepSkippedByConditions = true
             val reason = conditions.failedReasons.joinToString(" · ")
             Log.i(TAG, "Sleep actions skipped -> $reason")
@@ -748,6 +764,8 @@ class SleepManagerService : Service() {
         ) {
             SleepCycleStore.clear(this)
         }
+
+        SyncMaintenanceScheduler.scheduleNext(this)
     }
 
     private fun applySleepConnectivity(
@@ -1075,6 +1093,53 @@ class SleepManagerService : Service() {
         finishDisableRestoreIfRequested(forceStop = disableRestoreRequested)
     }
 
+    private fun handlePeriodicSyncAlarm() {
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+
+        if (
+            powerManager?.isInteractive != false ||
+            !SyncMaintenanceScheduler.canArm(this)
+        ) {
+            SyncMaintenanceScheduler.cancel(this)
+            Log.i(TAG, "Periodic sync ignored: device awake or feature unavailable")
+            return
+        }
+
+        if (syncMaintenanceRunner.active) {
+            Log.i(TAG, "Periodic sync ignored: maintenance already active")
+            SyncMaintenanceScheduler.scheduleNext(this)
+            return
+        }
+
+        val started =
+            syncMaintenanceRunner.start(
+                SyncMaintenanceTrigger.PERIODIC_SLEEP
+            ) { snapshot ->
+                AppPreferences.recordEvent(
+                    this,
+                    "Periodic sync → ${snapshot.outcome}"
+                )
+
+                val stillSleeping =
+                    (getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                        ?.isInteractive == false
+
+                if (
+                    stillSleeping &&
+                    AppPreferences.periodicSyncWhileSleeping(this)
+                ) {
+                    SyncMaintenanceScheduler.scheduleNext(this)
+                } else {
+                    SyncMaintenanceScheduler.cancel(this)
+                }
+            }
+
+        if (!started) {
+            SyncMaintenanceScheduler.scheduleNext(this)
+        }
+    }
+
     private fun scheduleSleepDelay(delayMs: Long) {
         cancelSleepDelay()
         sleepGracePending = true
@@ -1198,6 +1263,8 @@ class SleepManagerService : Service() {
             return
         }
 
+        SyncMaintenanceScheduler.cancel(this)
+        syncMaintenanceRunner.cancel(restoreSleepWifi = false)
         BatterySleepStore.finishSession(this)
 
         if (wakeDecision.cancelSleepDelay) {

@@ -21,7 +21,9 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Helper development version is now **1.1.0 / versionCode 1100** because the Helper itself changed.
 - Added an Android **SyncMaintenanceRunner** around the pure state machine: validated-network wait, bounded polling, partial wake lock only during an active maintenance session, periodic-sleep temporary Wi-Fi request and cleanup, and cancellation handling.
 - The runner is intentionally not connected to SleepManagerService yet; with current production providers it exits at COMPLETION_UNAVAILABLE before any Android side effect.
-- 24-hour scheduling and sleep/wake integration remain to be wired after the runner is validated.
+- Added a one-shot **24-hour periodic sleep scheduler** using `AlarmManager.setAndAllowWhileIdle`: it is armed only after real sleep actions, cancelled on real wake, and re-armed after each maintenance attempt.
+- Scheduling is gated on managed providers having a real completion signal, so current BasicSync/Syncthing providers schedule **no periodic alarm** yet.
+- The sleep/wake transition mode remains to be integrated.
 
 ---
 
