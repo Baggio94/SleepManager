@@ -114,7 +114,7 @@ class ResponsiveLayoutTest {
             densityDpi = 320
         )
 
-        composeRule.onNodeWithText("Advanced settings")
+        composeRule.onNodeWithContentDescription("Advanced settings")
             .performClick()
         composeRule.waitForIdle()
 
