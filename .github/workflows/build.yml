@@ -11,6 +11,7 @@ on:
       - dev/0.5.3-beta1
       - dev/0.5.4
       - dev/0.5.5
+      - dev/0.6.0
     tags:
       - "v*"
 

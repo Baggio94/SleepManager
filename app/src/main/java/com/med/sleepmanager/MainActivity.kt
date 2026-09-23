@@ -2632,18 +2632,22 @@ private fun InteractiveBatteryGauge(
         infoIndex = (infoIndex + 1) % infoTexts.size
     }
 
-    val chargingTransition = rememberInfiniteTransition(
-        label = "Charging pulse"
-    )
-    val chargingAlpha by chargingTransition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 850),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Charging alpha"
-    )
+    // Do not keep an infinite frame-clock animation alive while discharging.
+    val chargingAlpha = if (charging) {
+        val chargingTransition = rememberInfiniteTransition(label = "Charging pulse")
+        val alpha by chargingTransition.animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 850),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "Charging alpha"
+        )
+        alpha
+    } else {
+        1f
+    }
 
     val compactBatteryLayout = LocalConfiguration.current.screenWidthDp < 600
     val gaugeHeight = if (compactBatteryLayout) 66.dp else 74.dp

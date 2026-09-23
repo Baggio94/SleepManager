@@ -2,6 +2,15 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## Unreleased — 0.6.0 development
+
+- Continue development from the stable **0.5.5** updater base.
+- Preserve the existing **3-second visible-state refresh** while the app is open for a snappy, live UI.
+- Avoid running the battery charging-pulse animation while the device is not charging.
+- Advanced sync conditions and deeper background battery-efficiency work will be developed here.
+
+---
+
 ## 0.5.5 — 2026-09-23
 
 ### Highlights
