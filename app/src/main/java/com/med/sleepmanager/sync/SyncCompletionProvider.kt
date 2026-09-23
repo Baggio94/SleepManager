@@ -20,6 +20,7 @@ data class SyncControlResult(
 interface SyncCompletionProvider {
     val id: String
     val displayName: String
+    val completionStateAvailable: Boolean
 
     /**
      * Force the managed client into a running state for a maintenance sync.
@@ -49,6 +50,7 @@ class BasicSyncCompletionProvider(
 
     override val id: String = "basicsync"
     override val displayName: String = "BasicSync"
+    override val completionStateAvailable: Boolean = false
 
     override fun startSync(): SyncControlResult {
         val installed = BasicSyncController.isInstalled(appContext)
@@ -84,6 +86,7 @@ class SyncthingCompletionProvider(
 
     override val id: String = "syncthing"
     override val displayName: String = "Syncthing-Fork"
+    override val completionStateAvailable: Boolean = false
 
     override fun startSync(): SyncControlResult {
         val packageName = target?.packageName

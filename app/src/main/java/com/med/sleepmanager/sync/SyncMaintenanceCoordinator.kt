@@ -18,6 +18,7 @@ enum class SyncMaintenanceOutcome {
     COMPLETED,
     COMPLETED_WITH_ERRORS,
     NO_TARGETS,
+    COMPLETION_UNAVAILABLE,
     NETWORK_UNAVAILABLE,
     START_FAILED,
     SYNC_TIMEOUT,
@@ -72,6 +73,11 @@ class SyncMaintenanceCoordinator(
 
         if (sessions.isEmpty()) {
             finish(SyncMaintenanceOutcome.NO_TARGETS)
+            return snapshot()
+        }
+
+        if (sessions.any { !it.provider.completionStateAvailable }) {
+            finish(SyncMaintenanceOutcome.COMPLETION_UNAVAILABLE)
             return snapshot()
         }
 

@@ -12,6 +12,7 @@ class SyncMaintenanceCoordinatorTest {
         private val stopSucceeds: Boolean = true
     ) : SyncCompletionProvider {
         override val displayName: String = id
+        override val completionStateAvailable: Boolean = true
         private val queue = ArrayDeque(states)
         var starts = 0
         var stops = 0
@@ -53,6 +54,36 @@ class SyncMaintenanceCoordinatorTest {
 
         assertEquals(SyncMaintenancePhase.FINISHED, result.phase)
         assertEquals(SyncMaintenanceOutcome.NO_TARGETS, result.outcome)
+    }
+
+    @Test
+    fun unavailableCompletionSignalNeverStartsClient() {
+        val provider = object : SyncCompletionProvider {
+            override val id = "real"
+            override val displayName = "Real provider"
+            override val completionStateAvailable = false
+            var starts = 0
+
+            override fun startSync(): SyncControlResult {
+                starts++
+                return SyncControlResult(true, true, "started")
+            }
+
+            override fun stopSync(): SyncControlResult =
+                SyncControlResult(true, true, "stopped")
+
+            override fun currentSyncState(): SyncCompletionState =
+                SyncCompletionState.UNKNOWN
+        }
+        val coordinator = SyncMaintenanceCoordinator(
+            SyncMaintenanceTrigger.PERIODIC_SLEEP,
+            listOf(provider)
+        )
+
+        val result = coordinator.begin(networkReady = true, nowMs = 0L)
+
+        assertEquals(SyncMaintenanceOutcome.COMPLETION_UNAVAILABLE, result.outcome)
+        assertEquals(0, provider.starts)
     }
 
     @Test
