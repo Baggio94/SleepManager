@@ -16,7 +16,9 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added a pure **SyncMaintenanceCoordinator** state machine with bounded sync timeout, cancellation cleanup, multi-provider sequencing and safe handling of UNKNOWN state.
 - A client that reports SYNCED immediately after START must remain stably synced before it is accepted, avoiding stale pre-scan completion.
 - Added unit tests for no-network, delayed network, immediate sync, active sync, timeout, cancellation, two clients and partial failures.
-- Android Wi-Fi/network transaction handling and 24-hour scheduling remain to be wired around this tested core.
+- Added a dedicated Helper **temporary Wi-Fi** command that does not alter the saved sleep-cycle restore state; this will let maintenance sync briefly bring networking back without restoring Bluetooth or completing the sleep transaction.
+- Helper development version is now **1.1.0 / versionCode 1100** because the Helper itself changed.
+- Android network transaction handling and 24-hour scheduling remain to be wired around the tested core.
 
 ---
 
