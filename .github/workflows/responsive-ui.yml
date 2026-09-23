@@ -8,6 +8,7 @@ on:
       - dev/0.5.0-beta1
       - dev/0.5.1
       - dev/0.5.3-beta1
+      - dev/0.5.5
     paths:
       - "app/src/main/**"
       - "app/src/androidTest/**"

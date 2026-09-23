@@ -1,6 +1,8 @@
 package com.med.sleepmanager.update
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.med.sleepmanager.BuildConfig
 import com.med.sleepmanager.data.AppPreferences
 import org.json.JSONObject
@@ -49,13 +51,10 @@ object UpdateChecker {
         "https://api.github.com/repos/Baggio94/SleepManager/releases/latest"
     private const val RELEASE_MANIFEST =
         "https://github.com/Baggio94/SleepManager/releases/latest/download/update.json"
-    private const val CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L
     private const val CONNECT_TIMEOUT_MS = 8000
     private const val READ_TIMEOUT_MS = 8000
 
-    private val checkLock = Any()
-    @Volatile
-    private var checkRunning = false
+    private val checkGate = UpdateCheckGate()
 
     fun cachedUpdate(context: Context): UpdateInfo? {
         val version = AppPreferences.latestReleaseVersion(context) ?: return null
@@ -109,15 +108,26 @@ object UpdateChecker {
         return update
     }
 
-    fun checkIfDueAsync(context: Context, notify: Boolean) {
+    fun checkIfDueAsync(context: Context, notify: Boolean) =
+        checkAsync(context, notify, UpdateCheckTrigger.BACKGROUND)
+
+    fun checkOnForegroundAsync(context: Context, notify: Boolean) =
+        checkAsync(context, notify, UpdateCheckTrigger.FOREGROUND)
+
+    private fun checkAsync(
+        context: Context,
+        notify: Boolean,
+        trigger: UpdateCheckTrigger
+    ) {
         val appContext = context.applicationContext
-        Thread {
-            check(
-                context = appContext,
-                force = false,
-                notify = notify
-            )
-        }.start()
+        // Claim before creating a worker, so duplicate lifecycle/job triggers do
+        // not even create another thread. Both APKs use the same release fetch.
+        if (beginCheck(appContext, trigger) != null) return
+        try {
+            Thread({ performCheck(appContext, notify) }, "SleepManagerUpdateCheck").start()
+        } catch (t: Throwable) {
+            checkGate.finish()
+        }
     }
 
     fun check(
@@ -126,26 +136,42 @@ object UpdateChecker {
         notify: Boolean
     ): UpdateCheckResult {
         val appContext = context.applicationContext
+        val trigger = if (force) UpdateCheckTrigger.MANUAL else UpdateCheckTrigger.BACKGROUND
+        beginCheck(appContext, trigger)?.let { return it }
+        return performCheck(appContext, notify)
+    }
+
+    private fun beginCheck(
+        context: Context,
+        trigger: UpdateCheckTrigger
+    ): UpdateCheckResult? {
         val now = System.currentTimeMillis()
-
-        synchronized(checkLock) {
-            if (checkRunning) return UpdateCheckResult.NotDue
-            if (!force && !AppPreferences.automaticUpdateChecks(appContext)) {
-                return UpdateCheckResult.Disabled
+        val automatic = AppPreferences.automaticUpdateChecks(context)
+        return when (
+            checkGate.tryBegin(
+                trigger = trigger,
+                automaticChecks = automatic,
+                networkReady = trigger == UpdateCheckTrigger.MANUAL ||
+                    (automatic && hasValidatedNetwork(context)),
+                now = now,
+                lastAttempt = AppPreferences.lastUpdateCheckAttempt(context),
+                lastSuccess = AppPreferences.lastUpdateCheckSuccess(context)
+            )
+        ) {
+            UpdateCheckStart.DISABLED -> UpdateCheckResult.Disabled
+            UpdateCheckStart.NOT_DUE -> UpdateCheckResult.NotDue
+            UpdateCheckStart.READY -> {
+                AppPreferences.setLastUpdateCheckAttempt(context, now)
+                null
             }
-
-            val lastAttempt = AppPreferences.lastUpdateCheckAttempt(appContext)
-            if (!force && now - lastAttempt < CHECK_INTERVAL_MS) {
-                return UpdateCheckResult.NotDue
-            }
-
-            checkRunning = true
-            AppPreferences.setLastUpdateCheckAttempt(appContext, now)
         }
+    }
 
+    private fun performCheck(appContext: Context, notify: Boolean): UpdateCheckResult {
         return try {
             val release = fetchLatestStableRelease()
             cacheRelease(appContext, release)
+            AppPreferences.setLastUpdateCheckSuccess(appContext, System.currentTimeMillis())
 
             val helperUpdate = helperUpdateForRelease(appContext, release.helper)
             if (VersionComparator.isNewer(release.versionName, BuildConfig.VERSION_NAME)) {
@@ -175,11 +201,16 @@ object UpdateChecker {
         } catch (t: Throwable) {
             UpdateCheckResult.Error(t)
         } finally {
-            synchronized(checkLock) {
-                checkRunning = false
-            }
+            checkGate.finish()
         }
     }
+
+    private fun hasValidatedNetwork(context: Context): Boolean = runCatching {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork)
+        capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }.getOrDefault(false)
 
     private fun cachedHelperRelease(context: Context): HelperUpdateInfo? {
         val version = AppPreferences.latestHelperVersion(context) ?: return null

@@ -1,8 +1,20 @@
-# SleepManager 0.5.4
+# SleepManager 0.5.5
 
-SleepManager 0.5.4 improves the built-in updater, makes Helper releases independent from the main app, and adds setup/UI reliability refinements.
+SleepManager 0.5.5 includes all 0.5.4 improvements and adds an immediate Main + Helper update check whenever the app enters the foreground.
 
 ## What's new
+
+### Update checks when the app opens
+
+With **Automatic update checks** enabled, SleepManager now checks the stable release metadata for both the main app and the installed Helper whenever the app enters the foreground.
+
+- Opening SleepManager or returning to it from the launcher triggers a fresh check.
+- Rotation or window resizing does not start duplicate checks.
+- The existing daily background check remains enabled.
+- If network connectivity is still recovering, SleepManager waits briefly for a validated connection instead of polling or waking the device.
+- Concurrent foreground, manual and background checks are deduplicated.
+- A failed background check no longer suppresses foreground checks for 24 hours.
+- The check only reads release metadata; APKs are downloaded only after you choose **Update**.
 
 ### Independent Helper updates
 
@@ -76,7 +88,7 @@ It also includes:
 
 Download and install:
 
-**SleepManager-0.5.4.apk**
+**SleepManager-0.5.5.apk**
 
 ### 2. Install the Helper if you want Wi-Fi / Bluetooth control
 
@@ -98,7 +110,7 @@ For Syncthing-Fork, enable **Settings → Behaviour → Service control by broad
 
 For BasicSync, enable **Allow remote control**.
 
-## Updating from 0.5.3
+## Updating from 0.5.4
 
 SleepManager 0.5.1 and newer can check for stable updates from:
 

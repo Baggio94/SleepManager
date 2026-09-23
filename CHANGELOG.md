@@ -2,6 +2,27 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.5.5 — 2026-09-23
+
+### Highlights
+
+- Added a fresh **Main + Helper update check whenever SleepManager enters the foreground**, in addition to the existing daily background job.
+- Foreground checks are deduplicated, wait briefly for validated connectivity without polling or wake locks, and do not repeat on simple Activity recreation such as rotation/resizing.
+- Failed background checks no longer suppress the next foreground check for 24 hours.
+- Existing short in-app state refreshes remain unchanged for a snappy, live UI.
+- Includes all updater, Helper-versioning, BasicSync compatibility, setup, UI and battery-statistics improvements from **0.5.4**.
+
+### Notes
+
+- Main app version code is **530**.
+- Helper remains **1.0.0 / versionCode 1000**.
+- Package IDs and the permanent signing certificate remain unchanged.
+- Existing settings are preserved when updating an official signed build.
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.5 summary.
+
+---
+
 ## 0.5.4 — 2026-09-23
 
 ### Highlights
