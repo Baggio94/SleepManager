@@ -21,73 +21,79 @@ interface SyncCompletionProvider {
     val id: String
     val displayName: String
 
-    fun isAvailable(context: Context): Boolean
-
     /**
      * Force the managed client into a running state for a maintenance sync.
      * This does not imply that synchronization has completed.
      */
-    fun startSync(context: Context): SyncControlResult
+    fun startSync(): SyncControlResult
 
     /**
      * Force the managed client to stop after maintenance work.
      */
-    fun stopSync(context: Context): SyncControlResult
+    fun stopSync(): SyncControlResult
 
     /**
      * Must describe synchronization completion, not merely process/runtime state.
      *
-     * Until the external apps expose a reliable completion signal, providers
-     * intentionally return UNKNOWN rather than treating RUNNING as SYNCING or SYNCED.
+     * Until the external apps expose a reliable completion signal, production
+     * providers intentionally return UNKNOWN rather than treating RUNNING as
+     * SYNCING or SYNCED.
      */
-    fun currentSyncState(context: Context): SyncCompletionState
+    fun currentSyncState(): SyncCompletionState
 }
 
-object BasicSyncCompletionProvider : SyncCompletionProvider {
+class BasicSyncCompletionProvider(
+    context: Context
+) : SyncCompletionProvider {
+    private val appContext = context.applicationContext
+
     override val id: String = "basicsync"
     override val displayName: String = "BasicSync"
 
-    override fun isAvailable(context: Context): Boolean =
-        BasicSyncController.isInstalled(context)
-
-    override fun startSync(context: Context): SyncControlResult {
-        val sent = BasicSyncController.sendStart(context)
+    override fun startSync(): SyncControlResult {
+        val installed = BasicSyncController.isInstalled(appContext)
+        val sent = installed && BasicSyncController.sendStart(appContext)
         return SyncControlResult(
-            attempted = isAvailable(context),
+            attempted = installed,
             success = sent,
             detail = if (sent) "START sent" else "START not sent"
         )
     }
 
-    override fun stopSync(context: Context): SyncControlResult {
-        val sent = BasicSyncController.sendStop(context)
+    override fun stopSync(): SyncControlResult {
+        val installed = BasicSyncController.isInstalled(appContext)
+        val sent = installed && BasicSyncController.sendStop(appContext)
         return SyncControlResult(
-            attempted = isAvailable(context),
+            attempted = installed,
             success = sent,
             detail = if (sent) "STOP sent" else "STOP not sent"
         )
     }
 
-    override fun currentSyncState(context: Context): SyncCompletionState =
+    override fun currentSyncState(): SyncCompletionState =
         SyncCompletionState.UNKNOWN
 }
 
-object SyncthingCompletionProvider : SyncCompletionProvider {
+class SyncthingCompletionProvider(
+    context: Context
+) : SyncCompletionProvider {
+    private val appContext = context.applicationContext
+    // Keep one target for the whole maintenance session even if the UI selection
+    // changes while the operation is running.
+    private val target = SyncthingController.selectedTarget(appContext)
+
     override val id: String = "syncthing"
     override val displayName: String = "Syncthing-Fork"
 
-    override fun isAvailable(context: Context): Boolean =
-        SyncthingController.selectedTarget(context) != null
-
-    override fun startSync(context: Context): SyncControlResult {
-        val target = SyncthingController.selectedTarget(context)
+    override fun startSync(): SyncControlResult {
+        val packageName = target?.packageName
             ?: return SyncControlResult(
                 attempted = false,
                 success = false,
                 detail = "No Syncthing target installed"
             )
 
-        val sent = SyncthingController.sendStartTo(context, target.packageName)
+        val sent = SyncthingController.sendStartTo(appContext, packageName)
         return SyncControlResult(
             attempted = true,
             success = sent,
@@ -95,15 +101,15 @@ object SyncthingCompletionProvider : SyncCompletionProvider {
         )
     }
 
-    override fun stopSync(context: Context): SyncControlResult {
-        val target = SyncthingController.selectedTarget(context)
+    override fun stopSync(): SyncControlResult {
+        val packageName = target?.packageName
             ?: return SyncControlResult(
                 attempted = false,
                 success = false,
                 detail = "No Syncthing target installed"
             )
 
-        val sent = SyncthingController.sendStopTo(context, target.packageName)
+        val sent = SyncthingController.sendStopTo(appContext, packageName)
         return SyncControlResult(
             attempted = true,
             success = sent,
@@ -111,7 +117,7 @@ object SyncthingCompletionProvider : SyncCompletionProvider {
         )
     }
 
-    override fun currentSyncState(context: Context): SyncCompletionState =
+    override fun currentSyncState(): SyncCompletionState =
         SyncCompletionState.UNKNOWN
 }
 
@@ -119,16 +125,16 @@ object ManagedSyncProviders {
     fun selected(context: Context): List<SyncCompletionProvider> = buildList {
         if (
             AppPreferences.manageSyncthing(context) &&
-            SyncthingCompletionProvider.isAvailable(context)
+            SyncthingController.selectedTarget(context) != null
         ) {
-            add(SyncthingCompletionProvider)
+            add(SyncthingCompletionProvider(context))
         }
 
         if (
             AppPreferences.manageBasicSync(context) &&
-            BasicSyncCompletionProvider.isAvailable(context)
+            BasicSyncController.isInstalled(context)
         ) {
-            add(BasicSyncCompletionProvider)
+            add(BasicSyncCompletionProvider(context))
         }
     }
 }

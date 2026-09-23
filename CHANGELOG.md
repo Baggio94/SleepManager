@@ -13,7 +13,10 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added completion-aware provider abstractions for BasicSync and Syncthing-Fork.
 - Providers can already force START/STOP, including Syncthing-Fork's documented `.action.START` force-start command.
 - Sync completion intentionally remains **UNKNOWN** until a reliable external completion signal is available; runtime state is never treated as completed sync.
-- The maintenance coordinator and scheduling state machine are the next step.
+- Added a pure **SyncMaintenanceCoordinator** state machine with bounded sync timeout, cancellation cleanup, multi-provider sequencing and safe handling of UNKNOWN state.
+- A client that reports SYNCED immediately after START must remain stably synced before it is accepted, avoiding stale pre-scan completion.
+- Added unit tests for no-network, delayed network, immediate sync, active sync, timeout, cancellation, two clients and partial failures.
+- Android Wi-Fi/network transaction handling and 24-hour scheduling remain to be wired around this tested core.
 
 ---
 
