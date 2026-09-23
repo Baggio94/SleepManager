@@ -32,7 +32,7 @@ object BatterySleepStore {
 
     private const val HISTORY_DAYS = 7L
     private const val MAX_HISTORY = 96
-    private const val MIN_AVERAGE_DURATION_MS = 3L * 60L * 60L * 1000L
+    const val MIN_AVERAGE_DURATION_MS = 3L * 60L * 60L * 1000L
 
     data class BatterySnapshot(
         val percent: Int?,

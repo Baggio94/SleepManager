@@ -38,7 +38,13 @@ object AppPreferences {
     private const val KEY_LATEST_RELEASE_URL = "latest_release_url"
     private const val KEY_LATEST_RELEASE_APK_URL = "latest_release_apk_url"
     private const val KEY_LATEST_RELEASE_SHA256 = "latest_release_sha256"
+    private const val KEY_LATEST_HELPER_VERSION = "latest_helper_version"
+    private const val KEY_LATEST_HELPER_VERSION_CODE = "latest_helper_version_code"
+    private const val KEY_LATEST_HELPER_APK_URL = "latest_helper_apk_url"
+    private const val KEY_LATEST_HELPER_SHA256 = "latest_helper_sha256"
     private const val KEY_LAST_NOTIFIED_UPDATE_VERSION = "last_notified_update_version"
+    private const val KEY_LAST_NOTIFIED_HELPER_UPDATE_VERSION =
+        "last_notified_helper_update_version"
     private const val KEY_LAST_WIFI_DIAGNOSTIC_KNOWN = "last_wifi_diagnostic_known"
     private const val KEY_LAST_WIFI_DIAGNOSTIC_PHASE = "last_wifi_diagnostic_phase"
     private const val KEY_LAST_WIFI_DIAGNOSTIC_ACTION = "last_wifi_diagnostic_action"
@@ -279,13 +285,31 @@ object AppPreferences {
     fun latestReleaseSha256(context: Context): String? =
         prefs(context).getString(KEY_LATEST_RELEASE_SHA256, null)
 
+    fun latestHelperVersion(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_HELPER_VERSION, null)
+
+    fun latestHelperVersionCode(context: Context): Long? =
+        prefs(context)
+            .getLong(KEY_LATEST_HELPER_VERSION_CODE, -1L)
+            .takeIf { it >= 0L }
+
+    fun latestHelperApkUrl(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_HELPER_APK_URL, null)
+
+    fun latestHelperSha256(context: Context): String? =
+        prefs(context).getString(KEY_LATEST_HELPER_SHA256, null)
+
     fun setLatestRelease(
         context: Context,
         version: String,
         versionCode: Long?,
         url: String,
         apkUrl: String?,
-        sha256: String?
+        sha256: String?,
+        helperVersion: String?,
+        helperVersionCode: Long?,
+        helperApkUrl: String?,
+        helperSha256: String?
     ) =
         prefs(context).edit()
             .putString(KEY_LATEST_RELEASE_VERSION, version)
@@ -305,6 +329,26 @@ object AppPreferences {
                 } else {
                     remove(KEY_LATEST_RELEASE_SHA256)
                 }
+                if (helperVersion != null) {
+                    putString(KEY_LATEST_HELPER_VERSION, helperVersion)
+                } else {
+                    remove(KEY_LATEST_HELPER_VERSION)
+                }
+                if (helperVersionCode != null) {
+                    putLong(KEY_LATEST_HELPER_VERSION_CODE, helperVersionCode)
+                } else {
+                    remove(KEY_LATEST_HELPER_VERSION_CODE)
+                }
+                if (helperApkUrl != null) {
+                    putString(KEY_LATEST_HELPER_APK_URL, helperApkUrl)
+                } else {
+                    remove(KEY_LATEST_HELPER_APK_URL)
+                }
+                if (helperSha256 != null) {
+                    putString(KEY_LATEST_HELPER_SHA256, helperSha256)
+                } else {
+                    remove(KEY_LATEST_HELPER_SHA256)
+                }
             }
             .putString(KEY_LATEST_RELEASE_URL, url)
             .apply()
@@ -314,6 +358,14 @@ object AppPreferences {
 
     fun setLastNotifiedUpdateVersion(context: Context, version: String) =
         prefs(context).edit().putString(KEY_LAST_NOTIFIED_UPDATE_VERSION, version).apply()
+
+    fun lastNotifiedHelperUpdateVersion(context: Context): String? =
+        prefs(context).getString(KEY_LAST_NOTIFIED_HELPER_UPDATE_VERSION, null)
+
+    fun setLastNotifiedHelperUpdateVersion(context: Context, version: String) =
+        prefs(context).edit()
+            .putString(KEY_LAST_NOTIFIED_HELPER_UPDATE_VERSION, version)
+            .apply()
 
     fun recordWifiToggleDiagnostic(
         context: Context,

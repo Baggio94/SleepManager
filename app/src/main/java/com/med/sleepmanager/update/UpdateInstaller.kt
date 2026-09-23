@@ -28,6 +28,7 @@ sealed class UpdateDownloadResult {
 
 object UpdateInstaller {
     private const val EXPECTED_PACKAGE = "com.med.sleepmanager"
+    private const val EXPECTED_HELPER_PACKAGE = "com.med.sleepmanager.helper"
     private const val EXPECTED_SIGNER_SHA256 =
         "503a393d859780f14905ea943e52ce0b0a4b6382a40c1ceabfc9ef5349973b73"
     private const val CONNECT_TIMEOUT_MS = 10_000
@@ -37,12 +38,51 @@ object UpdateInstaller {
     fun downloadAndVerify(
         context: Context,
         update: UpdateInfo
+    ): UpdateDownloadResult =
+        downloadAndVerifyTarget(
+            context = context,
+            versionName = update.versionName,
+            versionCode = update.versionCode,
+            apkUrl = update.apkUrl,
+            expectedSha = update.sha256,
+            expectedPackage = EXPECTED_PACKAGE,
+            installedPackage = context.packageName,
+            allowFreshInstall = false,
+            fileName = "SleepManager-${update.versionName}.apk"
+        )
+
+    fun downloadAndVerifyHelper(
+        context: Context,
+        update: HelperUpdateInfo
+    ): UpdateDownloadResult =
+        downloadAndVerifyTarget(
+            context = context,
+            versionName = update.versionName,
+            versionCode = update.versionCode,
+            apkUrl = update.apkUrl,
+            expectedSha = update.sha256,
+            expectedPackage = EXPECTED_HELPER_PACKAGE,
+            installedPackage = EXPECTED_HELPER_PACKAGE,
+            allowFreshInstall = true,
+            fileName = "SleepManager-Helper-${update.versionName}.apk"
+        )
+
+    private fun downloadAndVerifyTarget(
+        context: Context,
+        versionName: String,
+        versionCode: Long?,
+        apkUrl: String?,
+        expectedSha: String?,
+        expectedPackage: String,
+        installedPackage: String,
+        allowFreshInstall: Boolean,
+        fileName: String
     ): UpdateDownloadResult {
-        val apkUrl = update.apkUrl
+        apkUrl
             ?: return UpdateDownloadResult.Failure(
                 "Direct download is unavailable for this release."
             )
-        val expectedSha = update.sha256
+        expectedSha
             ?: return UpdateDownloadResult.Failure(
                 "This release does not include a trusted SHA-256 digest."
             )
@@ -62,13 +102,7 @@ object UpdateInstaller {
             )
         }
 
-        updateDir.listFiles()?.forEach { file ->
-            if (file.isFile && file.name != "SleepManager-${update.versionName}.apk") {
-                file.delete()
-            }
-        }
-
-        val finalFile = File(updateDir, "SleepManager-${update.versionName}.apk")
+        val finalFile = File(updateDir, fileName)
         val partialFile = File(updateDir, "${finalFile.name}.part")
         partialFile.delete()
 
@@ -81,7 +115,15 @@ object UpdateInstaller {
                 )
             }
 
-            val verification = verifyArchive(context, partialFile, update)
+            val verification = verifyArchive(
+                context = context,
+                apk = partialFile,
+                versionName = versionName,
+                versionCode = versionCode,
+                expectedPackage = expectedPackage,
+                installedPackage = installedPackage,
+                allowFreshInstall = allowFreshInstall
+            )
             if (verification is UpdateDownloadResult.Failure) {
                 partialFile.delete()
                 return verification
@@ -165,7 +207,11 @@ object UpdateInstaller {
     private fun verifyArchive(
         context: Context,
         apk: File,
-        update: UpdateInfo
+        versionName: String,
+        versionCode: Long?,
+        expectedPackage: String,
+        installedPackage: String,
+        allowFreshInstall: Boolean
     ): UpdateDownloadResult {
         val packageManager = context.packageManager
         val archiveInfo =
@@ -177,30 +223,39 @@ object UpdateInstaller {
                     "Android could not read the downloaded APK."
                 )
 
-        if (archiveInfo.packageName != EXPECTED_PACKAGE) {
+        if (archiveInfo.packageName != expectedPackage) {
             return UpdateDownloadResult.Failure(
                 "Downloaded APK has the wrong package name."
             )
         }
 
         val downloadedVersionName = archiveInfo.versionName.orEmpty()
-        if (downloadedVersionName != update.versionName) {
+        if (downloadedVersionName != versionName) {
             return UpdateDownloadResult.Failure(
                 "Downloaded APK version does not match the GitHub release."
             )
         }
 
-        val installedInfo = packageManager.getPackageInfo(context.packageName, 0)
-        val installedVersionCode = installedInfo.longVersionCode
-        val downloadedVersionCode = archiveInfo.longVersionCode
+        val installedInfo = runCatching {
+            packageManager.getPackageInfo(installedPackage, 0)
+        }.getOrNull()
+        if (installedInfo == null && !allowFreshInstall) {
+            return UpdateDownloadResult.Failure(
+                "The app to update is not installed."
+            )
+        }
 
-        if (downloadedVersionCode <= installedVersionCode) {
+        val downloadedVersionCode = archiveInfo.longVersionCode
+        if (
+            installedInfo != null &&
+            downloadedVersionCode <= installedInfo.longVersionCode
+        ) {
             return UpdateDownloadResult.Failure(
                 "Downloaded APK is not newer than the installed build."
             )
         }
 
-        update.versionCode?.let { expectedVersionCode ->
+        versionCode?.let { expectedVersionCode ->
             if (downloadedVersionCode != expectedVersionCode) {
                 return UpdateDownloadResult.Failure(
                     "Downloaded APK version code does not match update metadata."
