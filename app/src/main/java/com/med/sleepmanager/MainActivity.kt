@@ -91,6 +91,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -215,6 +216,8 @@ class MainActivity : ComponentActivity() {
     private var pendingExactAlarmEnable = false
     private var pendingExternalNavigation = false
     private var pendingUpdateInstallPath: String? = null
+    private var pendingPackageInstallerReturn = false
+    private var installerReturnToken by mutableIntStateOf(0)
     private var openUpdatesOnLaunch = false
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
@@ -332,6 +335,11 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         pendingExternalNavigation = false
+
+        if (pendingPackageInstallerReturn) {
+            pendingPackageInstallerReturn = false
+            installerReturnToken++
+        }
 
         pendingUpdateInstallPath?.let { apkPath ->
             pendingUpdateInstallPath = null
@@ -769,6 +777,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        pendingPackageInstallerReturn = true
         launchExternalActivity(
             intent = UpdateInstaller.installIntent(this, apk),
             failureMessage = "Unable to open Android's package installer"
@@ -1254,6 +1263,8 @@ class MainActivity : ComponentActivity() {
                             tailscaleInstalled = tailscaleInstalled,
                             tailscaleVersion = tailscaleVersion,
                             jamesDspTarget = jamesDspTarget,
+                            basicSyncInstalled = basicSyncInstalled,
+                            basicSyncVersion = basicSyncVersion,
                             managerEnabled = managerEnabled,
                             onGetHelper = { currentSection = AppSection.ABOUT },
                             onShowTest = { showTestDialog = true }
@@ -1834,6 +1845,7 @@ class MainActivity : ComponentActivity() {
                                 onInstallVerifiedUpdate = { apkPath ->
                                     installVerifiedUpdate(apkPath)
                                 },
+                                installerReturnToken = installerReturnToken,
                                 onUpdateStateChanged = {
                                     activityRefreshToken++
                                 }
@@ -1911,6 +1923,8 @@ private fun OnboardingCard(
     tailscaleInstalled: Boolean,
     tailscaleVersion: String?,
     jamesDspTarget: JamesDspController.Target?,
+    basicSyncInstalled: Boolean,
+    basicSyncVersion: String?,
     managerEnabled: Boolean,
     onGetHelper: () -> Unit,
     onShowTest: () -> Unit
@@ -1984,6 +1998,17 @@ private fun OnboardingCard(
             )
 
             Text(
+                if (basicSyncInstalled) {
+                    "✓ BasicSync" +
+                        (basicSyncVersion?.let { " • $it" } ?: "") +
+                        " detected"
+                } else {
+                    "• BasicSync not detected — optional."
+                },
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Text(
                 if (managerEnabled) {
                     "SleepManager is enabled. Finish setup when your selected actions look right."
                 } else {
@@ -1994,7 +2019,7 @@ private fun OnboardingCard(
             )
 
             Text(
-                "Sleep statistics start automatically. Complete a sleep session of at least 10 minutes without charging to build averages and standby estimates.",
+                "Sleep statistics start automatically. Complete a sleep session of at least 3 hours without charging to build averages and standby estimates.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -2456,7 +2481,7 @@ private fun BatteryDashboardCard(
                 }
 
                 Text(
-                    "Sleep statistics will appear after your first sleep session of at least 10 minutes without charging.",
+                    "Sleep statistics will appear after your first sleep session of at least 3 hours without charging.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -2477,7 +2502,7 @@ private fun BatteryDashboardCard(
                         value =
                             when {
                                 last.chargedDuringSleep -> "Charging during sleep"
-                                last.durationMs < 10L * 60L * 1000L -> "Short session"
+                                last.durationMs < BatterySleepStore.MIN_AVERAGE_DURATION_MS -> "Short session"
                                 else -> last.drainPerHour?.let {
                                     "${formatDrainRate(it)}% / h"
                                 } ?: "—"
@@ -2512,10 +2537,10 @@ private fun BatteryDashboardCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    last.durationMs < 10L * 60L * 1000L -> {
+                    last.durationMs < BatterySleepStore.MIN_AVERAGE_DURATION_MS -> {
                         Text(
                             if (dashboard.averageSessionCount == 0) {
-                                "Complete a sleep session of at least 10 minutes to start building sleep averages."
+                                "Complete a sleep session of at least 3 hours to start building sleep averages."
                             } else {
                                 "This short session is excluded from the 7-day average."
                             },
@@ -2902,19 +2927,19 @@ private fun SettingRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (enabled) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
+            color = when {
+                checked && enabled -> MaterialTheme.colorScheme.primary
+                enabled -> MaterialTheme.colorScheme.secondaryContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
             }
         ) {
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                tint = when {
+                    checked && enabled -> MaterialTheme.colorScheme.onPrimary
+                    enabled -> MaterialTheme.colorScheme.onSecondaryContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                 },
                 modifier = Modifier
                     .padding(10.dp)
@@ -2986,19 +3011,19 @@ private fun CompactIntegrationRow(
     val iconContent: @Composable () -> Unit = {
         Surface(
             shape = CircleShape,
-            color = if (enabled) {
-                MaterialTheme.colorScheme.secondaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
+            color = when {
+                checked && enabled -> MaterialTheme.colorScheme.primary
+                enabled -> MaterialTheme.colorScheme.secondaryContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
             }
         ) {
             Icon(
                 painter = painterResource(icon),
                 contentDescription = null,
-                tint = if (enabled) {
-                    MaterialTheme.colorScheme.onSecondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                tint = when {
+                    checked && enabled -> MaterialTheme.colorScheme.onPrimary
+                    enabled -> MaterialTheme.colorScheme.onSecondaryContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier
                     .padding(10.dp)
@@ -3534,6 +3559,7 @@ private fun AboutPage(
     onOpenExternalUrl: (String) -> Unit,
     onOpenAppInfo: () -> Unit,
     onInstallVerifiedUpdate: (String) -> Unit,
+    installerReturnToken: Int,
     onUpdateStateChanged: () -> Unit
 ) {
     val packageInfo = runCatching {
@@ -3553,6 +3579,12 @@ private fun AboutPage(
     val cachedHelperUpdate = UpdateChecker.cachedHelperUpdate(context)
     val cachedHelperRelease = UpdateChecker.cachedHelperReleaseInfo(context)
     val latestMainVersion = AppPreferences.latestReleaseVersion(context)
+
+    LaunchedEffect(installerReturnToken) {
+        if (installerReturnToken > 0) {
+            updateCheckMessage = null
+        }
+    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
