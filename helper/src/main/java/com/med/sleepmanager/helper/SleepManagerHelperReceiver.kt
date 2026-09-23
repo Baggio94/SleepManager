@@ -201,11 +201,44 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         context: Context,
         enabled: Boolean
     ) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val cycleActive = prefs.getBoolean(KEY_CYCLE_ACTIVE, false)
+        val wifiManaged = prefs.getBoolean(KEY_WIFI_MANAGED, false)
+        val wifiOwnedBySleepCycle =
+            cycleActive &&
+                wifiManaged &&
+                prefs.getBoolean(KEY_WIFI_CHANGED, false) &&
+                prefs.getBoolean(KEY_WIFI_PREVIOUS, false)
+
         val wifiManager =
             context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-
         val wifiWasOn = safeWifiState(wifiManager)
         val airplaneModeOn = isAirplaneModeOn(context)
+
+        if (!wifiOwnedBySleepCycle) {
+            Log.i(
+                TAG,
+                "Temporary Wi-Fi ignored: enabled=$enabled cycleActive=$cycleActive " +
+                    "wifiManaged=$wifiManaged ownedBySleepCycle=false"
+            )
+            sendResult(
+                context = context,
+                phase = PHASE_MAINTENANCE_WIFI,
+                wifiManaged = wifiManaged,
+                wifiPrevious = wifiWasOn,
+                wifiChanged = false,
+                wifiAttempted = false,
+                wifiAction = if (enabled) "ON" else "OFF",
+                wifiToggleSuccess = true,
+                airplaneMode = airplaneModeOn,
+                bluetoothManaged = false,
+                bluetoothPrevious = false,
+                bluetoothChanged = false,
+                status = if (cycleActive) STATUS_OK else STATUS_NO_ACTIVE_CYCLE
+            )
+            return
+        }
+
         val changeRequired = wifiWasOn != enabled
         val changed =
             if (changeRequired) {
@@ -217,7 +250,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         Log.i(
             TAG,
-            "Temporary Wi-Fi request: requested=$enabled previous=$wifiWasOn " +
+            "Temporary sleep Wi-Fi: requested=$enabled previous=$wifiWasOn " +
                 "attempted=$changeRequired changed=$changed airplaneMode=$airplaneModeOn"
         )
 

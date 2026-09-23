@@ -17,6 +17,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - A client that reports SYNCED immediately after START must remain stably synced before it is accepted, avoiding stale pre-scan completion.
 - Added unit tests for no-network, delayed network, immediate sync, active sync, timeout, cancellation, two clients and partial failures.
 - Added a dedicated Helper **temporary Wi-Fi** command that does not alter the saved sleep-cycle restore state; this will let maintenance sync briefly bring networking back without restoring Bluetooth or completing the sleep transaction.
+- Temporary Wi-Fi toggles are accepted only while the Helper still owns a Wi-Fi change from the active sleep cycle; a late cleanup after normal wake therefore cannot turn Wi-Fi back off.
 - Helper development version is now **1.1.0 / versionCode 1100** because the Helper itself changed.
 - Android network transaction handling and 24-hour scheduling remain to be wired around the tested core.
 
