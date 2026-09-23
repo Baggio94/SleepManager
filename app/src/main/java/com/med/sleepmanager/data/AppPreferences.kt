@@ -33,6 +33,7 @@ object AppPreferences {
     private const val KEY_AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
     private const val KEY_USE_SYSTEM_COLORS = "use_system_colors"
     private const val KEY_LAST_UPDATE_CHECK_ATTEMPT = "last_update_check_attempt"
+    private const val KEY_LAST_UPDATE_CHECK_SUCCESS = "last_update_check_success"
     private const val KEY_LATEST_RELEASE_VERSION = "latest_release_version"
     private const val KEY_LATEST_RELEASE_VERSION_CODE = "latest_release_version_code"
     private const val KEY_LATEST_RELEASE_URL = "latest_release_url"
@@ -267,6 +268,12 @@ object AppPreferences {
 
     fun setLastUpdateCheckAttempt(context: Context, value: Long) =
         prefs(context).edit().putLong(KEY_LAST_UPDATE_CHECK_ATTEMPT, value).apply()
+
+    fun lastUpdateCheckSuccess(context: Context): Long =
+        prefs(context).getLong(KEY_LAST_UPDATE_CHECK_SUCCESS, 0L)
+
+    fun setLastUpdateCheckSuccess(context: Context, value: Long) =
+        prefs(context).edit().putLong(KEY_LAST_UPDATE_CHECK_SUCCESS, value).apply()
 
     fun latestReleaseVersion(context: Context): String? =
         prefs(context).getString(KEY_LATEST_RELEASE_VERSION, null)
