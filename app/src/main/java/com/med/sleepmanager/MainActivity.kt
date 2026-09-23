@@ -293,7 +293,6 @@ class MainActivity : ComponentActivity() {
         openUpdatesOnLaunch =
             intent?.getBooleanExtra(EXTRA_OPEN_UPDATES, false) == true
         UpdateCheckScheduler.sync(this)
-        UpdateChecker.checkIfDueAsync(this, notify = true)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(
                 lightScrim = android.graphics.Color.TRANSPARENT,
@@ -1832,7 +1831,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                     UpdateCheckScheduler.sync(this@MainActivity)
                                     if (enabled) {
-                                        UpdateChecker.checkIfDueAsync(
+                                        UpdateChecker.checkOnForegroundAsync(
                                             this@MainActivity,
                                             notify = true
                                         )
@@ -3665,7 +3664,7 @@ private fun AboutPage(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        "Check at most once every 24 hours.",
+                        "Check SleepManager and Helper when you open the app, and daily in the background.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3737,7 +3736,7 @@ private fun AboutPage(
                             UpdateCheckResult.Disabled ->
                                 "Automatic checks are disabled."
                             UpdateCheckResult.NotDue ->
-                                "Already checked recently."
+                                "An update check is already running."
                             else -> null
                         }
                         updateCheckRunning = false
