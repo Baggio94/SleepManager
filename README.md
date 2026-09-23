@@ -12,6 +12,24 @@ Android gaming handhelds can stay asleep for hours or days between sessions. Sle
 
 It is designed for devices such as **Retroid**, **Odin**, **AYN Thor** and other Android handhelds, while also working on Android phones and tablets.
 
+## Community feedback
+
+Early users have reported encouraging standby improvements and device-specific results:
+
+> “Been using this on my rg rotate since I saw your original post a couple days ago, the battery drain went from about 5-10% overnight to 1-2%, thank you for making this 🙏”
+>
+> — **u/Porra1to**, RG Rotate · [r/SBCGaming thread](https://www.reddit.com/r/SBCGaming/comments/1wnhwoa/removed/)
+
+> “That’s totally worth it just for the 0% battery loss overnight… Clearly one of the best utility apps… since Clustertune.”
+>
+> — **u/Outrageous_Tooth856**, AYN Thor / Nova · [r/AynThor thread](https://www.reddit.com/r/AynThor/comments/1wkuviv/i_made_an_app_that_puts_the_ayn_thor_back_to/)
+
+> “Thanks, it’s actually perfect like this.”
+>
+> — **u/Zealousideal-Glass78**, AYN Thor + external display · [r/AynThor thread](https://www.reddit.com/r/AynThor/comments/1wkuviv/i_made_an_app_that_puts_the_ayn_thor_back_to/)
+
+These are individual user reports; standby drain can vary with device, background services and configuration.
+
 ## Features
 
 ### Sleep actions
