@@ -125,6 +125,12 @@ class SyncthingCompletionProvider(
 }
 
 object ManagedSyncProviders {
+    fun completionReady(context: Context): Boolean {
+        val providers = selected(context)
+        return providers.isNotEmpty() &&
+            providers.all { it.completionStateAvailable }
+    }
+
     fun selected(context: Context): List<SyncCompletionProvider> = buildList {
         if (
             AppPreferences.manageSyncthing(context) &&

@@ -23,7 +23,11 @@ Release notes are organized by version and focus on user-visible behavior first.
 - The runner is intentionally not connected to SleepManagerService yet; with current production providers it exits at COMPLETION_UNAVAILABLE before any Android side effect.
 - Added a one-shot **24-hour periodic sleep scheduler** using `AlarmManager.setAndAllowWhileIdle`: it is armed only after real sleep actions, cancelled on real wake, and re-armed after each maintenance attempt.
 - Scheduling is gated on managed providers having a real completion signal, so current BasicSync/Syncthing providers schedule **no periodic alarm** yet.
-- The sleep/wake transition mode remains to be integrated.
+- Integrated **Sync then stop on sleep & wake** behind the completion-ready capability gate.
+- Before sleep, maintenance sync runs before radio shutdown; after completion/timeout the managed sync clients are explicitly stopped and no restore tokens are retained for them.
+- On real wake, Wi-Fi/radio restoration is allowed to happen first, then a completion-aware wake sync runs and leaves managed clients stopped.
+- Wake during a pre-sleep sync cancels the maintenance and prevents deferred sleep actions from continuing.
+- With current production providers the mode remains inert because completionStateAvailable is still false.
 
 ---
 

@@ -19,9 +19,7 @@ object SyncMaintenanceScheduler {
         if (!AppPreferences.isEnabled(context)) return false
         if (!AppPreferences.periodicSyncWhileSleeping(context)) return false
 
-        val providers = ManagedSyncProviders.selected(context)
-        return providers.isNotEmpty() &&
-            providers.all { it.completionStateAvailable }
+        return ManagedSyncProviders.completionReady(context)
     }
 
     fun scheduleNext(context: Context): Boolean {
