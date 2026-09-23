@@ -10,6 +10,7 @@
   foreground checks for 24 hours.
 - Keep automatic-check opt-out, manual checks, signed APK validation and independent
   Helper versioning intact.
+- Only run the battery charging-pulse animation while actually charging.
 
 Release notes are organized by version and focus on user-visible behavior first.
 

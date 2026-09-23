@@ -16,7 +16,7 @@ class SleepManagerApplication : Application(), DefaultLifecycleObserver {
     private var networkWait: NetworkReadyGate? = null
 
     override fun onCreate() {
-        super.onCreate()
+        super<Application>.onCreate()
         // Process lifecycle ignores activity recreation (rotation, resizing) and
         // service-only starts. It fires once for a real return to the foreground.
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
