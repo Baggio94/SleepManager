@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 0.6.0 development
+
+- Check main-app and installed-Helper updates on every foreground entry, in addition
+  to the daily job. Configuration changes do not repeat the foreground check.
+- Wait briefly for network recovery without polling, a wake lock or a new alarm;
+  cancel that wait on background entry and deduplicate concurrent checks.
+- Base the daily throttle on successful checks. Failed checks no longer suppress
+  foreground checks for 24 hours.
+- Keep automatic-check opt-out, manual checks, signed APK validation and independent
+  Helper versioning intact.
+
 Release notes are organized by version and focus on user-visible behavior first.
 
 ## 0.5.4 — 2026-09-23

@@ -71,6 +71,23 @@ This makes it easier to tell the difference between “nothing needed to change�
 
 SleepManager can check both the main app and the optional Helper for stable updates from **About → Updates**.
 
+On the development branch, automatic checks also run whenever the app enters the
+foreground, including a return from the launcher. A rotation or resize does not
+start a second check. The existing daily background job remains enabled.
+
+The foreground check reads release metadata for both packages together; it does
+not download an APK. It waits for an already available Internet connection for up
+to 15 seconds using a network callback, and stops waiting when the app leaves the
+foreground. It never turns on Wi-Fi, takes a wake lock or creates a retry alarm.
+An HTTP request already in progress remains bounded by the existing timeouts.
+Concurrent foreground, manual and background checks share a single request.
+Turning off **Automatic update checks** disables both automatic triggers.
+
+A failed check no longer counts as a successful daily check. Background triggers
+have a five-minute failure backoff (without scheduling an extra retry); the next
+foreground entry or manual **Check** can try again immediately. Notifications keep
+their existing per-version deduplication, and manual checks remain silent.
+
 If the Helper is not installed, SleepManager can download and install the signed Helper directly from the app. If it is already installed, SleepManager offers a Helper update only when a newer Helper version is published.
 
 For a direct install or update, SleepManager verifies:
