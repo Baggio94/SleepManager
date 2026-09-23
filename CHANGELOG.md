@@ -19,7 +19,9 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added a dedicated Helper **temporary Wi-Fi** command that does not alter the saved sleep-cycle restore state; this will let maintenance sync briefly bring networking back without restoring Bluetooth or completing the sleep transaction.
 - Temporary Wi-Fi toggles are accepted only while the Helper still owns a Wi-Fi change from the active sleep cycle; a late cleanup after normal wake therefore cannot turn Wi-Fi back off.
 - Helper development version is now **1.1.0 / versionCode 1100** because the Helper itself changed.
-- Android network transaction handling and 24-hour scheduling remain to be wired around the tested core.
+- Added an Android **SyncMaintenanceRunner** around the pure state machine: validated-network wait, bounded polling, partial wake lock only during an active maintenance session, periodic-sleep temporary Wi-Fi request and cleanup, and cancellation handling.
+- The runner is intentionally not connected to SleepManagerService yet; with current production providers it exits at COMPLETION_UNAVAILABLE before any Android side effect.
+- 24-hour scheduling and sleep/wake integration remain to be wired after the runner is validated.
 
 ---
 

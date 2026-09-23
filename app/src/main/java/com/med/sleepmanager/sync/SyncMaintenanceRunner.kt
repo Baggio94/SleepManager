@@ -1,0 +1,337 @@
+package com.med.sleepmanager.sync
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.os.Handler
+import android.os.PowerManager
+import android.os.SystemClock
+import android.util.Log
+import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.network.NetworkReadyGate
+
+/**
+ * Android wrapper around [SyncMaintenanceCoordinator].
+ *
+ * This class is intentionally not wired into SleepManagerService yet. Production
+ * providers currently report completionStateAvailable=false, so even if start()
+ * were called it would finish before acquiring a wake lock, toggling Wi-Fi or
+ * starting a sync client.
+ */
+class SyncMaintenanceRunner(
+    context: Context,
+    private val handler: Handler,
+    private val providersFactory: () -> List<SyncCompletionProvider> = {
+        ManagedSyncProviders.selected(context.applicationContext)
+    },
+    private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime
+) {
+    companion object {
+        private const val TAG = "SleepManagerSync"
+        private const val NETWORK_TIMEOUT_MS = 60_000L
+        private const val POLL_INTERVAL_MS = 1_000L
+        private const val WIFI_CLEANUP_TIMEOUT_MS = 5_000L
+        private const val WAKE_LOCK_TIMEOUT_MS =
+            SyncMaintenanceCoordinator.DEFAULT_SYNC_TIMEOUT_MS +
+                NETWORK_TIMEOUT_MS +
+                WIFI_CLEANUP_TIMEOUT_MS +
+                10_000L
+    }
+
+    private val appContext = context.applicationContext
+
+    private var coordinator: SyncMaintenanceCoordinator? = null
+    private var networkGate: NetworkReadyGate? = null
+    private var completionCallback: ((SyncMaintenanceSnapshot) -> Unit)? = null
+    private var trigger: SyncMaintenanceTrigger? = null
+    private var tempWifiOnRequested = false
+    private var cleanupPending = false
+    private var pendingFinalSnapshot: SyncMaintenanceSnapshot? = null
+    private var helperReceiverRegistered = false
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    val active: Boolean
+        get() = coordinator != null
+
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            val current = coordinator ?: return
+            val snapshot = current.poll(elapsedRealtime())
+            if (snapshot.phase == SyncMaintenancePhase.FINISHED) {
+                finishWithCleanup(snapshot)
+            } else {
+                handler.postDelayed(this, POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private val cleanupTimeoutRunnable = Runnable {
+        if (!cleanupPending) return@Runnable
+        Log.w(TAG, "Temporary Wi-Fi cleanup result timed out")
+        val snapshot = pendingFinalSnapshot ?: return@Runnable
+        finishNow(snapshot)
+    }
+
+    private val helperResultReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != HelperController.ACTION_RESULT) return
+            if (
+                intent.getStringExtra(HelperController.EXTRA_PHASE) !=
+                HelperController.PHASE_MAINTENANCE_WIFI
+            ) {
+                return
+            }
+
+            val action = intent.getStringExtra(HelperController.EXTRA_WIFI_ACTION) ?: "NONE"
+            val attempted =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_ATTEMPTED, false)
+            val success =
+                intent.getBooleanExtra(HelperController.EXTRA_WIFI_TOGGLE_SUCCESS, true)
+            val status =
+                intent.getStringExtra(HelperController.EXTRA_STATUS)
+                    ?: HelperController.STATUS_OK
+
+            Log.i(
+                TAG,
+                "Temporary Wi-Fi result: action=$action attempted=$attempted " +
+                    "success=$success status=$status"
+            )
+
+            if (cleanupPending && action == "OFF") {
+                handler.removeCallbacks(cleanupTimeoutRunnable)
+                val snapshot = pendingFinalSnapshot ?: return
+                finishNow(snapshot)
+            }
+        }
+    }
+
+    fun start(
+        trigger: SyncMaintenanceTrigger,
+        onFinished: (SyncMaintenanceSnapshot) -> Unit
+    ): Boolean {
+        if (active) return false
+
+        this.trigger = trigger
+        completionCallback = onFinished
+
+        val current = SyncMaintenanceCoordinator(
+            trigger = trigger,
+            providers = providersFactory()
+        )
+        coordinator = current
+
+        // Begin with network=false so the completion-capability guard and
+        // no-target guard are evaluated before any Android side effect.
+        val initial = current.begin(
+            networkReady = false,
+            nowMs = elapsedRealtime()
+        )
+
+        if (initial.phase == SyncMaintenancePhase.FINISHED) {
+            finishNow(initial)
+            return true
+        }
+
+        acquireWakeLock()
+
+        if (trigger == SyncMaintenanceTrigger.PERIODIC_SLEEP) {
+            maybeRequestTemporarySleepWifi()
+        }
+
+        startNetworkWait()
+        return true
+    }
+
+    /**
+     * Cancel an active session.
+     *
+     * restoreSleepWifi should be true only when the device is still meant to
+     * remain asleep. On a real wake transition it must be false; the normal
+     * Helper wake transaction owns restoration and clears its sleep cycle.
+     */
+    fun cancel(restoreSleepWifi: Boolean): SyncMaintenanceSnapshot? {
+        val current = coordinator ?: return null
+
+        handler.removeCallbacks(pollRunnable)
+        networkGate?.cancel()
+        networkGate = null
+
+        val snapshot = current.cancel()
+        if (
+            restoreSleepWifi &&
+            trigger == SyncMaintenanceTrigger.PERIODIC_SLEEP
+        ) {
+            finishWithCleanup(snapshot)
+        } else {
+            finishNow(snapshot)
+        }
+        return snapshot
+    }
+
+    private fun startNetworkWait() {
+        networkGate?.cancel()
+        val gate = NetworkReadyGate(
+            context = appContext,
+            handler = handler,
+            timeoutMs = NETWORK_TIMEOUT_MS
+        ) { result ->
+            networkGate = null
+            val current = coordinator ?: return@NetworkReadyGate
+
+            val snapshot =
+                if (result == NetworkReadyGate.Result.VALIDATED) {
+                    current.onNetworkReady(elapsedRealtime())
+                } else {
+                    current.onNetworkUnavailable()
+                }
+
+            if (snapshot.phase == SyncMaintenancePhase.FINISHED) {
+                finishWithCleanup(snapshot)
+            } else {
+                handler.removeCallbacks(pollRunnable)
+                handler.post(pollRunnable)
+            }
+        }
+        networkGate = gate
+        gate.start()
+    }
+
+    private fun maybeRequestTemporarySleepWifi() {
+        val cycle = SleepCycleStore.current(appContext)
+        val eligible =
+            cycle.active &&
+                cycle.helperExpected &&
+                cycle.wifiManaged &&
+                !cycle.helperRestored &&
+                HelperController.isInstalled(appContext)
+
+        if (!eligible) {
+            Log.i(TAG, "Periodic maintenance does not require Helper Wi-Fi restore")
+            return
+        }
+
+        registerHelperReceiver()
+        tempWifiOnRequested =
+            HelperController.setTemporaryWifi(appContext, enabled = true)
+
+        if (tempWifiOnRequested) {
+            Log.i(TAG, "Requested temporary Wi-Fi ON for periodic maintenance")
+        }
+    }
+
+    private fun finishWithCleanup(snapshot: SyncMaintenanceSnapshot) {
+        handler.removeCallbacks(pollRunnable)
+        networkGate?.cancel()
+        networkGate = null
+
+        if (
+            trigger == SyncMaintenanceTrigger.PERIODIC_SLEEP &&
+            tempWifiOnRequested &&
+            !cleanupPending
+        ) {
+            registerHelperReceiver()
+            pendingFinalSnapshot = snapshot
+            cleanupPending = true
+
+            if (HelperController.setTemporaryWifi(appContext, enabled = false)) {
+                handler.postDelayed(
+                    cleanupTimeoutRunnable,
+                    WIFI_CLEANUP_TIMEOUT_MS
+                )
+                Log.i(TAG, "Requested temporary Wi-Fi OFF after maintenance")
+                return
+            }
+
+            cleanupPending = false
+            pendingFinalSnapshot = null
+        }
+
+        finishNow(snapshot)
+    }
+
+    private fun finishNow(snapshot: SyncMaintenanceSnapshot) {
+        handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(cleanupTimeoutRunnable)
+        networkGate?.cancel()
+        networkGate = null
+
+        cleanupPending = false
+        pendingFinalSnapshot = null
+        tempWifiOnRequested = false
+        unregisterHelperReceiver()
+        releaseWakeLock()
+
+        coordinator = null
+        trigger = null
+
+        val callback = completionCallback
+        completionCallback = null
+
+        Log.i(
+            TAG,
+            "Maintenance finished: trigger=${snapshot.trigger} outcome=${snapshot.outcome} " +
+                "completed=${snapshot.completedProviderIds} failed=${snapshot.failedProviderIds}"
+        )
+        callback?.invoke(snapshot)
+    }
+
+    private fun registerHelperReceiver() {
+        if (helperReceiverRegistered) return
+
+        val filter = IntentFilter(HelperController.ACTION_RESULT)
+        if (Build.VERSION.SDK_INT >= 33) {
+            appContext.registerReceiver(
+                helperResultReceiver,
+                filter,
+                HelperController.PERMISSION,
+                handler,
+                Context.RECEIVER_EXPORTED
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.registerReceiver(
+                helperResultReceiver,
+                filter,
+                HelperController.PERMISSION,
+                handler
+            )
+        }
+        helperReceiverRegistered = true
+    }
+
+    private fun unregisterHelperReceiver() {
+        if (!helperReceiverRegistered) return
+        helperReceiverRegistered = false
+        runCatching {
+            appContext.unregisterReceiver(helperResultReceiver)
+        }
+    }
+
+    private fun acquireWakeLock() {
+        val powerManager =
+            appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                ?: return
+
+        if (wakeLock?.isHeld == true) return
+        wakeLock =
+            powerManager.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "SleepManager:SyncMaintenance"
+            ).apply {
+                setReferenceCounted(false)
+                acquire(WAKE_LOCK_TIMEOUT_MS)
+            }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { lock ->
+            if (lock.isHeld) {
+                runCatching { lock.release() }
+            }
+        }
+        wakeLock = null
+    }
+}
