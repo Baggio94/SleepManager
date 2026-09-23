@@ -3,6 +3,7 @@ package com.med.sleepmanager
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -102,6 +103,40 @@ class ResponsiveLayoutTest {
             .performScrollTo()
             .assertIsDisplayed()
         composeRule.onNodeWithText("Got it")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun advancedPage_separatesSyncAndSleepConditions() {
+        applyDisplay(
+            widthPx = 1440,
+            heightPx = 900,
+            densityDpi = 320
+        )
+
+        composeRule.onNodeWithText("Advanced")
+            .performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Advanced sync conditions")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Periodic sync while sleeping")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Sync then stop on sleep & wake")
+            .assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription(
+            "Periodic sync while sleeping toggle"
+        ).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(
+            "Sync then stop on sleep & wake toggle"
+        ).assertIsNotEnabled()
+
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("Advanced sleep conditions"))
+        composeRule.onNodeWithText("Advanced sleep conditions")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Use custom delay")
             .assertIsDisplayed()
     }
 

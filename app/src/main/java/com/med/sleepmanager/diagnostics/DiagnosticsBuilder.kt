@@ -16,6 +16,7 @@ import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
+import com.med.sleepmanager.sync.ManagedSyncProviders
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -91,6 +92,9 @@ object DiagnosticsBuilder {
             appendLine("Advanced sync conditions")
             appendLine("- Periodic sync while sleeping: ${AppPreferences.periodicSyncWhileSleeping(context)}")
             appendLine("- Sync then stop on sleep & wake: ${AppPreferences.syncThenStopOnSleepWake(context)}")
+            appendLine("- Completion-aware providers ready: ${ManagedSyncProviders.completionReady(context)}")
+            appendLine("- Periodic runtime active-capable: ${AppPreferences.periodicSyncWhileSleeping(context) && ManagedSyncProviders.completionReady(context)}")
+            appendLine("- Sleep/wake runtime active-capable: ${AppPreferences.syncThenStopOnSleepWake(context) && ManagedSyncProviders.completionReady(context)}")
             appendLine()
             appendLine("Advanced sleep conditions")
             appendLine("- Battery condition: ${AppPreferences.batteryConditionEnabled(context)}")

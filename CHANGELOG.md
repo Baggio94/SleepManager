@@ -28,6 +28,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - On real wake, Wi-Fi/radio restoration is allowed to happen first, then a completion-aware wake sync runs and leaves managed clients stopped.
 - Wake during a pre-sleep sync cancels the maintenance and prevents deferred sleep actions from continuing.
 - With current production providers the mode remains inert because completionStateAvailable is still false.
+- Diagnostics now report completion-capability readiness, and responsive UI tests cover the new Advanced sync/sleep sections and disabled-state behavior.
 
 ---
 
