@@ -71,6 +71,8 @@ This makes it easier to tell the difference between “nothing needed to change�
 
 SleepManager can check both the main app and the optional Helper for stable updates from **About → Updates**.
 
+With **Automatic update checks** enabled, SleepManager also refreshes Main + Helper release metadata whenever the app enters the foreground, while keeping the existing daily background check. Foreground checks are deduplicated and wait briefly for validated connectivity without polling or holding a wake lock.
+
 If the Helper is not installed, SleepManager can download and install the signed Helper directly from the app. If it is already installed, SleepManager offers a Helper update only when a newer Helper version is published.
 
 For a direct install or update, SleepManager verifies:
