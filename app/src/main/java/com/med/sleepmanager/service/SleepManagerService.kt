@@ -454,23 +454,7 @@ class SleepManagerService : Service() {
 
         prepareTailscaleVerificationForWake()
         restorePendingJamesDsp()
-
-        if (pendingWakeTransitionSync) {
-            SleepCycleStore.clearConnectorChange(
-                this,
-                BasicSyncConnector.id
-            )
-            SleepCycleStore.clearConnectorChange(
-                this,
-                SyncthingConnector.id
-            )
-            Log.i(
-                TAG,
-                "Wake sync mode active; BasicSync/Syncthing restore tokens cleared"
-            )
-        } else {
-            restorePendingBasicSync()
-        }
+        restorePendingBasicSync()
 
         var cycle = SleepCycleStore.current(this)
         if (
@@ -1402,7 +1386,23 @@ class SleepManagerService : Service() {
         }
 
         restorePendingJamesDsp()
-        restorePendingBasicSync()
+
+        if (pendingWakeTransitionSync) {
+            SleepCycleStore.clearConnectorChange(
+                this,
+                BasicSyncConnector.id
+            )
+            SleepCycleStore.clearConnectorChange(
+                this,
+                SyncthingConnector.id
+            )
+            Log.i(
+                TAG,
+                "Wake sync mode active; BasicSync/Syncthing restore tokens cleared"
+            )
+        } else {
+            restorePendingBasicSync()
+        }
 
         var cycle = SleepCycleStore.current(this)
         if (
