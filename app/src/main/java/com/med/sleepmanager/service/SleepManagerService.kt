@@ -114,6 +114,14 @@ class SleepManagerService : Service() {
         syncMaintenanceRunner?.cancel(restoreSleepWifi)
     }
 
+    private fun refreshBasicSyncObserver() {
+        if (AppPreferences.manageBasicSync(this)) {
+            BasicSyncController.startStateObserver(this)
+        } else {
+            BasicSyncController.stopStateObserver()
+        }
+    }
+
     @Volatile
     private var thorLidClosed = false
 
@@ -397,7 +405,7 @@ class SleepManagerService : Service() {
         registerScreenReceiver()
         registerHelperResultReceiver()
         recoverInterruptedSleepWifiMaintenance()
-        BasicSyncController.startStateObserver(this)
+        refreshBasicSyncObserver()
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
     }
@@ -459,6 +467,7 @@ class SleepManagerService : Service() {
 
         if (!receiverRegistered) registerScreenReceiver()
         if (!helperResultReceiverRegistered) registerHelperResultReceiver()
+        refreshBasicSyncObserver()
         refreshThorLidMonitor()
 
         if (!initialScreenStateApplied) {
@@ -718,6 +727,9 @@ class SleepManagerService : Service() {
         val basicSync =
             AppPreferences.manageBasicSync(this) &&
                 BasicSyncConnector.isInstalled(this)
+        if (basicSync) {
+            BasicSyncController.startStateObserver(this)
+        }
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
 

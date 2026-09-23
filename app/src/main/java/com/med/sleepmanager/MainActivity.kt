@@ -417,6 +417,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
+        if (!AppPreferences.manageBasicSync(this)) {
+            BasicSyncController.stopStateObserver()
+        }
         super.onPause()
     }
 
