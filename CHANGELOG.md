@@ -10,7 +10,10 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added the first **Advanced sync conditions** UI and persisted settings for **Periodic sync while sleeping** and **Sync then stop on sleep & wake**.
 - Sync-condition toggles are disabled until Syncthing-Fork or BasicSync is selected on Home.
 - The existing delay/battery/charging/Battery Saver/schedule controls now sit under **Advanced sleep conditions**.
-- Sync execution is intentionally not active yet; completion-aware providers and the maintenance coordinator are the next step.
+- Added completion-aware provider abstractions for BasicSync and Syncthing-Fork.
+- Providers can already force START/STOP, including Syncthing-Fork's documented `.action.START` force-start command.
+- Sync completion intentionally remains **UNKNOWN** until a reliable external completion signal is available; runtime state is never treated as completed sync.
+- The maintenance coordinator and scheduling state machine are the next step.
 
 ---
 
