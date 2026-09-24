@@ -43,6 +43,47 @@ interface SyncCompletionProvider {
     fun currentSyncState(): SyncCompletionState
 }
 
+internal fun basicSyncCompletionState(
+    state: BasicSyncController.RemoteState?
+): SyncCompletionState {
+    state ?: return SyncCompletionState.UNKNOWN
+
+    if (state.runState != BasicSyncController.RunState.RUNNING) {
+        return SyncCompletionState.UNKNOWN
+    }
+
+    val counters =
+        state.syncCounters
+            ?: return SyncCompletionState.UNKNOWN
+
+    if (
+        state.blockedReasons.isNotEmpty() ||
+        counters.foldersErrored > 0
+    ) {
+        return SyncCompletionState.UNKNOWN
+    }
+
+    if (
+        counters.foldersScanning > 0 ||
+        counters.foldersSyncing > 0 ||
+        counters.foldersCleaning > 0 ||
+        counters.foldersStarting > 0 ||
+        counters.devicesSyncing > 0 ||
+        counters.devicesPending > 0
+    ) {
+        return SyncCompletionState.SYNCING
+    }
+
+    return if (
+        counters.foldersIdle > 0 &&
+        counters.devicesConnected > 0
+    ) {
+        SyncCompletionState.SYNCED
+    } else {
+        SyncCompletionState.UNKNOWN
+    }
+}
+
 class BasicSyncCompletionProvider(
     context: Context
 ) : SyncCompletionProvider {
@@ -97,48 +138,14 @@ class BasicSyncCompletionProvider(
         )
     }
 
-    override fun currentSyncState(): SyncCompletionState {
-        if (!completionStateAvailable) return SyncCompletionState.UNKNOWN
-
-        val state =
-            BasicSyncController.lastObservedState()
-                ?: return SyncCompletionState.UNKNOWN
-
-        if (state.runState != BasicSyncController.RunState.RUNNING) {
-            return SyncCompletionState.UNKNOWN
-        }
-
-        val counters =
-            state.syncCounters
-                ?: return SyncCompletionState.UNKNOWN
-
-        if (
-            state.blockedReasons.isNotEmpty() ||
-            counters.foldersErrored > 0
-        ) {
-            return SyncCompletionState.UNKNOWN
-        }
-
-        if (
-            counters.foldersScanning > 0 ||
-            counters.foldersSyncing > 0 ||
-            counters.foldersCleaning > 0 ||
-            counters.foldersStarting > 0 ||
-            counters.devicesSyncing > 0 ||
-            counters.devicesPending > 0
-        ) {
-            return SyncCompletionState.SYNCING
-        }
-
-        return if (
-            counters.foldersIdle > 0 &&
-            counters.devicesConnected > 0
-        ) {
-            SyncCompletionState.SYNCED
+    override fun currentSyncState(): SyncCompletionState =
+        if (completionStateAvailable) {
+            basicSyncCompletionState(
+                BasicSyncController.lastObservedState()
+            )
         } else {
             SyncCompletionState.UNKNOWN
         }
-    }
 }
 
 class SyncthingCompletionProvider(
