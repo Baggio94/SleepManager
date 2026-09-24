@@ -137,7 +137,7 @@ object BasicSyncController {
         observerReceiver = null
     }
 
-    private fun parseState(intent: Intent?): RemoteState? {
+    internal fun parseState(intent: Intent?): RemoteState? {
         if (intent?.action != ACTION_STATE_CHANGED) return null
 
         val mode =
