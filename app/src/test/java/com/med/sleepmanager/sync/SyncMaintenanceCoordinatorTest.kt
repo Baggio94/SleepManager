@@ -124,22 +124,25 @@ class SyncMaintenanceCoordinatorTest {
     }
 
     @Test
-    fun syncingThenSyncedStopsClientAndCompletes() {
+    fun syncingThenStableSyncedStopsClientAndCompletes() {
         val provider = FakeProvider(
             "one",
             listOf(
                 SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
                 SyncCompletionState.SYNCED
             )
         )
         val coordinator = SyncMaintenanceCoordinator(
-            SyncMaintenanceTrigger.AFTER_WAKE,
-            listOf(provider)
+            trigger = SyncMaintenanceTrigger.AFTER_WAKE,
+            providers = listOf(provider),
+            idleSyncedStabilityMs = 3_000L
         )
 
         coordinator.begin(networkReady = true, nowMs = 0L)
         coordinator.poll(nowMs = 100L)
-        val result = coordinator.poll(nowMs = 200L)
+        coordinator.poll(nowMs = 200L)
+        val result = coordinator.poll(nowMs = 3_200L)
 
         assertEquals(SyncMaintenanceOutcome.COMPLETED, result.outcome)
         assertEquals(1, provider.starts)
@@ -168,6 +171,35 @@ class SyncMaintenanceCoordinatorTest {
 
         val done = coordinator.poll(nowMs = 4_000L)
         assertEquals(SyncMaintenanceOutcome.COMPLETED, done.outcome)
+        assertEquals(1, provider.stops)
+    }
+
+    @Test
+    fun transientSyncedStateMustRemainStableBeforeStop() {
+        val provider = FakeProvider(
+            "one",
+            listOf(
+                SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
+                SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
+                SyncCompletionState.SYNCED
+            )
+        )
+        val coordinator = SyncMaintenanceCoordinator(
+            trigger = SyncMaintenanceTrigger.BEFORE_SLEEP,
+            providers = listOf(provider),
+            idleSyncedStabilityMs = 500L
+        )
+
+        coordinator.begin(networkReady = true, nowMs = 0L)
+        coordinator.poll(nowMs = 100L)
+        coordinator.poll(nowMs = 200L)
+        coordinator.poll(nowMs = 300L)
+        coordinator.poll(nowMs = 400L)
+        val result = coordinator.poll(nowMs = 900L)
+
+        assertEquals(SyncMaintenanceOutcome.COMPLETED, result.outcome)
         assertEquals(1, provider.stops)
     }
 
@@ -216,7 +248,8 @@ class SyncMaintenanceCoordinatorTest {
             listOf(
                 SyncCompletionState.SYNCING,
                 SyncCompletionState.SYNCED,
-                SyncCompletionState.UNKNOWN
+                SyncCompletionState.SYNCED,
+                SyncCompletionState.SYNCED
             )
         )
         val second = FakeProvider(
@@ -224,18 +257,21 @@ class SyncMaintenanceCoordinatorTest {
             listOf(
                 SyncCompletionState.SYNCING,
                 SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
                 SyncCompletionState.SYNCED
             )
         )
         val coordinator = SyncMaintenanceCoordinator(
-            SyncMaintenanceTrigger.AFTER_WAKE,
-            listOf(first, second)
+            trigger = SyncMaintenanceTrigger.AFTER_WAKE,
+            providers = listOf(first, second),
+            idleSyncedStabilityMs = 100L
         )
 
         coordinator.begin(networkReady = true, nowMs = 0L)
         coordinator.poll(nowMs = 100L)
         coordinator.poll(nowMs = 200L)
-        val result = coordinator.poll(nowMs = 300L)
+        coordinator.poll(nowMs = 300L)
+        val result = coordinator.poll(nowMs = 400L)
 
         assertEquals(SyncMaintenanceOutcome.COMPLETED, result.outcome)
         assertEquals(setOf("first", "second"), result.completedProviderIds)
@@ -254,17 +290,20 @@ class SyncMaintenanceCoordinatorTest {
             "good",
             listOf(
                 SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
                 SyncCompletionState.SYNCED
             )
         )
         val coordinator = SyncMaintenanceCoordinator(
-            SyncMaintenanceTrigger.BEFORE_SLEEP,
-            listOf(failed, good)
+            trigger = SyncMaintenanceTrigger.BEFORE_SLEEP,
+            providers = listOf(failed, good),
+            idleSyncedStabilityMs = 100L
         )
 
         coordinator.begin(networkReady = true, nowMs = 0L)
         coordinator.poll(nowMs = 100L)
-        val result = coordinator.poll(nowMs = 200L)
+        coordinator.poll(nowMs = 200L)
+        val result = coordinator.poll(nowMs = 300L)
 
         assertEquals(SyncMaintenanceOutcome.COMPLETED_WITH_ERRORS, result.outcome)
         assertTrue("failed" in result.failedProviderIds)
@@ -278,18 +317,21 @@ class SyncMaintenanceCoordinatorTest {
             "one",
             listOf(
                 SyncCompletionState.SYNCING,
+                SyncCompletionState.SYNCED,
                 SyncCompletionState.SYNCED
             ),
             stopSucceeds = false
         )
         val coordinator = SyncMaintenanceCoordinator(
-            SyncMaintenanceTrigger.AFTER_WAKE,
-            listOf(provider)
+            trigger = SyncMaintenanceTrigger.AFTER_WAKE,
+            providers = listOf(provider),
+            idleSyncedStabilityMs = 100L
         )
 
         coordinator.begin(networkReady = true, nowMs = 0L)
         coordinator.poll(nowMs = 100L)
-        val result = coordinator.poll(nowMs = 200L)
+        coordinator.poll(nowMs = 200L)
+        val result = coordinator.poll(nowMs = 300L)
 
         assertEquals(SyncMaintenanceOutcome.COMPLETED_WITH_ERRORS, result.outcome)
         assertTrue("one" in result.completedProviderIds)
