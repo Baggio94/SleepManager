@@ -25,8 +25,19 @@ object BasicSyncController {
 
     private const val EXTRA_MODE = "mode"
     private const val EXTRA_RUN_STATE = "run_state"
+    private const val EXTRA_BLOCKED_REASONS = "blocked_reasons"
+    private const val EXTRA_FOLDERS_IDLE_COUNT = "folders_idle_count"
+    private const val EXTRA_FOLDERS_SCANNING_COUNT = "folders_scanning_count"
+    private const val EXTRA_FOLDERS_SYNCING_COUNT = "folders_syncing_count"
+    private const val EXTRA_FOLDERS_CLEANING_COUNT = "folders_cleaning_count"
+    private const val EXTRA_FOLDERS_ERRORED_COUNT = "folders_errored_count"
+    private const val EXTRA_FOLDERS_STARTING_COUNT = "folders_starting_count"
+    private const val EXTRA_DEVICES_CONNECTED_COUNT = "devices_connected_count"
+    private const val EXTRA_DEVICES_SYNCING_COUNT = "devices_syncing_count"
+    private const val EXTRA_DEVICES_PENDING_COUNT = "devices_pending_count"
     private const val STATE_QUERY_TIMEOUT_MS = 7000L
     private const val MIN_STATE_API_VERSION_CODE = 0x03_12_00L
+    private const val MIN_SYNC_COUNTER_API_VERSION_CODE = 0x03_13_00L
 
     @Volatile
     private var observedState: RemoteState? = null
@@ -50,13 +61,30 @@ object BasicSyncController {
         EXPORTING
     }
 
-    data class RemoteState(
-        val mode: Mode,
-        val runState: RunState
+    data class SyncCounters(
+        val foldersIdle: Int,
+        val foldersScanning: Int,
+        val foldersSyncing: Int,
+        val foldersCleaning: Int,
+        val foldersErrored: Int,
+        val foldersStarting: Int,
+        val devicesConnected: Int,
+        val devicesSyncing: Int,
+        val devicesPending: Int
     )
 
+    data class RemoteState(
+        val mode: Mode,
+        val runState: RunState,
+        val blockedReasons: Set<String> = emptySet(),
+        val syncCounters: SyncCounters? = null
+    )
 
     fun lastObservedState(): RemoteState? = observedState
+
+    fun clearObservedState() {
+        observedState = null
+    }
 
     @Synchronized
     fun startStateObserver(context: Context) {
@@ -73,7 +101,8 @@ object BasicSyncController {
                     observedState = state
                     Log.i(
                         TAG,
-                        "STATE_CHANGED observed: mode=${state.mode} runState=${state.runState}"
+                        "STATE_CHANGED observed: mode=${state.mode} runState=${state.runState} " +
+                            "counters=${state.syncCounters} blocked=${state.blockedReasons}"
                     )
                 }
             }
@@ -125,7 +154,46 @@ object BasicSyncController {
                 }
                 ?: return null
 
-        return RemoteState(mode, runState)
+        val blockedReasons =
+            intent.getStringArrayExtra(EXTRA_BLOCKED_REASONS)
+                ?.toSet()
+                .orEmpty()
+
+        val counterKeys = listOf(
+            EXTRA_FOLDERS_IDLE_COUNT,
+            EXTRA_FOLDERS_SCANNING_COUNT,
+            EXTRA_FOLDERS_SYNCING_COUNT,
+            EXTRA_FOLDERS_CLEANING_COUNT,
+            EXTRA_FOLDERS_ERRORED_COUNT,
+            EXTRA_FOLDERS_STARTING_COUNT,
+            EXTRA_DEVICES_CONNECTED_COUNT,
+            EXTRA_DEVICES_SYNCING_COUNT,
+            EXTRA_DEVICES_PENDING_COUNT
+        )
+
+        val syncCounters =
+            if (counterKeys.all(intent::hasExtra)) {
+                SyncCounters(
+                    foldersIdle = intent.getIntExtra(EXTRA_FOLDERS_IDLE_COUNT, 0),
+                    foldersScanning = intent.getIntExtra(EXTRA_FOLDERS_SCANNING_COUNT, 0),
+                    foldersSyncing = intent.getIntExtra(EXTRA_FOLDERS_SYNCING_COUNT, 0),
+                    foldersCleaning = intent.getIntExtra(EXTRA_FOLDERS_CLEANING_COUNT, 0),
+                    foldersErrored = intent.getIntExtra(EXTRA_FOLDERS_ERRORED_COUNT, 0),
+                    foldersStarting = intent.getIntExtra(EXTRA_FOLDERS_STARTING_COUNT, 0),
+                    devicesConnected = intent.getIntExtra(EXTRA_DEVICES_CONNECTED_COUNT, 0),
+                    devicesSyncing = intent.getIntExtra(EXTRA_DEVICES_SYNCING_COUNT, 0),
+                    devicesPending = intent.getIntExtra(EXTRA_DEVICES_PENDING_COUNT, 0)
+                )
+            } else {
+                null
+            }
+
+        return RemoteState(
+            mode = mode,
+            runState = runState,
+            blockedReasons = blockedReasons,
+            syncCounters = syncCounters
+        )
     }
 
     fun isInstalled(context: Context): Boolean =
@@ -144,6 +212,22 @@ object BasicSyncController {
                 .getPackageInfo(PACKAGE, 0)
                 .longVersionCode >= MIN_STATE_API_VERSION_CODE
         }.getOrDefault(false)
+
+    fun supportsSyncCounters(context: Context): Boolean =
+        runCatching {
+            context.packageManager
+                .getPackageInfo(PACKAGE, 0)
+                .longVersionCode >= MIN_SYNC_COUNTER_API_VERSION_CODE
+        }.getOrDefault(false)
+
+    fun requestStateBroadcast(context: Context): Boolean =
+        sendRemoteControl(context, ACTION_REQUEST_STATE)
+
+    fun isConfirmedStopped(): Boolean {
+        val state = observedState ?: return false
+        return state.mode == Mode.MANUAL_MODE_STOPPED &&
+            state.runState == RunState.NOT_RUNNING
+    }
 
     fun open(context: Context): Boolean {
         val launchIntent =
