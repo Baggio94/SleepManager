@@ -563,6 +563,9 @@ class SleepManagerService : Service() {
                     existingCycle.helperExpected &&
                     !existingCycle.helperSleepRequested
                 ) {
+                    val elapsed =
+                        (System.currentTimeMillis() - existingCycle.startedAt)
+                            .coerceAtLeast(0L)
                     pendingSleepWifi = existingCycle.wifiManaged
                     pendingSleepBluetooth = existingCycle.bluetoothManaged
                     pendingSleepSyncthing =
@@ -570,6 +573,12 @@ class SleepManagerService : Service() {
                             this,
                             SyncthingConnector.id
                         )
+                    pendingSleepBasicSync =
+                        SleepCycleStore.hasConnectorChange(
+                            this,
+                            BasicSyncConnector.id
+                        )
+                    initializeSleepStopWait(elapsed)
                 }
 
                 Log.i(TAG, "Recovered pending Tailscale disconnect verification")
@@ -582,36 +591,28 @@ class SleepManagerService : Service() {
                 existingCycle.helperExpected &&
                 !existingCycle.helperSleepRequested
             ) {
-                val syncthingStopped =
-                    SleepCycleStore.hasConnectorChange(this, SyncthingConnector.id)
-                val elapsed = System.currentTimeMillis() - existingCycle.startedAt
-                val remainingGrace =
-                    if (syncthingStopped) {
-                        (SYNCTHING_STOP_GRACE_MS - elapsed).coerceAtLeast(0L)
-                    } else {
-                        0L
-                    }
-
+                val elapsed =
+                    (System.currentTimeMillis() - existingCycle.startedAt)
+                        .coerceAtLeast(0L)
                 pendingSleepWifi = existingCycle.wifiManaged
                 pendingSleepBluetooth = existingCycle.bluetoothManaged
-                pendingSleepSyncthing = syncthingStopped
+                pendingSleepSyncthing =
+                    SleepCycleStore.hasConnectorChange(
+                        this,
+                        SyncthingConnector.id
+                    )
+                pendingSleepBasicSync =
+                    SleepCycleStore.hasConnectorChange(
+                        this,
+                        BasicSyncConnector.id
+                    )
 
-                if (remainingGrace > 0L) {
-                    acquireSleepTransitionWakeLock()
-                    handler.postDelayed(sleepRadioRunnable, remainingGrace)
-                    Log.i(
-                        TAG,
-                        "Recovered pending sleep transaction; radio sleep in " +
-                            remainingGrace + "ms"
-                    )
-                } else {
-                    Log.i(TAG, "Recovered pending sleep transaction; applying radio sleep now")
-                    applySleepConnectivity(
-                        wifi = existingCycle.wifiManaged,
-                        bluetooth = existingCycle.bluetoothManaged,
-                        syncthing = syncthingStopped
-                    )
-                }
+                initializeSleepStopWait(elapsed)
+                scheduleSleepRadioStopCheck(0L)
+                Log.i(
+                    TAG,
+                    "Recovered pending sleep transaction; resuming sync STOP gate"
+                )
             } else {
                 Log.i(TAG, "Screen OFF -> active sleep transaction already exists; skipping duplicate")
             }
