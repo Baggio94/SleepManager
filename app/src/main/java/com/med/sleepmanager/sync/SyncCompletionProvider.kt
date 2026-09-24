@@ -50,13 +50,38 @@ class BasicSyncCompletionProvider(
 
     override val id: String = "basicsync"
     override val displayName: String = "BasicSync"
-    override val completionStateAvailable: Boolean = false
+    override val completionStateAvailable: Boolean =
+        BasicSyncController.supportsSyncCounters(appContext)
 
     override fun startSync(): SyncControlResult {
         val installed = BasicSyncController.isInstalled(appContext)
-        val sent = installed && BasicSyncController.sendStart(appContext)
+        if (!installed) {
+            return SyncControlResult(
+                attempted = false,
+                success = false,
+                detail = "BasicSync is not installed"
+            )
+        }
+
+        if (!completionStateAvailable) {
+            return SyncControlResult(
+                attempted = false,
+                success = false,
+                detail = "BasicSync 3.19+ is required for sync counters"
+            )
+        }
+
+        // Do not allow a stale pre-start STATE_CHANGED snapshot to satisfy the
+        // coordinator's stability window. BasicSync will publish fresh state as
+        // START takes effect; REQUEST_STATE also asks for an immediate snapshot.
+        BasicSyncController.clearObservedState()
+        val sent = BasicSyncController.sendStart(appContext)
+        if (sent) {
+            BasicSyncController.requestStateBroadcast(appContext)
+        }
+
         return SyncControlResult(
-            attempted = installed,
+            attempted = true,
             success = sent,
             detail = if (sent) "START sent" else "START not sent"
         )
@@ -72,8 +97,48 @@ class BasicSyncCompletionProvider(
         )
     }
 
-    override fun currentSyncState(): SyncCompletionState =
-        SyncCompletionState.UNKNOWN
+    override fun currentSyncState(): SyncCompletionState {
+        if (!completionStateAvailable) return SyncCompletionState.UNKNOWN
+
+        val state =
+            BasicSyncController.lastObservedState()
+                ?: return SyncCompletionState.UNKNOWN
+
+        if (state.runState != BasicSyncController.RunState.RUNNING) {
+            return SyncCompletionState.UNKNOWN
+        }
+
+        val counters =
+            state.syncCounters
+                ?: return SyncCompletionState.UNKNOWN
+
+        if (
+            state.blockedReasons.isNotEmpty() ||
+            counters.foldersErrored > 0
+        ) {
+            return SyncCompletionState.UNKNOWN
+        }
+
+        if (
+            counters.foldersScanning > 0 ||
+            counters.foldersSyncing > 0 ||
+            counters.foldersCleaning > 0 ||
+            counters.foldersStarting > 0 ||
+            counters.devicesSyncing > 0 ||
+            counters.devicesPending > 0
+        ) {
+            return SyncCompletionState.SYNCING
+        }
+
+        return if (
+            counters.foldersIdle > 0 &&
+            counters.devicesConnected > 0
+        ) {
+            SyncCompletionState.SYNCED
+        } else {
+            SyncCompletionState.UNKNOWN
+        }
+    }
 }
 
 class SyncthingCompletionProvider(
