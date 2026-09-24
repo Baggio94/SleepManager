@@ -22,6 +22,8 @@
                 <action android:name="com.med.sleepmanager.helper.action.WAKE" />
                 <action android:name="com.med.sleepmanager.helper.action.RESTORE" />
                 <action android:name="com.med.sleepmanager.helper.action.QUERY_STATE" />
+                <action android:name="com.med.sleepmanager.helper.action.SET_TEMP_WIFI" />
+                <action android:name="com.med.sleepmanager.helper.action.FORGET_STATE" />
             </intent-filter>
         </receiver>
     </application>
