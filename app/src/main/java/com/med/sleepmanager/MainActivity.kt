@@ -132,6 +132,8 @@ import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.sync.ManagedSyncProviders
+import com.med.sleepmanager.sync.SyncCompletionState
+import com.med.sleepmanager.sync.basicSyncCompletionState
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import com.med.sleepmanager.update.UpdateCheckResult
 import com.med.sleepmanager.update.UpdateCheckScheduler
@@ -1626,7 +1628,22 @@ class MainActivity : ComponentActivity() {
                                             BasicSyncController.RunState.IMPORTING -> "Importing"
                                             BasicSyncController.RunState.EXPORTING -> "Exporting"
                                         }
-                                        "$mode · $runState"
+                                        val syncState =
+                                            if (
+                                                BasicSyncController.supportsSyncCounters(
+                                                    this@MainActivity
+                                                )
+                                            ) {
+                                                when (basicSyncCompletionState(state)) {
+                                                    SyncCompletionState.SYNCING -> "Syncing"
+                                                    SyncCompletionState.SYNCED -> "Synced"
+                                                    SyncCompletionState.UNKNOWN -> null
+                                                }
+                                            } else {
+                                                null
+                                            }
+                                        listOfNotNull(mode, runState, syncState)
+                                            .joinToString(" · ")
                                     } ?: "Checking…"
                                 } else {
                                     "Legacy: STOP → Auto mode"
@@ -3304,7 +3321,7 @@ private fun AdvancedSettingsPage(
             AdvancedToggleRow(
                 title = "Periodic sync while sleeping",
                 subtitle = if (syncConditionsAvailable) {
-                    "Periodically sync managed clients during long sleep sessions."
+                    "While the device stays asleep, sync managed clients every 24h, then stop them and restore the sleep state."
                 } else {
                     "BasicSync 3.19+ required; Syncthing-Fork support pending."
                 },
@@ -3321,7 +3338,7 @@ private fun AdvancedSettingsPage(
             AdvancedToggleRow(
                 title = "Sync then stop on sleep & wake",
                 subtitle = if (syncConditionsAvailable) {
-                    "Sync managed clients when the device wakes and before it sleeps, then keep them stopped to reduce background battery use."
+                    "Sync managed clients after wake and again before sleep. After each sync completes, stop them to reduce background battery use."
                 } else {
                     "BasicSync 3.19+ required; Syncthing-Fork support pending."
                 },
