@@ -35,12 +35,15 @@ interface SyncCompletionProvider {
 
     /**
      * Must describe synchronization completion, not merely process/runtime state.
-     *
-     * Until the external apps expose a reliable completion signal, production
-     * providers intentionally return UNKNOWN rather than treating RUNNING as
-     * SYNCING or SYNCED.
      */
     fun currentSyncState(): SyncCompletionState
+
+    /**
+     * Return true/false only when the provider can reliably confirm that the
+     * managed client has fully stopped. Null means no reliable stop-state API is
+     * available and callers must use their bounded fallback policy.
+     */
+    fun isStopConfirmed(): Boolean? = null
 }
 
 internal fun basicSyncCompletionState(
@@ -145,6 +148,13 @@ class BasicSyncCompletionProvider(
             )
         } else {
             SyncCompletionState.UNKNOWN
+        }
+
+    override fun isStopConfirmed(): Boolean? =
+        if (BasicSyncController.supportsStateApi(appContext)) {
+            BasicSyncController.isConfirmedStopped()
+        } else {
+            null
         }
 }
 
