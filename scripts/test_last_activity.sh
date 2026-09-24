@@ -110,7 +110,7 @@ EOF
     ;;
   *)
     echo "Unknown command: $1"
-    echo "Use ./test_last_activity.sh --help"
+    echo "Use ./scripts/test_last_activity.sh --help"
     exit 1
     ;;
 esac
