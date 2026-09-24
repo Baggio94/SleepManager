@@ -98,7 +98,7 @@ case "${1:-cycle}" in
     ;;
   help|-h|--help)
     cat <<EOF
-Usage: ./test_last_activity.sh [command]
+Usage: ./scripts/test_last_activity.sh [command]
 
 Commands:
   cycle    Deterministic SLEEP/WAKE cycle + Last activity + logs (default)

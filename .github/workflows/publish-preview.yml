@@ -33,7 +33,10 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platform-tools"             "platforms;android-36"             "build-tools;36.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -46,7 +49,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$KEYSTORE_B64" ]             || [ -z "$SLEEPMANAGER_STORE_PASSWORD" ]             || [ -z "$SLEEPMANAGER_KEY_ALIAS" ]             || [ -z "$SLEEPMANAGER_KEY_PASSWORD" ]; then
+          if [ -z "$KEYSTORE_B64" ] \
+            || [ -z "$SLEEPMANAGER_STORE_PASSWORD" ] \
+            || [ -z "$SLEEPMANAGER_KEY_ALIAS" ] \
+            || [ -z "$SLEEPMANAGER_KEY_PASSWORD" ]; then
             echo "::error::Stable signing secrets are not fully configured."
             exit 1
           fi
@@ -123,16 +129,24 @@ jobs:
           MAIN_APK="app/build/outputs/apk/release/app-release.apk"
           HELPER_APK="helper/build/outputs/apk/release/helper-release.apk"
 
-          MAIN_PACKAGE=$("$AAPT" dump badging "$MAIN_APK"             | sed -n "s/^package: name='\([^']*\)'.*/\1/p"             | head -n 1)
-          HELPER_PACKAGE=$("$AAPT" dump badging "$HELPER_APK"             | sed -n "s/^package: name='\([^']*\)'.*/\1/p"             | head -n 1)
+          MAIN_PACKAGE=$("$AAPT" dump badging "$MAIN_APK" \
+            | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+            | head -n 1)
+          HELPER_PACKAGE=$("$AAPT" dump badging "$HELPER_APK" \
+            | sed -n "s/^package: name='\([^']*\)'.*/\1/p" \
+            | head -n 1)
 
           [ "$MAIN_PACKAGE" = "com.med.sleepmanager" ]
           [ "$HELPER_PACKAGE" = "com.med.sleepmanager.helper" ]
 
-          MAIN_CERT=$("$APKSIGNER" verify --print-certs "$MAIN_APK"             | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
-          HELPER_CERT=$("$APKSIGNER" verify --print-certs "$HELPER_APK"             | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+          MAIN_CERT=$("$APKSIGNER" verify --print-certs "$MAIN_APK" \
+            | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
+          HELPER_CERT=$("$APKSIGNER" verify --print-certs "$HELPER_APK" \
+            | awk -F': ' '/certificate SHA-256 digest/{gsub(/[[:space:]]/,"",$2); print tolower($2); exit}')
 
-          EXPECTED_CERT=$(sed -n 's/^SLEEPMANAGER_SIGNING_SHA256=//p' gradle.properties             | tr '[:upper:]' '[:lower:]'             | tr -d ':')
+          EXPECTED_CERT=$(sed -n 's/^SLEEPMANAGER_SIGNING_SHA256=//p' gradle.properties \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr -d ':')
 
           [ "$MAIN_CERT" = "$HELPER_CERT" ]
           [ "$MAIN_CERT" = "$EXPECTED_CERT" ]
@@ -142,8 +156,10 @@ jobs:
           set -euo pipefail
           mkdir -p dist
 
-          cp app/build/outputs/apk/release/app-release.apk             "dist/SleepManager-$VERSION_NAME.apk"
-          cp helper/build/outputs/apk/release/helper-release.apk             "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
+          cp app/build/outputs/apk/release/app-release.apk \
+            "dist/SleepManager-$VERSION_NAME.apk"
+          cp helper/build/outputs/apk/release/helper-release.apk \
+            "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
 
           MAIN_APK="dist/SleepManager-$VERSION_NAME.apk"
           HELPER_APK="dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"
@@ -182,9 +198,23 @@ jobs:
           set -euo pipefail
 
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG"               --repo "$GITHUB_REPOSITORY"               --title "SleepManager $VERSION_NAME"               --notes-file RELEASE_NOTES.md               --prerelease
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "SleepManager $VERSION_NAME" \
+              --notes-file RELEASE_NOTES.md \
+              --prerelease
           else
-            gh release create "$RELEASE_TAG"               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --title "SleepManager $VERSION_NAME"               --notes-file RELEASE_NOTES.md               --prerelease
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "SleepManager $VERSION_NAME" \
+              --notes-file RELEASE_NOTES.md \
+              --prerelease
           fi
 
-          gh release upload "$RELEASE_TAG"             "dist/SleepManager-$VERSION_NAME.apk"             "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk"             "dist/update.json"             --repo "$GITHUB_REPOSITORY"             --clobber
+          gh release upload "$RELEASE_TAG" \
+            "dist/SleepManager-$VERSION_NAME.apk" \
+            "dist/SleepManager-Helper-$HELPER_VERSION_NAME.apk" \
+            "dist/update.json" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber

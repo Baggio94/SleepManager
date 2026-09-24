@@ -16,10 +16,8 @@ import com.med.sleepmanager.network.NetworkReadyGate
 /**
  * Android wrapper around [SyncMaintenanceCoordinator].
  *
- * This class is intentionally not wired into SleepManagerService yet. Production
- * providers currently report completionStateAvailable=false, so even if start()
- * were called it would finish before acquiring a wake lock, toggling Wi-Fi or
- * starting a sync client.
+ * Android-specific network, wake-lock and temporary Wi-Fi work is active only
+ * while a maintenance session is running.
  */
 class SyncMaintenanceRunner(
     context: Context,

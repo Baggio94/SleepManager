@@ -2,38 +2,26 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## Unreleased — 0.6.0 development
+## Unreleased — 0.6.0
 
-- Continue development from the stable **0.5.5** updater base.
-- Preserve the existing **3-second visible-state refresh** while the app is open for a snappy, live UI.
-- Avoid running the battery charging-pulse animation while the device is not charging.
-- Added the first **Advanced sync conditions** UI and persisted settings for **Periodic sync while sleeping** and **Sync then stop on sleep & wake**.
-- Sync-condition toggles are disabled until Syncthing-Fork or BasicSync is selected on Home.
-- The existing delay/battery/charging/Battery Saver/schedule controls now sit under **Advanced sleep conditions**.
-- Added completion-aware provider abstractions for BasicSync and Syncthing-Fork.
-- Providers can already force START/STOP, including Syncthing-Fork's documented `.action.START` force-start command.
-- Sync completion intentionally remains **UNKNOWN** until a reliable external completion signal is available; runtime state is never treated as completed sync.
-- Added a pure **SyncMaintenanceCoordinator** state machine with bounded sync timeout, cancellation cleanup, multi-provider sequencing and safe handling of UNKNOWN state.
-- A client that reports SYNCED immediately after START must remain stably synced before it is accepted, avoiding stale pre-scan completion.
-- Added unit tests for no-network, delayed network, immediate sync, active sync, timeout, cancellation, two clients and partial failures.
-- Added a dedicated Helper **temporary Wi-Fi** command that does not alter the saved sleep-cycle restore state; this will let maintenance sync briefly bring networking back without restoring Bluetooth or completing the sleep transaction.
-- Temporary Wi-Fi toggles are accepted only while the Helper still owns a Wi-Fi change from the active sleep cycle; a late cleanup after normal wake therefore cannot turn Wi-Fi back off.
-- Helper development version is now **1.1.0 / versionCode 1100** because the Helper itself changed.
-- Added an Android **SyncMaintenanceRunner** around the pure state machine: validated-network wait, bounded polling, partial wake lock only during an active maintenance session, periodic-sleep temporary Wi-Fi request and cleanup, and cancellation handling.
-- The runner is intentionally not connected to SleepManagerService yet; with current production providers it exits at COMPLETION_UNAVAILABLE before any Android side effect.
-- Added a one-shot **24-hour periodic sleep scheduler** using `AlarmManager.setAndAllowWhileIdle`: it is armed only after real sleep actions, cancelled on real wake, and re-armed after each maintenance attempt.
-- Scheduling is gated on managed providers having a real completion signal, so current BasicSync/Syncthing providers schedule **no periodic alarm** yet.
-- Integrated **Sync then stop on sleep & wake** behind the completion-ready capability gate.
-- Before sleep, maintenance sync runs before radio shutdown; after completion/timeout the managed sync clients are explicitly stopped and no restore tokens are retained for them.
-- On real wake, Wi-Fi/radio restoration is allowed to happen first, then a completion-aware wake sync runs and leaves managed clients stopped.
-- Wake during a pre-sleep sync cancels the maintenance and prevents deferred sleep actions from continuing.
-- With current production providers the mode remains inert because completionStateAvailable is still false.
-- Diagnostics now report completion-capability readiness, and responsive UI tests cover the new Advanced sync/sleep sections and disabled-state behavior.
-- The maintenance runner is now created only when a sync-maintenance feature can actually run, avoiding needless objects/work on ordinary screen transitions.
-- Service teardown/restart while the device remains asleep explicitly requests the Helper-owned Wi-Fi back to sleep state, preventing an interrupted periodic maintenance from leaving Wi-Fi enabled.
-- BasicSync's passive state observer now stays registered in background only when BasicSync is actually managed; foreground UI state remains live and the 3-second visible refresh is unchanged.
-- Advanced sleep conditions now gate the sync-maintenance session itself: failed conditions clear wake-sync entitlement, periodic maintenance re-evaluates battery/charging/Battery Saver/schedule before running, and wake sync is tied to a sleep session that actually passed those conditions.
-- AYN Thor closed-lid false wakes no longer cancel an in-flight pre-sleep/periodic sync; periodic alarms that land during a suppressed closed-lid wake are retried shortly instead of being discarded.
+### Highlights
+
+- Added **Periodic sync while sleeping** for completion-aware sync clients.
+- Added **Sync then stop on sleep & wake**.
+- Added BasicSync 3.19 synchronization-state support using its official folder/device counters.
+- Added a stable completion window before a sync client is considered finished.
+- Added Helper 1.1 temporary Wi-Fi control for sleep maintenance without changing the saved wake-restore state.
+- Periodic maintenance uses a one-shot 24-hour alarm, validated-network checks and bounded wake locks.
+- Managed sync clients are stopped before SleepManager turns managed Wi-Fi off.
+- Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
+- Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
+- Refined the Advanced sync UI and BasicSync runtime/completion status.
+
+### Compatibility
+
+- BasicSync 3.19+ supports completion-aware maintenance.
+- Syncthing-Fork sleep/wake control remains supported, but completion-aware maintenance stays disabled until a supported synchronization-completion API is available.
+- Helper development version is **1.1.0 / versionCode 1100**.
 
 ---
 
@@ -54,7 +42,6 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Package IDs and the permanent signing certificate remain unchanged.
 - Existing settings are preserved when updating an official signed build.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.5 summary.
 
 ---
 
@@ -83,7 +70,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.5 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.4 summary.
 
 ---
 
@@ -108,7 +94,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.4 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.3 summary.
 
 ---
 
@@ -131,7 +116,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.3 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.2 summary.
 
 ---
 
@@ -155,7 +139,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.2 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete cumulative 0.5.0 + 0.5.1 release summary.
 
 ---
 
@@ -178,7 +161,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete cumulative 0.5.0 + 0.5
 - Package IDs and the permanent signing certificate remain unchanged.
 - No root, Shizuku or ADB is required on the device.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
 
 ---
 
@@ -201,7 +183,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
 - This is a beta build intended for real-device validation before stable 0.5.x.
 - Package IDs and the permanent release signing identity are unchanged, so updates preserve existing app data.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full beta summary.
 
 ---
 
@@ -239,7 +220,6 @@ The 0.4.0 release notes otherwise remain unchanged.
 - Advanced conditions use **AND logic**.
 - SleepManager does not require root, Shizuku or ADB on the device.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 
 ---
 
@@ -262,7 +242,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 - Advanced conditions use **AND logic**.
 - This is a development preview. Final regression testing on emulator and AYN Thor is still in progress before stable 0.4.0.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 
 ---
 
