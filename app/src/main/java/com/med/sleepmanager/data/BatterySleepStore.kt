@@ -24,6 +24,7 @@ object BatterySleepStore {
     private const val KEY_START_TIME = "start_time"
     private const val KEY_START_PERCENT = "start_percent"
     private const val KEY_START_CHARGE_UAH = "start_charge_uah"
+    private const val KEY_START_CAPACITY_UAH = "start_capacity_uah"
     private const val KEY_START_CHARGING = "start_charging"
     private const val KEY_SAW_CHARGING = "saw_charging"
     private const val KEY_START_ELAPSED_MS = "start_elapsed_ms"
@@ -65,12 +66,19 @@ object BatterySleepStore {
         val durationMs: Long,
         val chargedDuringSleep: Boolean,
         val drainMah: Double?,
-        val deepSleepMs: Long? = null
+        val deepSleepMs: Long? = null,
+        val preciseDrainPercent: Double? = null,
+        val preciseBatteryChangePercent: Double? = null
     ) {
         val drainPerHour: Double?
             get() {
                 if (chargedDuringSleep || durationMs <= 0L) return null
-                return drainPercent.toDouble() / (durationMs.toDouble() / 3_600_000.0)
+                val measuredDrain =
+                    preciseDrainPercent
+                        ?.takeIf { it.isFinite() && it > 0.0 }
+                        ?: drainPercent.toDouble().takeIf { it > 0.0 }
+                        ?: return null
+                return measuredDrain / (durationMs.toDouble() / 3_600_000.0)
             }
 
         val drainMahPerHour: Double?
@@ -190,6 +198,10 @@ object BatterySleepStore {
                 KEY_START_CHARGE_UAH,
                 snapshot.chargeCounterUah ?: Int.MIN_VALUE
             )
+            .putLong(
+                KEY_START_CAPACITY_UAH,
+                bestCapacityUah(snapshot) ?: -1L
+            )
             .putBoolean(KEY_START_CHARGING, snapshot.charging)
             .putBoolean(KEY_SAW_CHARGING, snapshot.charging)
             .putLong(KEY_START_ELAPSED_MS, SystemClock.elapsedRealtime())
@@ -210,6 +222,7 @@ object BatterySleepStore {
         val startedAt = p.getLong(KEY_START_TIME, 0L)
         val startPercent = p.getInt(KEY_START_PERCENT, -1)
         val startChargeUah = p.getInt(KEY_START_CHARGE_UAH, Int.MIN_VALUE)
+        val startCapacityUah = p.getLong(KEY_START_CAPACITY_UAH, -1L)
         val startCharging = p.getBoolean(KEY_START_CHARGING, false)
         val sawCharging = p.getBoolean(KEY_SAW_CHARGING, false)
         val startElapsedMs = p.getLong(KEY_START_ELAPSED_MS, -1L)
@@ -258,6 +271,31 @@ object BatterySleepStore {
                 null
             }
 
+        val capacityUah =
+            startCapacityUah.takeIf { it > 0L }
+                ?: bestCapacityUah(end)
+        val preciseBatteryChangePercent =
+            if (
+                startChargeUah != Int.MIN_VALUE &&
+                endCounter != null &&
+                capacityUah != null &&
+                capacityUah > 0L
+            ) {
+                ((endCounter - startChargeUah).toDouble() /
+                    capacityUah.toDouble() * 100.0)
+                    .takeIf { it.isFinite() && it in -100.0..100.0 }
+            } else {
+                null
+            }
+        val preciseDrainPercent =
+            if (!chargedDuringSleep) {
+                preciseBatteryChangePercent
+                    ?.let { -it }
+                    ?.takeIf { it.isFinite() && it > 0.0 }
+            } else {
+                null
+            }
+
         val session = SleepSession(
             startedAt = startedAt,
             endedAt = endedAt,
@@ -267,7 +305,9 @@ object BatterySleepStore {
             durationMs = duration,
             chargedDuringSleep = chargedDuringSleep,
             drainMah = drainMah,
-            deepSleepMs = deepSleepMs
+            deepSleepMs = deepSleepMs,
+            preciseDrainPercent = preciseDrainPercent,
+            preciseBatteryChangePercent = preciseBatteryChangePercent
         )
 
         appendSession(context, session)
@@ -276,19 +316,23 @@ object BatterySleepStore {
 
     fun dashboard(context: Context): Dashboard {
         val current = currentSnapshot(context)
-        val sessions = readHistory(context)
+        val capacityMah = estimateCapacityMah(current)
+        val sessions =
+            readHistory(context).map {
+                enrichHistoricalPrecision(it, capacityMah)
+            }
         val eligible =
-            sessions.filter {
-                !it.chargedDuringSleep &&
-                    it.durationMs >= MIN_AVERAGE_DURATION_MS &&
-                    it.endPercent <= it.startPercent
+            sessions.filter(::isEligibleForLongTermStats)
+        val measured =
+            eligible.mapNotNull { session ->
+                effectiveDrainPercent(session)?.let { session to it }
             }
 
         val totalDurationHours =
-            eligible.sumOf { it.durationMs }.toDouble() / 3_600_000.0
-        val totalDrain = eligible.sumOf { it.drainPercent }
+            measured.sumOf { it.first.durationMs }.toDouble() / 3_600_000.0
+        val totalDrain = measured.sumOf { it.second }
         val average =
-            if (eligible.isNotEmpty() && totalDurationHours > 0.0) {
+            if (measured.isNotEmpty() && totalDurationHours > 0.0) {
                 totalDrain / totalDurationHours
             } else {
                 null
@@ -299,31 +343,38 @@ object BatterySleepStore {
             currentCharging = current.charging,
             lastSession = sessions.maxByOrNull { it.endedAt },
             averageDrainPerHour = average,
-            averageSessionCount = eligible.size,
+            averageSessionCount = measured.size,
             sessionActive = prefs(context).getBoolean(KEY_ACTIVE, false)
         )
     }
 
     fun stats(context: Context): Stats {
         val current = currentSnapshot(context)
-        val sessions = readHistory(context)
+        val capacityMah = estimateCapacityMah(current)
+        val sessions =
+            readHistory(context).map {
+                enrichHistoricalPrecision(it, capacityMah)
+            }
         val eligible =
-            sessions.filter {
-                !it.chargedDuringSleep &&
-                    it.durationMs >= MIN_AVERAGE_DURATION_MS &&
-                    it.endPercent <= it.startPercent
+            sessions.filter(::isEligibleForLongTermStats)
+        val measured =
+            eligible.mapNotNull { session ->
+                effectiveDrainPercent(session)?.let { session to it }
             }
 
         val totalDurationHours =
-            eligible.sumOf { it.durationMs }.toDouble() / 3_600_000.0
+            measured.sumOf { it.first.durationMs }.toDouble() / 3_600_000.0
         val averageDrainPerHour =
-            if (eligible.isNotEmpty() && totalDurationHours > 0.0) {
-                eligible.sumOf { it.drainPercent } / totalDurationHours
+            if (measured.isNotEmpty() && totalDurationHours > 0.0) {
+                measured.sumOf { it.second } / totalDurationHours
             } else {
                 null
             }
 
-        val mahSessions = eligible.filter { it.drainMah != null }
+        val mahSessions =
+            eligible.filter {
+                it.drainMah?.let { mah -> mah.isFinite() && mah > 0.0 } == true
+            }
         val mahDurationHours =
             mahSessions.sumOf { it.durationMs }.toDouble() / 3_600_000.0
         val averageDrainMahPerHour =
@@ -334,7 +385,7 @@ object BatterySleepStore {
             }
 
         val deepSessions =
-            eligible.mapNotNull { session ->
+            measured.mapNotNull { (session, _) ->
                 session.deepSleepPercent?.let { percent ->
                     percent to session.durationMs
                 }
@@ -349,7 +400,7 @@ object BatterySleepStore {
                 null
             }
 
-        val drainRates = eligible.mapNotNull { it.drainPerHour }
+        val drainRates = measured.mapNotNull { it.first.drainPerHour }
         val percent = current.percent
         val estimatedHoursRemaining =
             if (
@@ -377,8 +428,8 @@ object BatterySleepStore {
             averageDrainPerHour = averageDrainPerHour,
             averageDrainMahPerHour = averageDrainMahPerHour,
             averageDeepSleepPercent = averageDeepSleepPercent,
-            averageSessionCount = eligible.size,
-            totalMeasuredSleepMs = eligible.sumOf { it.durationMs },
+            averageSessionCount = measured.size,
+            totalMeasuredSleepMs = measured.sumOf { it.first.durationMs },
             bestDrainPerHour = drainRates.minOrNull(),
             worstDrainPerHour = drainRates.maxOrNull(),
             estimatedHoursRemaining = estimatedHoursRemaining,
@@ -415,6 +466,12 @@ object BatterySleepStore {
                     .apply {
                         item.drainMah?.let { put("drainMah", it) }
                         item.deepSleepMs?.let { put("deepSleepMs", it) }
+                        item.preciseDrainPercent?.let {
+                            put("preciseDrainPercent", it)
+                        }
+                        item.preciseBatteryChangePercent?.let {
+                            put("preciseBatteryChangePercent", it)
+                        }
                     }
             )
         }
@@ -458,6 +515,20 @@ object BatterySleepStore {
                                     item.optLong("deepSleepMs")
                                 } else {
                                     null
+                                },
+                            preciseDrainPercent =
+                                if (item.has("preciseDrainPercent")) {
+                                    item.optDouble("preciseDrainPercent")
+                                        .takeIf { it.isFinite() && it > 0.0 }
+                                } else {
+                                    null
+                                },
+                            preciseBatteryChangePercent =
+                                if (item.has("preciseBatteryChangePercent")) {
+                                    item.optDouble("preciseBatteryChangePercent")
+                                        .takeIf { it.isFinite() }
+                                } else {
+                                    null
                                 }
                         )
                     )
@@ -474,6 +545,7 @@ object BatterySleepStore {
             .remove(KEY_START_TIME)
             .remove(KEY_START_PERCENT)
             .remove(KEY_START_CHARGE_UAH)
+            .remove(KEY_START_CAPACITY_UAH)
             .remove(KEY_START_CHARGING)
             .remove(KEY_SAW_CHARGING)
             .remove(KEY_START_ELAPSED_MS)
@@ -481,28 +553,85 @@ object BatterySleepStore {
             .commit()
     }
 
-    private fun estimateCapacityMah(snapshot: BatterySnapshot): Double? {
+    internal fun effectiveDrainPercent(session: SleepSession): Double? =
+        if (session.chargedDuringSleep) {
+            null
+        } else {
+            session.preciseDrainPercent
+                ?.takeIf { it.isFinite() && it > 0.0 }
+                ?: session.drainPercent.toDouble().takeIf { it > 0.0 }
+        }
+
+    internal fun deriveDrainPercentFromMah(
+        drainMah: Double?,
+        capacityMah: Double?
+    ): Double? {
+        val drain = drainMah?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+        val capacity =
+            capacityMah?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+        return (drain / capacity * 100.0)
+            .takeIf { it.isFinite() && it > 0.0 && it <= 100.0 }
+    }
+
+    private fun isEligibleForLongTermStats(session: SleepSession): Boolean =
+        !session.chargedDuringSleep &&
+            session.durationMs >= MIN_AVERAGE_DURATION_MS &&
+            (
+                session.preciseDrainPercent != null ||
+                    session.endPercent <= session.startPercent
+            )
+
+    private fun enrichHistoricalPrecision(
+        session: SleepSession,
+        capacityMah: Double?
+    ): SleepSession {
+        if (
+            session.preciseDrainPercent != null ||
+            session.chargedDuringSleep
+        ) {
+            return session
+        }
+
+        val derived =
+            deriveDrainPercentFromMah(
+                drainMah = session.drainMah,
+                capacityMah = capacityMah
+            ) ?: return session
+
+        return session.copy(
+            preciseDrainPercent = derived,
+            preciseBatteryChangePercent =
+                session.preciseBatteryChangePercent ?: -derived
+        )
+    }
+
+    private fun bestCapacityUah(snapshot: BatterySnapshot): Long? {
         snapshot.fullChargeUah
             ?.takeIf { it > 0L }
-            ?.let { return it / 1000.0 }
+            ?.let { return it }
 
         snapshot.designChargeUah
             ?.takeIf { it > 0L }
-            ?.let { return it / 1000.0 }
+            ?.let { return it }
 
         val percent = snapshot.percent
-        val chargeMah = snapshot.chargeMah
+        val counter = snapshot.chargeCounterUah
         return if (
             percent != null &&
             percent > 0 &&
-            chargeMah != null &&
-            chargeMah > 0.0
+            counter != null &&
+            counter > 0
         ) {
-            chargeMah * 100.0 / percent.toDouble()
+            (counter.toDouble() * 100.0 / percent.toDouble())
+                .toLong()
+                .takeIf { it > 0L }
         } else {
             null
         }
     }
+
+    private fun estimateCapacityMah(snapshot: BatterySnapshot): Double? =
+        bestCapacityUah(snapshot)?.div(1000.0)
 
     private fun readChargeUahFromSysfs(path: String): Long? =
         runCatching {

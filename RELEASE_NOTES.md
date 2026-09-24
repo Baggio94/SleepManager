@@ -55,6 +55,18 @@ The new maintenance path is bounded and event-driven:
 - partial wake locks are held only during an active bounded maintenance session
 - no periodic alarm is armed unless the selected provider supports reliable completion state
 
+## More precise sleep battery statistics
+
+SleepManager now keeps a precise session battery change when Android exposes a usable charge counter and battery-capacity value.
+
+- **Last sleep** shows two decimal places when the session has a measured precise value.
+- 7-day drain, Best/Worst drain and standby estimates prefer precise measured drain instead of Android's coarse integer battery level.
+- Sessions shorter than 3 hours remain visible as Last sleep/history but never contribute to long-term statistics.
+- Legacy sessions that only report a 0% integer change are no longer treated as a real 0% drain sample.
+- Existing recent sessions with measured mAh can be re-evaluated using the current capacity estimate, so users do not need to clear their history after updating.
+
+When precise battery data is unavailable, SleepManager keeps the honest integer Android fallback instead of displaying fake decimal precision.
+
 ## Current limitation
 
 Completion-aware maintenance currently works with **BasicSync 3.19+**.

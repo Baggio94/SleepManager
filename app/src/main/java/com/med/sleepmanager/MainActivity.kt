@@ -2904,6 +2904,16 @@ private fun PendingRestoreCard(
 private fun formatBatteryChange(
     session: BatterySleepStore.SleepSession
 ): String {
+    val precise = session.preciseBatteryChangePercent
+    if (precise != null && precise.isFinite()) {
+        val magnitude = formatPercentTwoDecimals(kotlin.math.abs(precise))
+        return when {
+            precise > 0.0 -> "+$magnitude%"
+            precise < 0.0 -> "−$magnitude%"
+            else -> "0.00%"
+        }
+    }
+
     val delta = session.endPercent - session.startPercent
     return when {
         delta > 0 -> "+${delta}%"

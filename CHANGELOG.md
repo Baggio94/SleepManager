@@ -16,6 +16,8 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
 - Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
 - Refined the Advanced sync UI and BasicSync runtime/completion status.
+- Improved sleep battery precision: charge-counter measurements are converted to precise session percentages when possible, Last sleep shows two decimals for measured values, and ambiguous legacy 0%-change sessions no longer create false best-drain records.
+- Existing 7-day history is re-evaluated automatically; older sessions with measured mAh can be upgraded using the current capacity estimate without clearing user history.
 
 ### Compatibility
 
