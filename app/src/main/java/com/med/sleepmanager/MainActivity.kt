@@ -131,6 +131,7 @@ import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
+import com.med.sleepmanager.sync.ManagedSyncProviders
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import com.med.sleepmanager.update.UpdateCheckResult
 import com.med.sleepmanager.update.UpdateCheckScheduler
@@ -1735,8 +1736,9 @@ class MainActivity : ComponentActivity() {
                                 periodicSyncWhileSleeping = periodicSyncWhileSleeping,
                                 syncThenStopOnSleepWake = syncThenStopOnSleepWake,
                                 syncConditionsAvailable =
-                                    (syncthingEnabled && selectedTarget != null) ||
-                                        (basicSyncEnabled && basicSyncInstalled),
+                                    ManagedSyncProviders.completionReady(
+                                        this@MainActivity
+                                    ),
                                 onPeriodicSyncWhileSleepingChange = {
                                     periodicSyncWhileSleeping = it
                                     AppPreferences.setPeriodicSyncWhileSleeping(
@@ -3304,7 +3306,7 @@ private fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "Periodically sync managed clients during long sleep sessions."
                 } else {
-                    "Enable Syncthing-Fork or BasicSync on Home first."
+                    "Requires a completion-aware provider. BasicSync 3.19+ is supported; Syncthing-Fork completion support is pending."
                 },
                 checked = periodicSyncWhileSleeping,
                 enabled = syncConditionsAvailable,
@@ -3321,7 +3323,7 @@ private fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "Sync managed clients when the device wakes and before it sleeps, then keep them stopped to reduce background battery use."
                 } else {
-                    "Enable Syncthing-Fork or BasicSync on Home first."
+                    "Requires a completion-aware provider. BasicSync 3.19+ is supported; Syncthing-Fork completion support is pending."
                 },
                 checked = syncThenStopOnSleepWake,
                 enabled = syncConditionsAvailable,
