@@ -56,6 +56,7 @@ object DiagnosticsBuilder {
         val jamesDspPending =
             SleepCycleStore.connectorChange(context, JamesDspConnector.id)
         val basicSyncVersion = BasicSyncController.versionName(context)
+        val basicSyncState = BasicSyncController.lastObservedState()
         val basicSyncPending =
             SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
         val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
@@ -150,6 +151,26 @@ object DiagnosticsBuilder {
                     }
             )
             appendLine("- BasicSync state API: ${if (BasicSyncController.supportsStateApi(context)) "supported (3.18+)" else "legacy / unavailable"}")
+            appendLine("- BasicSync sync counters: ${if (BasicSyncController.supportsSyncCounters(context)) "supported (3.19+)" else "unavailable"}")
+            appendLine(
+                "- BasicSync observed state: " +
+                    if (basicSyncState != null) {
+                        "${basicSyncState.mode} / ${basicSyncState.runState}"
+                    } else {
+                        "unknown"
+                    }
+            )
+            appendLine(
+                "- BasicSync blocked reasons: " +
+                    (basicSyncState?.blockedReasons
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.joinToString()
+                        ?: "none")
+            )
+            appendLine(
+                "- BasicSync counters: " +
+                    (basicSyncState?.syncCounters?.toString() ?: "unavailable")
+            )
             appendLine()
             appendLine("Last Wi-Fi toggle")
             if (wifiDiagnostic == null) {
