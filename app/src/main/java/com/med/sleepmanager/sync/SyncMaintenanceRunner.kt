@@ -34,9 +34,12 @@ class SyncMaintenanceRunner(
         private const val NETWORK_TIMEOUT_MS = 60_000L
         private const val POLL_INTERVAL_MS = 1_000L
         private const val WIFI_CLEANUP_TIMEOUT_MS = 5_000L
+        private const val STOP_CONFIRM_POLL_INTERVAL_MS = 250L
+        private const val STOP_CONFIRM_TIMEOUT_MS = 5_000L
         private const val WAKE_LOCK_TIMEOUT_MS =
             SyncMaintenanceCoordinator.DEFAULT_SYNC_TIMEOUT_MS +
                 NETWORK_TIMEOUT_MS +
+                STOP_CONFIRM_TIMEOUT_MS +
                 WIFI_CLEANUP_TIMEOUT_MS +
                 10_000L
     }
@@ -44,12 +47,14 @@ class SyncMaintenanceRunner(
     private val appContext = context.applicationContext
 
     private var coordinator: SyncMaintenanceCoordinator? = null
+    private var activeProviders: List<SyncCompletionProvider> = emptyList()
     private var networkGate: NetworkReadyGate? = null
     private var completionCallback: ((SyncMaintenanceSnapshot) -> Unit)? = null
     private var trigger: SyncMaintenanceTrigger? = null
     private var tempWifiOnRequested = false
     private var cleanupPending = false
     private var pendingFinalSnapshot: SyncMaintenanceSnapshot? = null
+    private var stopConfirmStartedAtMs: Long? = null
     private var helperReceiverRegistered = false
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -69,6 +74,11 @@ class SyncMaintenanceRunner(
                 handler.postDelayed(this, POLL_INTERVAL_MS)
             }
         }
+    }
+
+    private val stopConfirmRunnable = Runnable {
+        val snapshot = pendingFinalSnapshot ?: return@Runnable
+        finishWithCleanup(snapshot)
     }
 
     private val cleanupTimeoutRunnable = Runnable {
@@ -120,9 +130,11 @@ class SyncMaintenanceRunner(
         this.trigger = trigger
         completionCallback = onFinished
 
+        val providers = providersFactory()
+        activeProviders = providers
         val current = SyncMaintenanceCoordinator(
             trigger = trigger,
-            providers = providersFactory()
+            providers = providers
         )
         coordinator = current
 
@@ -159,6 +171,8 @@ class SyncMaintenanceRunner(
         val current = coordinator ?: return null
 
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(stopConfirmRunnable)
+        stopConfirmStartedAtMs = null
         networkGate?.cancel()
         networkGate = null
 
@@ -235,6 +249,10 @@ class SyncMaintenanceRunner(
             tempWifiOnRequested &&
             !cleanupPending
         ) {
+            if (waitForProviderStopsBeforeWifiCleanup(snapshot)) {
+                return
+            }
+
             registerHelperReceiver()
             pendingFinalSnapshot = snapshot
             cleanupPending = true
@@ -255,9 +273,60 @@ class SyncMaintenanceRunner(
         finishNow(snapshot)
     }
 
+    private fun waitForProviderStopsBeforeWifiCleanup(
+        snapshot: SyncMaintenanceSnapshot
+    ): Boolean {
+        val waitingIds =
+            activeProviders
+                .filter { it.id !in snapshot.failedProviderIds }
+                .mapNotNull { provider ->
+                    val confirmed =
+                        runCatching { provider.isStopConfirmed() }
+                            .getOrNull()
+                    if (confirmed == false) provider.id else null
+                }
+
+        if (waitingIds.isEmpty()) {
+            handler.removeCallbacks(stopConfirmRunnable)
+            stopConfirmStartedAtMs = null
+            return false
+        }
+
+        val now = elapsedRealtime()
+        val startedAt = stopConfirmStartedAtMs ?: now.also {
+            stopConfirmStartedAtMs = it
+            Log.i(
+                TAG,
+                "Waiting for provider STOP confirmation before Wi-Fi cleanup: " +
+                    waitingIds.joinToString()
+            )
+        }
+
+        if (now - startedAt >= STOP_CONFIRM_TIMEOUT_MS) {
+            handler.removeCallbacks(stopConfirmRunnable)
+            stopConfirmStartedAtMs = null
+            Log.w(
+                TAG,
+                "Provider STOP confirmation timed out before Wi-Fi cleanup: " +
+                    waitingIds.joinToString()
+            )
+            return false
+        }
+
+        pendingFinalSnapshot = snapshot
+        handler.removeCallbacks(stopConfirmRunnable)
+        handler.postDelayed(
+            stopConfirmRunnable,
+            STOP_CONFIRM_POLL_INTERVAL_MS
+        )
+        return true
+    }
+
     private fun finishNow(snapshot: SyncMaintenanceSnapshot) {
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(stopConfirmRunnable)
         handler.removeCallbacks(cleanupTimeoutRunnable)
+        stopConfirmStartedAtMs = null
         networkGate?.cancel()
         networkGate = null
 
@@ -268,6 +337,7 @@ class SyncMaintenanceRunner(
         releaseWakeLock()
 
         coordinator = null
+        activeProviders = emptyList()
         trigger = null
 
         val callback = completionCallback
