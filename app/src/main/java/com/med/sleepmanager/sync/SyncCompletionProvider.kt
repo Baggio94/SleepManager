@@ -134,6 +134,9 @@ class BasicSyncCompletionProvider(
     override fun stopSync(): SyncControlResult {
         val installed = BasicSyncController.isInstalled(appContext)
         val sent = installed && BasicSyncController.sendStop(appContext)
+        if (sent) {
+            BasicSyncController.requestStateBroadcast(appContext)
+        }
         return SyncControlResult(
             attempted = installed,
             success = sent,
