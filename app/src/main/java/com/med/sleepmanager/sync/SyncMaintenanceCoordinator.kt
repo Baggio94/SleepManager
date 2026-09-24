@@ -50,7 +50,6 @@ class SyncMaintenanceCoordinator(
 ) {
     private data class ProviderSession(
         val provider: SyncCompletionProvider,
-        var seenSyncing: Boolean = false,
         var syncedSinceMs: Long? = null,
         var completed: Boolean = false,
         var startFailed: Boolean = false,
@@ -121,23 +120,18 @@ class SyncMaintenanceCoordinator(
                         .getOrDefault(SyncCompletionState.UNKNOWN)
                 ) {
                     SyncCompletionState.SYNCING -> {
-                        session.seenSyncing = true
                         session.syncedSinceMs = null
                     }
 
                     SyncCompletionState.SYNCED -> {
-                        if (session.seenSyncing) {
+                        val since = session.syncedSinceMs
+                        if (since == null) {
+                            session.syncedSinceMs = nowMs
+                        } else if (nowMs - since >= idleSyncedStabilityMs) {
+                            // Always require a stable idle/completed window before
+                            // STOP. This avoids reacting to a transient idle state
+                            // between scans or remote updates.
                             session.completed = true
-                        } else {
-                            val since = session.syncedSinceMs
-                            if (since == null) {
-                                session.syncedSinceMs = nowMs
-                            } else if (nowMs - since >= idleSyncedStabilityMs) {
-                                // A provider that starts already idle must remain
-                                // stably SYNCED long enough to avoid accepting a
-                                // stale pre-scan state immediately after START.
-                                session.completed = true
-                            }
                         }
                     }
 
