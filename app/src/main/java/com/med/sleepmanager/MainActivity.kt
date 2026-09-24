@@ -3306,7 +3306,7 @@ private fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "Periodically sync managed clients during long sleep sessions."
                 } else {
-                    "Requires a completion-aware provider. BasicSync 3.19+ is supported; Syncthing-Fork completion support is pending."
+                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
                 },
                 checked = periodicSyncWhileSleeping,
                 enabled = syncConditionsAvailable,
@@ -3323,7 +3323,7 @@ private fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "Sync managed clients when the device wakes and before it sleeps, then keep them stopped to reduce background battery use."
                 } else {
-                    "Requires a completion-aware provider. BasicSync 3.19+ is supported; Syncthing-Fork completion support is pending."
+                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
                 },
                 checked = syncThenStopOnSleepWake,
                 enabled = syncConditionsAvailable,
