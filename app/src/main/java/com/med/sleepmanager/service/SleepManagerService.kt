@@ -103,6 +103,7 @@ class SleepManagerService : Service() {
     private var lastBasicSyncStopStateRequestAtElapsed = 0L
     private var syncthingStopProbeInFlight = false
     private var syncthingStopConfirmed = false
+    private var sleepStopWaitGeneration = 0L
     private val syncStopProbeExecutor = Executors.newSingleThreadExecutor()
     private var sleepGracePending = false
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
@@ -917,6 +918,7 @@ class SleepManagerService : Service() {
         elapsedBeforeRecoveryMs: Long = 0L
     ) {
         val elapsed = elapsedBeforeRecoveryMs.coerceIn(0L, SYNC_STOP_TIMEOUT_MS)
+        sleepStopWaitGeneration++
         sleepStopWaitStartedAtElapsed =
             SystemClock.elapsedRealtime() - elapsed
         lastBasicSyncStopStateRequestAtElapsed = 0L
@@ -995,6 +997,7 @@ class SleepManagerService : Service() {
 
             if (!syncthingStopProbeInFlight) {
                 syncthingStopProbeInFlight = true
+                val generation = sleepStopWaitGeneration
                 syncStopProbeExecutor.execute {
                     val stopped =
                         runCatching {
@@ -1002,6 +1005,10 @@ class SleepManagerService : Service() {
                         }.getOrDefault(false)
 
                     handler.post {
+                        if (generation != sleepStopWaitGeneration) {
+                            return@post
+                        }
+
                         syncthingStopProbeInFlight = false
                         if (
                             pendingSleepSyncthing &&
@@ -1083,6 +1090,7 @@ class SleepManagerService : Service() {
 
     private fun clearPendingSleepStopWait() {
         handler.removeCallbacks(sleepRadioRunnable)
+        sleepStopWaitGeneration++
         pendingSleepWifi = false
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
