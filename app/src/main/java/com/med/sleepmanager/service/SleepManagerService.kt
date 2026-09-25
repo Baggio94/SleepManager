@@ -59,6 +59,7 @@ class SleepManagerService : Service() {
         private const val NOTIFICATION_ID = 5217
         private const val NETWORK_READY_TIMEOUT_MS = 15000L
         private const val SYNCTHING_STOP_GRACE_MS = 1000L
+        private const val SYNCTHING_UNVERIFIED_STOP_GRACE_MS = 2500L
         private const val SYNC_STOP_POLL_INTERVAL_MS = 250L
         private const val SYNC_STOP_TIMEOUT_MS = 5_000L
         private const val TAILSCALE_VERIFY_INTERVAL_MS = 500L
@@ -1097,11 +1098,19 @@ class SleepManagerService : Service() {
             if (!syncthingStopProbeInFlight) {
                 syncthingStopProbeInFlight = true
                 val generation = sleepStopWaitGeneration
+                val restoreToken =
+                    SleepCycleStore.connectorChange(
+                        this,
+                        SyncthingConnector.id
+                    )?.restoreToken
+
                 syncStopProbeExecutor.execute {
-                    val stopped =
+                    val verification =
                         runCatching {
-                            !SyncthingController.healthProbeRunning()
-                        }.getOrDefault(false)
+                            SyncthingConnector.verifyStopAfterGrace(
+                                restoreToken
+                            )
+                        }.getOrNull()
 
                     handler.post {
                         if (generation != sleepStopWaitGeneration) {
@@ -1113,14 +1122,58 @@ class SleepManagerService : Service() {
                             pendingSleepSyncthing &&
                             SleepCycleStore.isActive(this)
                         ) {
-                            if (stopped) {
-                                syncthingStopConfirmed = true
-                                Log.i(
-                                    TAG,
-                                    "Syncthing STOP confirmed before Wi-Fi sleep"
-                                )
+                            val elapsedNow =
+                                SystemClock.elapsedRealtime() -
+                                    sleepStopWaitStartedAtElapsed
+
+                            when (verification) {
+                                true -> {
+                                    syncthingStopConfirmed = true
+                                    Log.i(
+                                        TAG,
+                                        "Syncthing STOP confirmed before Wi-Fi sleep"
+                                    )
+                                }
+
+                                false -> {
+                                    Log.i(
+                                        TAG,
+                                        "Syncthing still running; keeping Wi-Fi on while STOP completes"
+                                    )
+                                }
+
+                                null -> {
+                                    if (
+                                        elapsedNow >=
+                                        SYNCTHING_UNVERIFIED_STOP_GRACE_MS
+                                    ) {
+                                        // No supported state API exists for this
+                                        // target. Keep a conservative fixed grace
+                                        // instead of treating an unreachable local
+                                        // health endpoint as proof that STOP finished.
+                                        syncthingStopConfirmed = true
+                                        Log.i(
+                                            TAG,
+                                            "Syncthing STOP state unavailable; fallback grace elapsed before Wi-Fi sleep"
+                                        )
+                                    }
+                                }
                             }
-                            scheduleSleepRadioStopCheck(0L)
+
+                            val nextDelay =
+                                if (
+                                    verification == null &&
+                                    !syncthingStopConfirmed
+                                ) {
+                                    (
+                                        SYNCTHING_UNVERIFIED_STOP_GRACE_MS -
+                                            elapsedNow
+                                    ).coerceAtLeast(0L)
+                                } else {
+                                    0L
+                                }
+
+                            scheduleSleepRadioStopCheck(nextDelay)
                         }
                     }
                 }
