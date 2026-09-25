@@ -19,6 +19,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Refined the Advanced sync UI and BasicSync runtime/completion status.
 - Improved sleep battery precision: charge-counter measurements are converted to precise session percentages when possible, Last sleep shows two decimals for measured values, and ambiguous legacy 0%-change sessions no longer create false best-drain records.
 - Existing 7-day history is re-evaluated automatically; older sessions with measured mAh can be upgraded using the current capacity estimate without clearing user history.
+- Copyable diagnostics now include Android process-exit history on Android 11+, including the system exit reason, status, process importance and last sampled memory usage, to help diagnose unexpected service deaths such as low-memory kills.
 
 ### Compatibility
 
