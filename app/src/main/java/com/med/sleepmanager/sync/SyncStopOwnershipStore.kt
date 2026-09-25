@@ -33,6 +33,7 @@ internal fun basicSyncStillInManagedStopState(
     state.mode == BasicSyncController.Mode.MANUAL_MODE_STOPPED &&
         state.runState in setOf(
             BasicSyncController.RunState.NOT_RUNNING,
+            BasicSyncController.RunState.PAUSED,
             BasicSyncController.RunState.STOPPING
         )
 
