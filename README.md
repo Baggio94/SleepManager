@@ -20,7 +20,7 @@ SleepManager can manage these actions when the screen turns off:
 
 - **Wi-Fi** — turn it off during sleep and restore it only if SleepManager changed it.
 - **Bluetooth** — same state-aware behavior as Wi-Fi.
-- **Syncthing-Fork** — send STOP during sleep and FOLLOW again after usable network connectivity returns.
+- **Syncthing-Fork** — send STOP during sleep and FOLLOW again on wake after Helper-managed radio restoration; Syncthing-Fork then handles network reconnection itself.
 - **Tailscale** — disconnect during sleep and reconnect only when SleepManager verified that it disconnected it.
 - **JamesDSP** — apply OFF during sleep and ON again after wake.
 - **BasicSync** — with BasicSync 3.18+, observe the current mode/run state while awake, stop it only when active, then restore the exact previous mode on wake.
@@ -66,6 +66,8 @@ Shorter sleeps are still shown in **Last sleep** and remain part of the recent s
 ### Activity log and diagnostics
 
 The Activity page shows recent sleep/wake actions and provides a copyable diagnostic report.
+
+On Android 11+, diagnostics also include recent Android process-exit history, including system exit reasons such as low-memory kills, crashes, ANRs and user/system-requested stops, plus sampled process memory information when Android provides it.
 
 Wi-Fi diagnostics distinguish between:
 
@@ -205,7 +207,7 @@ For example:
 
 - if Wi-Fi was already OFF before sleep, SleepManager leaves it OFF on wake
 - if Wi-Fi was ON and SleepManager successfully turned it OFF, it is restored
-- network-dependent integrations wait for usable connectivity before restoration
+- Tailscale waits for usable connectivity before restoration; Syncthing-Fork FOLLOW is sent after managed radio restoration so Syncthing can handle its own reconnect timing
 - pending restore state is stored so a process/service restart does not silently lose track of it
 
 This state-aware model is used to avoid forcing unrelated user state.
@@ -291,6 +293,6 @@ helper/build/outputs/apk/debug/helper-debug.apk
 See:
 
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [RELEASE_NOTES.md](RELEASE_NOTES.md) — notes for the current development release
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) — notes for the current release
 - [GitHub Releases](https://github.com/Baggio94/SleepManager/releases) — official APK downloads
 
