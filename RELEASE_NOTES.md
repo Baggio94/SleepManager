@@ -67,7 +67,7 @@ SleepManager now keeps a precise session battery change when Android exposes a u
 
 When precise battery data is unavailable, SleepManager keeps the honest integer Android fallback instead of displaying fake decimal precision.
 
-## Current limitation
+## Process-exit diagnostics\n\nCopyable diagnostics now include recent Android process-exit history on Android 11 and newer. The report includes the system exit reason, exit status, process importance and last sampled PSS/RSS memory values when available, making it easier to distinguish low-memory kills, crashes, ANRs and user/system-requested stops.\n\n## Current limitation
 
 Completion-aware maintenance currently works with **BasicSync 3.19+**.
 
