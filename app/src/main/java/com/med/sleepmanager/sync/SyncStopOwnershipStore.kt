@@ -79,7 +79,7 @@ object SyncStopOwnershipStore {
         return true
     }
 
-    fun restoreBasicSyncIfOwned(context: Context): OwnedBasicSyncRestoreResult {
+    internal fun restoreBasicSyncIfOwned(context: Context): OwnedBasicSyncRestoreResult {
         val token =
             prefs(context).getString(KEY_BASIC_SYNC_RESTORE_TOKEN, null)
                 ?: return OwnedBasicSyncRestoreResult.NOT_OWNED
