@@ -131,6 +131,9 @@ import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
+import com.med.sleepmanager.sync.ManagedSyncProviders
+import com.med.sleepmanager.sync.SyncCompletionState
+import com.med.sleepmanager.sync.basicSyncCompletionState
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import com.med.sleepmanager.update.UpdateCheckResult
 import com.med.sleepmanager.update.UpdateCheckScheduler
@@ -417,6 +420,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
+        if (!AppPreferences.manageBasicSync(this)) {
+            BasicSyncController.stopStateObserver()
+        }
         super.onPause()
     }
 
@@ -879,6 +885,12 @@ class MainActivity : ComponentActivity() {
         var basicSyncEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageBasicSync(this))
         }
+        var periodicSyncWhileSleeping by remember(refreshToken) {
+            mutableStateOf(AppPreferences.periodicSyncWhileSleeping(this))
+        }
+        var syncThenStopOnSleepWake by remember(refreshToken) {
+            mutableStateOf(AppPreferences.syncThenStopOnSleepWake(this))
+        }
         var thorProtectionEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageThorProtection(this))
         }
@@ -1198,7 +1210,7 @@ class MainActivity : ComponentActivity() {
                                 Text(
                                     when (currentSection) {
                                         AppSection.HOME -> "Quiet on sleep. Ready on wake."
-                                        AppSection.ADVANCED -> "Custom delay and sleep conditions"
+                                        AppSection.ADVANCED -> "Fine-tune synchronization and sleep behavior"
                                         AppSection.STATS -> "Sleep and battery measurements"
                                         AppSection.ACTIVITY_LOG -> "Recent SleepManager activity"
                                         AppSection.ABOUT -> "App information"
@@ -1616,7 +1628,22 @@ class MainActivity : ComponentActivity() {
                                             BasicSyncController.RunState.IMPORTING -> "Importing"
                                             BasicSyncController.RunState.EXPORTING -> "Exporting"
                                         }
-                                        "$mode · $runState"
+                                        val syncState =
+                                            if (
+                                                BasicSyncController.supportsSyncCounters(
+                                                    this@MainActivity
+                                                )
+                                            ) {
+                                                when (basicSyncCompletionState(state)) {
+                                                    SyncCompletionState.SYNCING -> "Syncing"
+                                                    SyncCompletionState.SYNCED -> "Synced"
+                                                    SyncCompletionState.UNKNOWN -> null
+                                                }
+                                            } else {
+                                                null
+                                            }
+                                        listOfNotNull(mode, runState, syncState)
+                                            .joinToString(" · ")
                                     } ?: "Checking…"
                                 } else {
                                     "Legacy: STOP → Auto mode"
@@ -1646,6 +1673,13 @@ class MainActivity : ComponentActivity() {
                                 } else if (managerEnabled) {
                                     restoreBasicSyncTransactionNow()
                                     SleepCycleStore.completeIfRestored(this@MainActivity)
+                                    // Also let the running service restore the
+                                    // original state owned by Sync then stop.
+                                    refreshRunningService()
+                                }
+
+                                if (it && managerEnabled) {
+                                    refreshRunningService()
                                 }
                             },
                             onOpen = if (basicSyncInstalled) {
@@ -1722,7 +1756,33 @@ class MainActivity : ComponentActivity() {
 
                     AppSection.ADVANCED -> {
                         item {
-                            AdvancedSleepRulesPage(
+                            AdvancedSettingsPage(
+                                periodicSyncWhileSleeping = periodicSyncWhileSleeping,
+                                syncThenStopOnSleepWake = syncThenStopOnSleepWake,
+                                syncConditionsAvailable =
+                                    ManagedSyncProviders.completionReady(
+                                        this@MainActivity
+                                    ),
+                                onPeriodicSyncWhileSleepingChange = {
+                                    periodicSyncWhileSleeping = it
+                                    AppPreferences.setPeriodicSyncWhileSleeping(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                },
+                                onSyncThenStopOnSleepWakeChange = {
+                                    syncThenStopOnSleepWake = it
+                                    AppPreferences.setSyncThenStopOnSleepWake(
+                                        this@MainActivity,
+                                        it
+                                    )
+
+                                    if (managerEnabled) {
+                                        // Disabling this option must hand
+                                        // BasicSync back to its pre-feature state.
+                                        refreshRunningService()
+                                    }
+                                },
                                 customDelayEnabled = customDelayEnabled,
                                 customDelayMs = customDelayMs,
                                 batteryConditionEnabled = batteryConditionEnabled,
@@ -2632,18 +2692,22 @@ private fun InteractiveBatteryGauge(
         infoIndex = (infoIndex + 1) % infoTexts.size
     }
 
-    val chargingTransition = rememberInfiniteTransition(
-        label = "Charging pulse"
-    )
-    val chargingAlpha by chargingTransition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 850),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Charging alpha"
-    )
+    // Do not keep an infinite frame-clock animation alive while discharging.
+    val chargingAlpha = if (charging) {
+        val chargingTransition = rememberInfiniteTransition(label = "Charging pulse")
+        val alpha by chargingTransition.animateFloat(
+            initialValue = 0.45f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 850),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "Charging alpha"
+        )
+        alpha
+    } else {
+        1f
+    }
 
     val compactBatteryLayout = LocalConfiguration.current.screenWidthDp < 600
     val gaugeHeight = if (compactBatteryLayout) 66.dp else 74.dp
@@ -2853,6 +2917,16 @@ private fun PendingRestoreCard(
 private fun formatBatteryChange(
     session: BatterySleepStore.SleepSession
 ): String {
+    val precise = session.preciseBatteryChangePercent
+    if (precise != null && precise.isFinite()) {
+        val magnitude = formatPercentTwoDecimals(kotlin.math.abs(precise))
+        return when {
+            precise > 0.0 -> "+$magnitude%"
+            precise < 0.0 -> "−$magnitude%"
+            else -> "0.00%"
+        }
+    }
+
     val delta = session.endPercent - session.startPercent
     return when {
         delta > 0 -> "+${delta}%"
@@ -3233,7 +3307,12 @@ private fun SleepGraceSelector(
 }
 
 @Composable
-private fun AdvancedSleepRulesPage(
+private fun AdvancedSettingsPage(
+    periodicSyncWhileSleeping: Boolean,
+    syncThenStopOnSleepWake: Boolean,
+    syncConditionsAvailable: Boolean,
+    onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
+    onSyncThenStopOnSleepWakeChange: (Boolean) -> Unit,
     customDelayEnabled: Boolean,
     customDelayMs: Long,
     batteryConditionEnabled: Boolean,
@@ -3257,8 +3336,44 @@ private fun AdvancedSleepRulesPage(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SectionTitle(
-            title = "Custom delay",
-            subtitle = "Override the short Grace period shown on Home."
+            title = "Advanced sync conditions",
+            subtitle = "Control when managed sync clients run outside their normal sleep behavior."
+        )
+
+        SettingsCard {
+            AdvancedToggleRow(
+                title = "Periodic sync while sleeping",
+                subtitle = if (syncConditionsAvailable) {
+                    "While the device stays asleep, sync managed clients every 24h, then stop them and restore the sleep state."
+                } else {
+                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
+                },
+                checked = periodicSyncWhileSleeping,
+                enabled = syncConditionsAvailable,
+                onCheckedChange = onPeriodicSyncWhileSleepingChange
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AdvancedToggleRow(
+                title = "Sync then stop on sleep & wake",
+                subtitle = if (syncConditionsAvailable) {
+                    "Sync managed clients after wake and again before sleep. After each sync completes, stop them to reduce background battery use."
+                } else {
+                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
+                },
+                checked = syncThenStopOnSleepWake,
+                enabled = syncConditionsAvailable,
+                onCheckedChange = onSyncThenStopOnSleepWakeChange
+            )
+        }
+
+        SectionTitle(
+            title = "Advanced sleep conditions",
+            subtitle = "Fine-tune when sleep actions are allowed and when they begin."
         )
 
         SettingsCard {
@@ -3461,6 +3576,7 @@ private fun AdvancedToggleRow(
     title: String,
     subtitle: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
@@ -3474,18 +3590,26 @@ private fun AdvancedToggleRow(
             Text(
                 title,
                 style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                }
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = if (enabled) 1f else 0.55f
+                )
             )
         }
 
         Switch(
             checked = checked,
             onCheckedChange = feedbackChange(onCheckedChange),
+            enabled = enabled,
             modifier = Modifier.semantics {
                 contentDescription = "$title toggle"
             }

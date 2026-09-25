@@ -21,6 +21,7 @@ class NetworkReadyGate(
 
     companion object {
         private const val TAG = "SleepManager"
+        private const val RECHECK_INTERVAL_MS = 500L
     }
 
     private val connectivityManager =
@@ -33,7 +34,41 @@ class NetworkReadyGate(
         complete(Result.TIMEOUT)
     }
 
+    private val recheckRunnable = object : Runnable {
+        override fun run() {
+            if (completed) return
+
+            val validated =
+                runCatching {
+                    val cm = connectivityManager ?: return@runCatching false
+                    val active = cm.activeNetwork ?: return@runCatching false
+                    val capabilities =
+                        cm.getNetworkCapabilities(active)
+                            ?: return@runCatching false
+                    isValidated(capabilities)
+                }.getOrDefault(false)
+
+            if (validated) {
+                Log.i(TAG, "Validated network detected by bounded recheck")
+                complete(Result.VALIDATED)
+            } else if (!completed) {
+                handler.postDelayed(this, RECHECK_INTERVAL_MS)
+            }
+        }
+    }
+
     private val callback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            val cm = connectivityManager ?: return
+            val capabilities =
+                runCatching {
+                    cm.getNetworkCapabilities(network)
+                }.getOrNull()
+
+            if (capabilities != null && isValidated(capabilities)) {
+                complete(Result.VALIDATED)
+            }
+        }
         override fun onCapabilitiesChanged(
             network: Network,
             networkCapabilities: NetworkCapabilities
@@ -69,14 +104,20 @@ class NetworkReadyGate(
             return
         }
 
+        handler.postDelayed(recheckRunnable, RECHECK_INTERVAL_MS)
         handler.postDelayed(timeoutRunnable, timeoutMs)
-        Log.i(TAG, "Waiting for validated network (timeout=" + timeoutMs + "ms)")
+        Log.i(
+            TAG,
+            "Waiting for validated network (timeout=" + timeoutMs +
+                "ms, fallbackRecheck=" + RECHECK_INTERVAL_MS + "ms)"
+        )
     }
 
     fun cancel() {
         if (completed) return
         completed = true
         handler.removeCallbacks(timeoutRunnable)
+        handler.removeCallbacks(recheckRunnable)
         unregister()
         Log.i(TAG, "Network-ready wait cancelled")
     }
@@ -85,6 +126,7 @@ class NetworkReadyGate(
         if (completed) return
         completed = true
         handler.removeCallbacks(timeoutRunnable)
+        handler.removeCallbacks(recheckRunnable)
         unregister()
         onComplete(result)
     }

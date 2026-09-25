@@ -14,6 +14,7 @@ object HelperController {
     private const val ACTION_RESTORE = "com.med.sleepmanager.helper.action.RESTORE"
     private const val ACTION_QUERY = "com.med.sleepmanager.helper.action.QUERY_STATE"
     private const val ACTION_FORGET_STATE = "com.med.sleepmanager.helper.action.FORGET_STATE"
+    private const val ACTION_SET_TEMP_WIFI = "com.med.sleepmanager.helper.action.SET_TEMP_WIFI"
     const val ACTION_STATE = "com.med.sleepmanager.helper.action.STATE"
     const val ACTION_RESULT = "com.med.sleepmanager.helper.action.RESULT"
 
@@ -41,6 +42,7 @@ object HelperController {
     const val STATUS_WIFI_TOGGLE_FAILED = "WIFI_TOGGLE_FAILED"
     const val PHASE_SLEEP = "sleep"
     const val PHASE_WAKE = "wake"
+    const val PHASE_MAINTENANCE_WIFI = "maintenance_wifi"
 
     fun isInstalled(context: Context): Boolean {
         return try {
@@ -75,6 +77,19 @@ object HelperController {
         return true
     }
 
+
+    fun setTemporaryWifi(context: Context, enabled: Boolean): Boolean {
+        if (!isInstalled(context)) return false
+        context.sendBroadcast(
+            Intent(ACTION_SET_TEMP_WIFI)
+                .setPackage(PACKAGE)
+                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                .putExtra(EXTRA_WIFI, enabled),
+            PERMISSION
+        )
+        Log.i("SleepManager", "Helper temporary Wi-Fi request: enabled=$enabled")
+        return true
+    }
 
     fun requestState(context: Context): Boolean {
         if (!isInstalled(context)) return false

@@ -16,6 +16,7 @@ import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
+import com.med.sleepmanager.sync.ManagedSyncProviders
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,9 +56,11 @@ object DiagnosticsBuilder {
         val jamesDspPending =
             SleepCycleStore.connectorChange(context, JamesDspConnector.id)
         val basicSyncVersion = BasicSyncController.versionName(context)
+        val basicSyncState = BasicSyncController.lastObservedState()
         val basicSyncPending =
             SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
         val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
+        val processExitHistory = ProcessExitHistoryReader.read(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -74,6 +77,50 @@ object DiagnosticsBuilder {
             appendLine("- Custom delay: ${AppPreferences.customDelayMs(context)} ms")
             appendLine("- Effective sleep delay: ${AppPreferences.effectiveSleepDelayMs(context)} ms")
             appendLine()
+            appendLine("Process exit history")
+            if (processExitHistory == null) {
+                appendLine(
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                        "- unavailable on Android < 11"
+                    } else {
+                        "- unavailable"
+                    }
+                )
+            } else {
+                appendLine(
+                    "- Low-memory reason reporting: " +
+                        when (processExitHistory.lowMemoryReasonSupported) {
+                            true -> "supported"
+                            false -> "not supported"
+                            null -> "unknown"
+                        }
+                )
+
+                if (processExitHistory.records.isEmpty()) {
+                    appendLine("- No previous process exits reported")
+                } else {
+                    processExitHistory.records.forEachIndexed { index, exit ->
+                        val label =
+                            if (index == 0) "Latest" else "Previous ${index + 1}"
+                        appendLine(
+                            "- $label: " +
+                                "${formatter.format(Date(exit.timestamp))} • " +
+                                ProcessExitReasonFormatter.reasonLabel(exit.reason) +
+                                " • status=${exit.status} • importance=" +
+                                ProcessExitReasonFormatter.importanceLabel(exit.importance)
+                        )
+                        if (exit.pssKb > 0L || exit.rssKb > 0L) {
+                            appendLine(
+                                "  Memory sample: PSS=${exit.pssKb} kB • RSS=${exit.rssKb} kB"
+                            )
+                        }
+                        exit.description?.let {
+                            appendLine("  Description: $it")
+                        }
+                    }
+                }
+            }
+            appendLine()
             appendLine("Device")
             appendLine("- Model: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("- Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
@@ -88,7 +135,14 @@ object DiagnosticsBuilder {
             appendLine("- BasicSync: ${AppPreferences.manageBasicSync(context)}")
             appendLine("- Thor protection: ${AppPreferences.manageThorProtection(context)}")
             appendLine()
-            appendLine("Advanced conditions")
+            appendLine("Advanced sync conditions")
+            appendLine("- Periodic sync while sleeping: ${AppPreferences.periodicSyncWhileSleeping(context)}")
+            appendLine("- Sync then stop on sleep & wake: ${AppPreferences.syncThenStopOnSleepWake(context)}")
+            appendLine("- Completion-aware providers ready: ${ManagedSyncProviders.completionReady(context)}")
+            appendLine("- Periodic runtime active-capable: ${AppPreferences.periodicSyncWhileSleeping(context) && ManagedSyncProviders.completionReady(context)}")
+            appendLine("- Sleep/wake runtime active-capable: ${AppPreferences.syncThenStopOnSleepWake(context) && ManagedSyncProviders.completionReady(context)}")
+            appendLine()
+            appendLine("Advanced sleep conditions")
             appendLine("- Battery condition: ${AppPreferences.batteryConditionEnabled(context)}")
             appendLine("- Battery below: ${AppPreferences.batteryBelowPercent(context)}%")
             appendLine("- Not charging only: ${AppPreferences.notChargingOnly(context)}")
@@ -142,6 +196,26 @@ object DiagnosticsBuilder {
                     }
             )
             appendLine("- BasicSync state API: ${if (BasicSyncController.supportsStateApi(context)) "supported (3.18+)" else "legacy / unavailable"}")
+            appendLine("- BasicSync sync counters: ${if (BasicSyncController.supportsSyncCounters(context)) "supported (3.19+)" else "unavailable"}")
+            appendLine(
+                "- BasicSync observed state: " +
+                    if (basicSyncState != null) {
+                        "${basicSyncState.mode} / ${basicSyncState.runState}"
+                    } else {
+                        "unknown"
+                    }
+            )
+            appendLine(
+                "- BasicSync blocked reasons: " +
+                    (basicSyncState?.blockedReasons
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.joinToString()
+                        ?: "none")
+            )
+            appendLine(
+                "- BasicSync counters: " +
+                    (basicSyncState?.syncCounters?.toString() ?: "unavailable")
+            )
             appendLine()
             appendLine("Last Wi-Fi toggle")
             if (wifiDiagnostic == null) {

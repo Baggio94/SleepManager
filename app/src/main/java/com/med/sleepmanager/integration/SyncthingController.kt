@@ -97,6 +97,17 @@ object SyncthingController {
 
     fun healthProbeRunning(): Boolean = healthCheckDefaultGui()
 
+    fun sendStart(context: Context) =
+        send(
+            context,
+            selectedTarget(context)?.packageName,
+            ".action.START",
+            "START"
+        )
+
+    fun sendStartTo(context: Context, packageName: String) =
+        send(context, packageName, ".action.START", "START")
+
     fun sendStop(context: Context) =
         send(
             context,

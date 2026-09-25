@@ -11,6 +11,7 @@ object BasicSyncConnector : AppConnector {
 
     const val TOKEN_AUTO_MODE = "auto_mode"
     const val TOKEN_MANUAL_MODE_STARTED = "manual_mode_started"
+    const val TOKEN_MANUAL_MODE_STOPPED = "manual_mode_stopped"
 
     override fun isInstalled(context: Context): Boolean =
         BasicSyncController.isInstalled(context)
@@ -117,6 +118,9 @@ object BasicSyncConnector : AppConnector {
             TOKEN_MANUAL_MODE_STARTED ->
                 BasicSyncController.sendStart(context)
 
+            TOKEN_MANUAL_MODE_STOPPED ->
+                BasicSyncController.sendStop(context)
+
             else ->
                 return ConnectorWakeResult(
                     attempted = false,
@@ -141,6 +145,7 @@ object BasicSyncConnector : AppConnector {
         when (restoreToken) {
             TOKEN_AUTO_MODE -> "AUTO_MODE"
             TOKEN_MANUAL_MODE_STARTED -> "START"
+            TOKEN_MANUAL_MODE_STOPPED -> "STOP"
             else -> "UNKNOWN"
         }
 

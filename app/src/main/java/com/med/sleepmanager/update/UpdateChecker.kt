@@ -108,25 +108,29 @@ object UpdateChecker {
         return update
     }
 
-    fun checkIfDueAsync(context: Context, notify: Boolean) =
+    fun checkIfDueAsync(context: Context, notify: Boolean): Thread? =
         checkAsync(context, notify, UpdateCheckTrigger.BACKGROUND)
 
-    fun checkOnForegroundAsync(context: Context, notify: Boolean) =
+    fun checkOnForegroundAsync(context: Context, notify: Boolean): Thread? =
         checkAsync(context, notify, UpdateCheckTrigger.FOREGROUND)
 
     private fun checkAsync(
         context: Context,
         notify: Boolean,
         trigger: UpdateCheckTrigger
-    ) {
+    ): Thread? {
         val appContext = context.applicationContext
         // Claim before creating a worker, so duplicate lifecycle/job triggers do
         // not even create another thread. Both APKs use the same release fetch.
-        if (beginCheck(appContext, trigger) != null) return
-        try {
-            Thread({ performCheck(appContext, notify) }, "SleepManagerUpdateCheck").start()
+        if (beginCheck(appContext, trigger) != null) return null
+        return try {
+            Thread(
+                { performCheck(appContext, notify) },
+                "SleepManagerUpdateCheck"
+            ).also { it.start() }
         } catch (t: Throwable) {
             checkGate.finish()
+            null
         }
     }
 
@@ -169,7 +173,18 @@ object UpdateChecker {
 
     private fun performCheck(appContext: Context, notify: Boolean): UpdateCheckResult {
         return try {
+            if (Thread.currentThread().isInterrupted) {
+                return UpdateCheckResult.NotDue
+            }
+
             val release = fetchLatestStableRelease()
+
+            // A foreground/job check may have been cancelled while the HTTP
+            // request was in flight. Do not cache or notify after cancellation.
+            if (Thread.currentThread().isInterrupted) {
+                return UpdateCheckResult.NotDue
+            }
+
             cacheRelease(appContext, release)
             AppPreferences.setLastUpdateCheckSuccess(appContext, System.currentTimeMillis())
 

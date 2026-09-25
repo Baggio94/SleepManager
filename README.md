@@ -20,7 +20,7 @@ SleepManager can manage these actions when the screen turns off:
 
 - **Wi-Fi** — turn it off during sleep and restore it only if SleepManager changed it.
 - **Bluetooth** — same state-aware behavior as Wi-Fi.
-- **Syncthing-Fork** — send STOP during sleep and FOLLOW again after usable network connectivity returns.
+- **Syncthing-Fork** — send STOP during sleep and FOLLOW again on wake after Helper-managed radio restoration; Syncthing-Fork then handles network reconnection itself.
 - **Tailscale** — disconnect during sleep and reconnect only when SleepManager verified that it disconnected it.
 - **JamesDSP** — apply OFF during sleep and ON again after wake.
 - **BasicSync** — with BasicSync 3.18+, observe the current mode/run state while awake, stop it only when active, then restore the exact previous mode on wake.
@@ -34,6 +34,15 @@ SleepManager can manage these actions when the screen turns off:
 - Optional Android Battery Saver condition
 - Optional schedule / time window
 - Enabled conditions use **AND logic**
+
+### Advanced sync
+
+SleepManager 0.6 adds two optional completion-aware sync modes:
+
+- **Periodic sync while sleeping** — periodically bring back Helper-managed Wi-Fi when needed, wait for a usable network, sync, stop the client, then return to the previous sleep state.
+- **Sync then stop on sleep & wake** — sync before sleep and after wake, then stop the client again once synchronization has completed.
+
+These modes require a sync client that exposes reliable synchronization state. **BasicSync 3.19+** is currently supported.
 
 ### Battery statistics
 
@@ -57,6 +66,8 @@ Shorter sleeps are still shown in **Last sleep** and remain part of the recent s
 ### Activity log and diagnostics
 
 The Activity page shows recent sleep/wake actions and provides a copyable diagnostic report.
+
+On Android 11+, diagnostics also include recent Android process-exit history, including system exit reasons such as low-memory kills, crashes, ANRs and user/system-requested stops, plus sampled process memory information when Android provides it.
 
 Wi-Fi diagnostics distinguish between:
 
@@ -147,6 +158,8 @@ In Syncthing-Fork, enable:
 
 Then enable Syncthing inside SleepManager.
 
+Sleep/wake STOP/FOLLOW control is supported. The new completion-aware maintenance modes remain unavailable for Syncthing-Fork until it exposes a supported synchronization-completion API.
+
 ### Tailscale
 
 Install and sign in to the official Tailscale Android app, then enable Tailscale inside SleepManager.
@@ -158,6 +171,8 @@ SleepManager uses BasicSync's official Android remote-control and state broadcas
 In BasicSync, enable **Allow remote control**.
 
 With **BasicSync 3.18 or newer**, SleepManager observes BasicSync's mode and run state while the SleepManager service is active. This preserves the state from before screen-off instead of trying to discover it after BasicSync may already have reacted to sleep.
+
+With **BasicSync 3.19 or newer**, SleepManager can also use BasicSync's official folder/device counters for completion-aware maintenance. SleepManager treats errors, blocked states and incomplete observations conservatively, and requires a stable completed state before stopping BasicSync.
 
 The Integrations page also shows the latest observed BasicSync state, such as **Auto mode · Running** or **Manual mode · Stopped**.
 
@@ -192,7 +207,7 @@ For example:
 
 - if Wi-Fi was already OFF before sleep, SleepManager leaves it OFF on wake
 - if Wi-Fi was ON and SleepManager successfully turned it OFF, it is restored
-- network-dependent integrations wait for usable connectivity before restoration
+- Tailscale waits for usable connectivity before restoration; Syncthing-Fork FOLLOW is sent after managed radio restoration so Syncthing can handle its own reconnect timing
 - pending restore state is stored so a process/service restart does not silently lose track of it
 
 This state-aware model is used to avoid forcing unrelated user state.
@@ -278,9 +293,6 @@ helper/build/outputs/apk/debug/helper-debug.apk
 See:
 
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [RELEASE_NOTES.md](RELEASE_NOTES.md) — notes for the current stable release
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) — notes for the current release
 - [GitHub Releases](https://github.com/Baggio94/SleepManager/releases) — official APK downloads
 
-## License
-
-See the repository license for usage and distribution terms.

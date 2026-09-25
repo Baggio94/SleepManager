@@ -11,6 +11,8 @@ object AppPreferences {
     private const val KEY_TAILSCALE = "tailscale"
     private const val KEY_JAMES_DSP = "james_dsp"
     private const val KEY_BASICSYNC = "basicsync"
+    private const val KEY_PERIODIC_SYNC_WHILE_SLEEPING = "periodic_sync_while_sleeping"
+    private const val KEY_SYNC_THEN_STOP_ON_SLEEP_WAKE = "sync_then_stop_on_sleep_wake"
     private const val KEY_THOR_PROTECTION = "thor_protection"
     private const val KEY_THOR_DOCK_DISCONNECT_SLEEP = "thor_dock_disconnect_sleep"
     private const val KEY_THOR_CLOSED_POWER_SLEEP = "thor_closed_power_sleep"
@@ -99,6 +101,18 @@ object AppPreferences {
 
     fun setManageBasicSync(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_BASICSYNC, value).apply()
+
+    fun periodicSyncWhileSleeping(context: Context) =
+        prefs(context).getBoolean(KEY_PERIODIC_SYNC_WHILE_SLEEPING, false)
+
+    fun setPeriodicSyncWhileSleeping(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_PERIODIC_SYNC_WHILE_SLEEPING, value).apply()
+
+    fun syncThenStopOnSleepWake(context: Context) =
+        prefs(context).getBoolean(KEY_SYNC_THEN_STOP_ON_SLEEP_WAKE, false)
+
+    fun setSyncThenStopOnSleepWake(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_SYNC_THEN_STOP_ON_SLEEP_WAKE, value).apply()
 
     fun manageThorProtection(context: Context) =
         prefs(context).getBoolean(KEY_THOR_PROTECTION, false)

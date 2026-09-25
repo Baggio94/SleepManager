@@ -16,6 +16,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val ACTION_RESTORE = "com.med.sleepmanager.helper.action.RESTORE"
         private const val ACTION_QUERY = "com.med.sleepmanager.helper.action.QUERY_STATE"
         private const val ACTION_FORGET_STATE = "com.med.sleepmanager.helper.action.FORGET_STATE"
+        private const val ACTION_SET_TEMP_WIFI = "com.med.sleepmanager.helper.action.SET_TEMP_WIFI"
         private const val ACTION_STATE = "com.med.sleepmanager.helper.action.STATE"
         private const val ACTION_RESULT = "com.med.sleepmanager.helper.action.RESULT"
         private const val MAIN_PACKAGE = "com.med.sleepmanager"
@@ -45,6 +46,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         private const val STATUS_WIFI_TOGGLE_FAILED = "WIFI_TOGGLE_FAILED"
         private const val PHASE_SLEEP = "sleep"
         private const val PHASE_WAKE = "wake"
+        private const val PHASE_MAINTENANCE_WIFI = "maintenance_wifi"
 
         private const val PREFS = "helper_state"
         private const val KEY_CYCLE_ACTIVE = "cycle_active"
@@ -65,6 +67,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             )
             ACTION_WAKE, ACTION_RESTORE -> restore(context)
             ACTION_QUERY -> reportCurrentState(context)
+            ACTION_SET_TEMP_WIFI -> setTemporaryWifi(
+                context,
+                enabled = intent.getBooleanExtra(EXTRA_WIFI, false)
+            )
             ACTION_FORGET_STATE -> {
                 context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                     .edit()
@@ -188,6 +194,80 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             bluetoothPrevious = bluetoothWasOn,
             bluetoothChanged = bluetoothChanged,
             status = if (wifiToggleFailed) STATUS_WIFI_TOGGLE_FAILED else STATUS_OK
+        )
+    }
+
+    private fun setTemporaryWifi(
+        context: Context,
+        enabled: Boolean
+    ) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val cycleActive = prefs.getBoolean(KEY_CYCLE_ACTIVE, false)
+        val wifiManaged = prefs.getBoolean(KEY_WIFI_MANAGED, false)
+        val wifiOwnedBySleepCycle =
+            cycleActive &&
+                wifiManaged &&
+                prefs.getBoolean(KEY_WIFI_CHANGED, false) &&
+                prefs.getBoolean(KEY_WIFI_PREVIOUS, false)
+
+        val wifiManager =
+            context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val wifiWasOn = safeWifiState(wifiManager)
+        val airplaneModeOn = isAirplaneModeOn(context)
+
+        if (!wifiOwnedBySleepCycle) {
+            Log.i(
+                TAG,
+                "Temporary Wi-Fi ignored: enabled=$enabled cycleActive=$cycleActive " +
+                    "wifiManaged=$wifiManaged ownedBySleepCycle=false"
+            )
+            sendResult(
+                context = context,
+                phase = PHASE_MAINTENANCE_WIFI,
+                wifiManaged = wifiManaged,
+                wifiPrevious = wifiWasOn,
+                wifiChanged = false,
+                wifiAttempted = false,
+                wifiAction = if (enabled) "ON" else "OFF",
+                wifiToggleSuccess = true,
+                airplaneMode = airplaneModeOn,
+                bluetoothManaged = false,
+                bluetoothPrevious = false,
+                bluetoothChanged = false,
+                status = if (cycleActive) STATUS_OK else STATUS_NO_ACTIVE_CYCLE
+            )
+            return
+        }
+
+        val changeRequired = wifiWasOn != enabled
+        val changed =
+            if (changeRequired) {
+                setWifi(wifiManager, enabled)
+            } else {
+                false
+            }
+        val success = !changeRequired || changed
+
+        Log.i(
+            TAG,
+            "Temporary sleep Wi-Fi: requested=$enabled previous=$wifiWasOn " +
+                "attempted=$changeRequired changed=$changed airplaneMode=$airplaneModeOn"
+        )
+
+        sendResult(
+            context = context,
+            phase = PHASE_MAINTENANCE_WIFI,
+            wifiManaged = true,
+            wifiPrevious = wifiWasOn,
+            wifiChanged = changed,
+            wifiAttempted = changeRequired,
+            wifiAction = if (enabled) "ON" else "OFF",
+            wifiToggleSuccess = success,
+            airplaneMode = airplaneModeOn,
+            bluetoothManaged = false,
+            bluetoothPrevious = false,
+            bluetoothChanged = false,
+            status = if (success) STATUS_OK else STATUS_WIFI_TOGGLE_FAILED
         )
     }
 

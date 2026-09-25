@@ -2,6 +2,34 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.6.0 — 2026-09-25
+
+### Highlights
+
+- Added **Periodic sync while sleeping** for completion-aware sync clients.
+- Added **Sync then stop on sleep & wake**.
+- Added BasicSync 3.19 synchronization-state support using its official folder/device counters.
+- Added a stable completion window before a sync client is considered finished.
+- Added Helper 1.1 temporary Wi-Fi control for sleep maintenance without changing the saved wake-restore state.
+- Periodic maintenance uses a one-shot 24-hour alarm, validated-network checks and bounded wake locks.
+- Hardened validated-network detection on OEM Android builds and changed Syncthing-Fork wake restoration so FOLLOW is sent immediately after managed radio restoration instead of waiting up to 15 seconds for internet validation.
+- Managed sync clients are stopped before SleepManager turns managed Wi-Fi off.
+- Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
+- Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
+- Refined the Advanced sync UI and BasicSync runtime/completion status.
+- Improved sleep battery precision: charge-counter measurements are converted to precise session percentages when possible, Last sleep shows two decimals for measured values, and ambiguous legacy 0%-change sessions no longer create false best-drain records.
+- Existing 7-day history is re-evaluated automatically; older sessions with measured mAh can be upgraded using the current capacity estimate without clearing user history.
+- Copyable diagnostics now include Android process-exit history on Android 11+, including the system exit reason, status, process importance and last sampled memory usage, to help diagnose unexpected service deaths such as low-memory kills.
+- Validated final 0.6.0 flows on real AYN Thor hardware, including BasicSync maintenance, Syncthing-Fork wake restoration and precise short-session battery/deep-sleep measurement.
+
+### Compatibility
+
+- BasicSync 3.19+ supports completion-aware maintenance.
+- Syncthing-Fork sleep/wake control remains supported, but completion-aware maintenance stays disabled until a supported synchronization-completion API is available.
+- Helper development version is **1.1.0 / versionCode 1100**.
+
+---
+
 ## 0.5.5 — 2026-09-23
 
 ### Highlights
@@ -19,7 +47,6 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Package IDs and the permanent signing certificate remain unchanged.
 - Existing settings are preserved when updating an official signed build.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.5 summary.
 
 ---
 
@@ -48,7 +75,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.5 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.4 summary.
 
 ---
 
@@ -73,7 +99,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.4 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.3 summary.
 
 ---
 
@@ -96,7 +121,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.3 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.2 summary.
 
 ---
 
@@ -120,7 +144,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing 0.5.2 summary.
 - Existing settings are preserved when updating an official signed build.
 - No root, Shizuku or ADB is required for normal use.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete cumulative 0.5.0 + 0.5.1 release summary.
 
 ---
 
@@ -143,7 +166,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the complete cumulative 0.5.0 + 0.5
 - Package IDs and the permanent signing certificate remain unchanged.
 - No root, Shizuku or ADB is required on the device.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
 
 ---
 
@@ -166,7 +188,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full 0.5.0 summary.
 - This is a beta build intended for real-device validation before stable 0.5.x.
 - Package IDs and the permanent release signing identity are unchanged, so updates preserve existing app data.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the full beta summary.
 
 ---
 
@@ -204,7 +225,6 @@ The 0.4.0 release notes otherwise remain unchanged.
 - Advanced conditions use **AND logic**.
 - SleepManager does not require root, Shizuku or ADB on the device.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 
 ---
 
@@ -227,7 +247,6 @@ See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 - Advanced conditions use **AND logic**.
 - This is a development preview. Final regression testing on emulator and AYN Thor is still in progress before stable 0.4.0.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the user-facing release summary.
 
 ---
 

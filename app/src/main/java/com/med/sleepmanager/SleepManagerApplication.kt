@@ -14,6 +14,7 @@ import com.med.sleepmanager.update.UpdateChecker
 class SleepManagerApplication : Application(), DefaultLifecycleObserver {
     private val handler = Handler(Looper.getMainLooper())
     private var networkWait: NetworkReadyGate? = null
+    private var foregroundUpdateThread: Thread? = null
 
     override fun onCreate() {
         super<Application>.onCreate()
@@ -35,7 +36,8 @@ class SleepManagerApplication : Application(), DefaultLifecycleObserver {
                 result == NetworkReadyGate.Result.VALIDATED &&
                 owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
             ) {
-                UpdateChecker.checkOnForegroundAsync(this, notify = true)
+                foregroundUpdateThread =
+                    UpdateChecker.checkOnForegroundAsync(this, notify = true)
             }
         }
         networkWait = wait
@@ -45,5 +47,8 @@ class SleepManagerApplication : Application(), DefaultLifecycleObserver {
     override fun onStop(owner: LifecycleOwner) {
         networkWait?.cancel()
         networkWait = null
+
+        foregroundUpdateThread?.interrupt()
+        foregroundUpdateThread = null
     }
 }

@@ -101,6 +101,11 @@
             android:exported="false" />
 
         <receiver
+            android:name=".service.PeriodicSyncReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <receiver
             android:name=".service.BootReceiver"
             android:enabled="true"
             android:exported="true">
