@@ -1945,7 +1945,56 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun restorePendingSyncthingBeforeNetworkWait() {
+        val change =
+            SleepCycleStore.connectorChange(
+                this,
+                SyncthingConnector.id
+            ) ?: return
+
+        val wakeResult =
+            SyncthingConnector.wake(
+                this,
+                change.restoreToken
+            )
+
+        if (wakeResult.success) {
+            SleepCycleStore.clearConnectorChange(
+                this,
+                SyncthingConnector.id
+            )
+            Log.i(
+                TAG,
+                "Syncthing FOLLOW sent before validated-network wait; " +
+                    "network readiness delegated to Syncthing-Fork"
+            )
+
+            if (!disableRestoreRequested) {
+                AppPreferences.recordEvent(
+                    this,
+                    buildWakeSummary(
+                        wifiManaged = lastWakeWifiManaged,
+                        wifiChanged = lastWakeWifiChanged,
+                        wifiAttempted = lastWakeWifiAttempted,
+                        wifiToggleSuccess = lastWakeWifiToggleSuccess,
+                        wifiAirplaneMode = lastWakeWifiAirplaneMode,
+                        bluetoothManaged = lastWakeBluetoothManaged,
+                        bluetoothChanged = lastWakeBluetoothChanged,
+                        syncthing = true
+                    )
+                )
+            }
+        } else {
+            Log.w(
+                TAG,
+                "Immediate Syncthing FOLLOW failed; keeping restore pending for network-ready retry"
+            )
+        }
+    }
+
     private fun waitForNetworkAndRestorePendingConnectors() {
+        restorePendingSyncthingBeforeNetworkWait()
+
         if (!hasPendingNetworkConnectorRestore()) {
             SleepCycleStore.completeIfRestored(this)
             finishDisableRestoreIfRequested()
