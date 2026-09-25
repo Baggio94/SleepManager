@@ -66,6 +66,15 @@ class SyncStopOwnershipPolicyTest {
             basicSyncStillInManagedStopState(
                 BasicSyncController.RemoteState(
                     mode = BasicSyncController.Mode.MANUAL_MODE_STOPPED,
+                    runState = BasicSyncController.RunState.PAUSED
+                )
+            )
+        )
+
+        assertTrue(
+            basicSyncStillInManagedStopState(
+                BasicSyncController.RemoteState(
+                    mode = BasicSyncController.Mode.MANUAL_MODE_STOPPED,
                     runState = BasicSyncController.RunState.STOPPING
                 )
             )
