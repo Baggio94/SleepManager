@@ -223,10 +223,16 @@ object BasicSyncController {
     fun requestStateBroadcast(context: Context): Boolean =
         sendRemoteControl(context, ACTION_REQUEST_STATE)
 
-    fun isConfirmedStopped(): Boolean {
-        val state = observedState ?: return false
+    fun isConfirmedStopped(): Boolean =
+        isConfirmedStoppedState(observedState)
+
+    internal fun isConfirmedStoppedState(state: RemoteState?): Boolean {
+        state ?: return false
         return state.mode == Mode.MANUAL_MODE_STOPPED &&
-            state.runState == RunState.NOT_RUNNING
+            (
+                state.runState == RunState.NOT_RUNNING ||
+                    state.runState == RunState.PAUSED
+            )
     }
 
     fun open(context: Context): Boolean {
