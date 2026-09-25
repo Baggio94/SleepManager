@@ -2,7 +2,7 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## Unreleased — 0.6.0
+## 0.6.0 — 2026-09-25
 
 ### Highlights
 
@@ -12,7 +12,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added a stable completion window before a sync client is considered finished.
 - Added Helper 1.1 temporary Wi-Fi control for sleep maintenance without changing the saved wake-restore state.
 - Periodic maintenance uses a one-shot 24-hour alarm, validated-network checks and bounded wake locks.
-- Hardened validated-network detection on OEM Android builds with a bounded 500 ms active-network recheck alongside the normal ConnectivityManager callback, preventing unnecessary 15-second wake restore delays when callbacks are missed.
+- Hardened validated-network detection on OEM Android builds and changed Syncthing-Fork wake restoration so FOLLOW is sent immediately after managed radio restoration instead of waiting up to 15 seconds for internet validation.
 - Managed sync clients are stopped before SleepManager turns managed Wi-Fi off.
 - Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
 - Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
@@ -20,6 +20,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Improved sleep battery precision: charge-counter measurements are converted to precise session percentages when possible, Last sleep shows two decimals for measured values, and ambiguous legacy 0%-change sessions no longer create false best-drain records.
 - Existing 7-day history is re-evaluated automatically; older sessions with measured mAh can be upgraded using the current capacity estimate without clearing user history.
 - Copyable diagnostics now include Android process-exit history on Android 11+, including the system exit reason, status, process importance and last sampled memory usage, to help diagnose unexpected service deaths such as low-memory kills.
+- Validated final 0.6.0 flows on real AYN Thor hardware, including BasicSync maintenance, Syncthing-Fork wake restoration and precise short-session battery/deep-sleep measurement.
 
 ### Compatibility
 
