@@ -4,29 +4,52 @@ Release notes are organized by version and focus on user-visible behavior first.
 
 ## 0.6.0 — 2026-09-25
 
-### Highlights
+### New
 
-- Added **Periodic sync while sleeping** for completion-aware sync clients.
+- Added **Periodic sync while sleeping** for completion-aware sync providers.
 - Added **Sync then stop on sleep & wake**.
-- Added BasicSync 3.19 synchronization-state support using its official folder/device counters.
-- Added a stable completion window before a sync client is considered finished.
-- Added Helper 1.1 temporary Wi-Fi control for sleep maintenance without changing the saved wake-restore state.
-- Periodic maintenance uses a one-shot 24-hour alarm, validated-network checks and bounded wake locks.
-- Hardened validated-network detection on OEM Android builds and changed Syncthing-Fork wake restoration so FOLLOW is sent immediately after managed radio restoration instead of waiting up to 15 seconds for internet validation.
-- Managed sync clients are stopped before SleepManager turns managed Wi-Fi off.
+- Added BasicSync 3.19 completion tracking using its official folder/device counters.
+- Added Helper 1.1 temporary Wi-Fi control for sleep-maintenance syncs.
+- Added Android 11+ process-exit information to copyable diagnostics.
+
+### Improved
+
+- BasicSync completion is accepted only after a stable completed state.
+- BasicSync's previous Auto / Manual ownership is preserved and restored only while SleepManager still owns the change.
+- Managed sync clients are stopped before SleepManager removes managed Wi-Fi.
+- Syncthing-Fork FOLLOW is now sent immediately after managed radio restoration instead of waiting up to 15 seconds for Android internet validation.
 - Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
-- Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
-- Refined the Advanced sync UI and BasicSync runtime/completion status.
-- Improved sleep battery precision: charge-counter measurements are converted to precise session percentages when possible, Last sleep shows two decimals for measured values, and ambiguous legacy 0%-change sessions no longer create false best-drain records.
-- Existing 7-day history is re-evaluated automatically; older sessions with measured mAh can be upgraded using the current capacity estimate without clearing user history.
-- Copyable diagnostics now include Android process-exit history on Android 11+, including the system exit reason, status, process importance and last sampled memory usage, to help diagnose unexpected service deaths such as low-memory kills.
-- Validated final 0.6.0 flows on real AYN Thor hardware, including BasicSync maintenance, Syncthing-Fork wake restoration and precise short-session battery/deep-sleep measurement.
+- AYN Thor closed-lid false wakes no longer interrupt active pre-sleep or periodic sync maintenance.
+- Advanced sync and BasicSync runtime/completion status are clearer in the UI.
+
+### Battery and diagnostics
+
+- Sleep sessions can use charge-counter data for more precise battery-change measurements.
+- **Last sleep** shows two decimal places when a precise measured value is available.
+- 7-day drain, Best/Worst drain and standby estimates prefer measured precision when available.
+- Recent historical sessions with measured mAh can be re-evaluated using the current capacity estimate without clearing history.
+- Ambiguous legacy 0%-change sessions no longer create false best-drain records.
+- Diagnostics can now report recent Android process exits, including system reason, process importance and sampled memory information when Android provides it.
+
+### Reliability and battery use
+
+- Periodic maintenance uses a one-shot 24-hour alarm rather than permanent background polling.
+- Network readiness uses Android callbacks.
+- Synchronization polling runs only during an active maintenance session.
+- Partial wake locks are bounded to active transitions / maintenance.
 
 ### Compatibility
 
+- Main app: **0.6.0 / versionCode 531**.
+- Helper: **1.1.0 / versionCode 1100**.
 - BasicSync 3.19+ supports completion-aware maintenance.
-- Syncthing-Fork sleep/wake control remains supported, but completion-aware maintenance stays disabled until a supported synchronization-completion API is available.
-- Helper development version is **1.1.0 / versionCode 1100**.
+- BasicSync 3.18+ remains supported for state-aware normal sleep/wake control.
+- Syncthing-Fork STOP/FOLLOW sleep/wake control remains supported; completion-aware maintenance remains unavailable until a supported completion API exists.
+- **No root, Shizuku or ADB is required for normal use.**
+
+### Validation
+
+0.6.0 was validated on emulator and real AYN Thor hardware, including BasicSync maintenance, ownership restoration, real periodic transfer behavior, Syncthing-Fork sleep/wake restoration, Thor closed-lid behavior, foreground-service recovery and short-session precise battery/deep-sleep measurement.
 
 ---
 
