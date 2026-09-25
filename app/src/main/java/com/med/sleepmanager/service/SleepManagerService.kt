@@ -44,10 +44,12 @@ import com.med.sleepmanager.rules.SleepConditionEvaluator
 import com.med.sleepmanager.rules.SleepWakePolicy
 import com.med.sleepmanager.sync.ManagedSyncProviders
 import com.med.sleepmanager.sync.PeriodicAlarmDeviceDecision
+import com.med.sleepmanager.sync.OwnedBasicSyncRestoreResult
 import com.med.sleepmanager.sync.SyncMaintenancePolicy
 import com.med.sleepmanager.sync.SyncMaintenanceRunner
 import com.med.sleepmanager.sync.SyncMaintenanceScheduler
 import com.med.sleepmanager.sync.SyncMaintenanceTrigger
+import com.med.sleepmanager.sync.SyncStopOwnershipStore
 import com.med.sleepmanager.sync.SyncTransitionStore
 
 class SleepManagerService : Service() {
@@ -64,6 +66,8 @@ class SleepManagerService : Service() {
         private const val TAILSCALE_WAKE_RETRY_AT_ATTEMPT = 4
         private const val TAILSCALE_WAKE_MAX_ATTEMPTS = 12
         private const val SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS = 8_000L
+        private const val OWNED_BASIC_SYNC_RESTORE_INTERVAL_MS = 250L
+        private const val OWNED_BASIC_SYNC_RESTORE_MAX_ATTEMPTS = 8
         private const val THOR_CLOSE_GUARD_DELAY_MS = 1500L
         private const val THOR_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val THOR_DOCK_DISCONNECT_DEBOUNCE_MS = 500L
@@ -116,6 +120,12 @@ class SleepManagerService : Service() {
     private var initialScreenStateApplied = false
     private var syncMaintenanceRunner: SyncMaintenanceRunner? = null
     private var pendingWakeTransitionSync = false
+    private var ownedBasicSyncRestorePending = false
+    private var ownedBasicSyncRestoreAttempts = 0
+
+    private val ownedBasicSyncRestoreRunnable = Runnable {
+        maybeRestoreOwnedBasicSyncState()
+    }
 
     private fun syncRunner(): SyncMaintenanceRunner =
         syncMaintenanceRunner
@@ -133,6 +143,74 @@ class SleepManagerService : Service() {
         } else {
             BasicSyncController.stopStateObserver()
         }
+    }
+
+    private fun shouldRestoreOwnedBasicSyncState(): Boolean =
+        SyncStopOwnershipStore.hasBasicSyncOwnership(this) &&
+            (
+                !AppPreferences.isEnabled(this) ||
+                    !AppPreferences.manageBasicSync(this) ||
+                    !AppPreferences.syncThenStopOnSleepWake(this)
+            )
+
+    private fun maybeRestoreOwnedBasicSyncState() {
+        handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
+
+        if (!shouldRestoreOwnedBasicSyncState()) {
+            ownedBasicSyncRestorePending = false
+            ownedBasicSyncRestoreAttempts = 0
+            return
+        }
+
+        ownedBasicSyncRestorePending = true
+
+        // The integration may have just been disabled, so keep a temporary
+        // state observer alive long enough to verify that SleepManager still
+        // owns the stopped state before restoring anything.
+        BasicSyncController.startStateObserver(this)
+
+        when (SyncStopOwnershipStore.restoreBasicSyncIfOwned(this)) {
+            OwnedBasicSyncRestoreResult.PENDING,
+            OwnedBasicSyncRestoreResult.FAILED -> {
+                ownedBasicSyncRestoreAttempts++
+                if (
+                    ownedBasicSyncRestoreAttempts <
+                    OWNED_BASIC_SYNC_RESTORE_MAX_ATTEMPTS
+                ) {
+                    handler.postDelayed(
+                        ownedBasicSyncRestoreRunnable,
+                        OWNED_BASIC_SYNC_RESTORE_INTERVAL_MS
+                    )
+                    return
+                }
+
+                ownedBasicSyncRestorePending = false
+                ownedBasicSyncRestoreAttempts = 0
+                Log.w(
+                    TAG,
+                    "BasicSync original state restore remains pending"
+                )
+                if (disableRestoreRequested) {
+                    AppPreferences.recordEvent(
+                        this,
+                        "Disable → BasicSync original state restore pending"
+                    )
+                }
+            }
+
+            OwnedBasicSyncRestoreResult.NOT_OWNED,
+            OwnedBasicSyncRestoreResult.RESTORED,
+            OwnedBasicSyncRestoreResult.RELINQUISHED -> {
+                ownedBasicSyncRestorePending = false
+                ownedBasicSyncRestoreAttempts = 0
+            }
+        }
+
+        if (!AppPreferences.manageBasicSync(this)) {
+            BasicSyncController.stopStateObserver()
+        }
+
+        finishDisableRestoreIfRequested()
     }
 
     @Volatile
@@ -383,6 +461,7 @@ class SleepManagerService : Service() {
         registerHelperResultReceiver()
         recoverInterruptedSleepWifiMaintenance()
         refreshBasicSyncObserver()
+        maybeRestoreOwnedBasicSyncState()
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
     }
@@ -445,6 +524,7 @@ class SleepManagerService : Service() {
         if (!receiverRegistered) registerScreenReceiver()
         if (!helperResultReceiverRegistered) registerHelperResultReceiver()
         refreshBasicSyncObserver()
+        maybeRestoreOwnedBasicSyncState()
         refreshThorLidMonitor()
 
         if (!initialScreenStateApplied) {
@@ -468,6 +548,7 @@ class SleepManagerService : Service() {
         sleepSkippedByConditions = false
         releaseSleepTransitionWakeLock()
 
+        maybeRestoreOwnedBasicSyncState()
         prepareTailscaleVerificationForWake()
         restorePendingJamesDsp()
         restorePendingBasicSync()
@@ -522,6 +603,10 @@ class SleepManagerService : Service() {
 
     private fun finishDisableRestoreIfRequested(forceStop: Boolean = false) {
         if (!disableRestoreRequested) return
+
+        if (ownedBasicSyncRestorePending) {
+            return
+        }
 
         if (!forceStop && SleepCycleStore.isActive(this)) {
             return
@@ -656,7 +741,21 @@ class SleepManagerService : Service() {
 
         sleepSkippedByConditions = false
 
-        val transitionSyncAvailable = syncThenStopAvailable()
+        val transitionSyncRequested = syncThenStopAvailable()
+        val transitionOwnershipReady =
+            !transitionSyncRequested ||
+                !AppPreferences.manageBasicSync(this) ||
+                SyncStopOwnershipStore.captureBasicSyncIfNeeded(this)
+        val transitionSyncAvailable =
+            transitionSyncRequested && transitionOwnershipReady
+
+        if (transitionSyncRequested && !transitionOwnershipReady) {
+            Log.w(
+                TAG,
+                "Sync then stop skipped for this sleep: BasicSync original state is not known yet"
+            )
+        }
+
         if (transitionSyncAvailable) {
             SyncTransitionStore.armWakeSync(this)
         } else {
@@ -2463,6 +2562,8 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
         handler.removeCallbacks(thorDockDisconnectRunnable)
+        handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
+        ownedBasicSyncRestorePending = false
         releaseSleepTransitionWakeLock()
         syncStopProbeExecutor.shutdownNow()
         BasicSyncController.stopStateObserver()

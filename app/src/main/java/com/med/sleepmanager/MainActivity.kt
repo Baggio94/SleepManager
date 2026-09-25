@@ -1673,6 +1673,13 @@ class MainActivity : ComponentActivity() {
                                 } else if (managerEnabled) {
                                     restoreBasicSyncTransactionNow()
                                     SleepCycleStore.completeIfRestored(this@MainActivity)
+                                    // Also let the running service restore the
+                                    // original state owned by Sync then stop.
+                                    refreshRunningService()
+                                }
+
+                                if (it && managerEnabled) {
+                                    refreshRunningService()
                                 }
                             },
                             onOpen = if (basicSyncInstalled) {
@@ -1769,6 +1776,12 @@ class MainActivity : ComponentActivity() {
                                         this@MainActivity,
                                         it
                                     )
+
+                                    if (managerEnabled) {
+                                        // Disabling this option must hand
+                                        // BasicSync back to its pre-feature state.
+                                        refreshRunningService()
+                                    }
                                 },
                                 customDelayEnabled = customDelayEnabled,
                                 customDelayMs = customDelayMs,
