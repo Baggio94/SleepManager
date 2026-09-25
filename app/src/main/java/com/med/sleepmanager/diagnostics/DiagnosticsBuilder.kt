@@ -60,6 +60,7 @@ object DiagnosticsBuilder {
         val basicSyncPending =
             SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
         val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
+        val processExitHistory = ProcessExitHistoryReader.read(context)
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -75,6 +76,50 @@ object DiagnosticsBuilder {
             appendLine("- Custom delay enabled: ${AppPreferences.customDelayEnabled(context)}")
             appendLine("- Custom delay: ${AppPreferences.customDelayMs(context)} ms")
             appendLine("- Effective sleep delay: ${AppPreferences.effectiveSleepDelayMs(context)} ms")
+            appendLine()
+            appendLine("Process exit history")
+            if (processExitHistory == null) {
+                appendLine(
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                        "- unavailable on Android < 11"
+                    } else {
+                        "- unavailable"
+                    }
+                )
+            } else {
+                appendLine(
+                    "- Low-memory reason reporting: " +
+                        when (processExitHistory.lowMemoryReasonSupported) {
+                            true -> "supported"
+                            false -> "not supported"
+                            null -> "unknown"
+                        }
+                )
+
+                if (processExitHistory.records.isEmpty()) {
+                    appendLine("- No previous process exits reported")
+                } else {
+                    processExitHistory.records.forEachIndexed { index, exit ->
+                        val label =
+                            if (index == 0) "Latest" else "Previous ${index + 1}"
+                        appendLine(
+                            "- $label: " +
+                                "${formatter.format(Date(exit.timestamp))} • " +
+                                ProcessExitReasonFormatter.reasonLabel(exit.reason) +
+                                " • status=${exit.status} • importance=" +
+                                ProcessExitReasonFormatter.importanceLabel(exit.importance)
+                        )
+                        if (exit.pssKb > 0L || exit.rssKb > 0L) {
+                            appendLine(
+                                "  Memory sample: PSS=${exit.pssKb} kB • RSS=${exit.rssKb} kB"
+                            )
+                        }
+                        exit.description?.let {
+                            appendLine("  Description: $it")
+                        }
+                    }
+                }
+            }
             appendLine()
             appendLine("Device")
             appendLine("- Model: ${Build.MANUFACTURER} ${Build.MODEL}")
