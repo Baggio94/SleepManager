@@ -92,6 +92,7 @@ The report includes the system exit reason, exit status, process importance and 
 - Syncthing-Fork STOP/FOLLOW sleep/wake control remains supported, but completion-aware maintenance stays unavailable until Syncthing-Fork exposes a supported synchronization-completion API.
 - Helper version: **1.1.0 / versionCode 1100**.
 - Main app: **0.6.0 / versionCode 531**.
+- **No root, Shizuku or ADB required for normal use.**
 
 ## Validation
 
@@ -104,3 +105,44 @@ The report includes the system exit reason, exit status, process importance and 
 - AYN Thor closed-lid sleep/wake behavior
 - precise short-session battery measurement and deep-sleep reporting
 - foreground-service recovery after process termination
+
+
+## Installation
+
+### 1. Install SleepManager
+
+Download and install:
+
+**SleepManager-0.6.0.apk**
+
+### 2. Install the Helper if you want Wi-Fi / Bluetooth control
+
+From SleepManager, open:
+
+**About → Updates → Install Helper**
+
+or install the release asset manually:
+
+**SleepManager-Helper-1.1.0.apk**
+
+The Helper has no launcher icon or separate interface.
+
+### 3. Configure SleepManager
+
+Open SleepManager, choose the actions you want, enable SleepManager, then tap **Finish setup**.
+
+For **Syncthing-Fork**, enable **Settings → Behaviour → Service Control by Broadcast**.
+
+For **BasicSync**, enable **Allow remote control**. BasicSync 3.19+ is required for the new completion-aware sync modes.
+
+For **AYN Thor closed-lid protection**, enable the option and approve the one-time Android Device Admin permission when prompted.
+
+## Updating from an earlier version
+
+SleepManager 0.5.1 and newer can check for stable updates from:
+
+**About → Updates**
+
+Official releases keep the same package IDs and permanent signing certificate, so normal updates preserve existing settings.
+
+**No root, Shizuku or ADB is required on the device.**
