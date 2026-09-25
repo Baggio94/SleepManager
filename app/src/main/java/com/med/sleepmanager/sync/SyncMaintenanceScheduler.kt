@@ -13,7 +13,7 @@ object SyncMaintenanceScheduler {
     private const val TAG = "SleepManagerSync"
     private const val REQUEST_CODE = 5221
 
-    const val PERIOD_MS = 24L * 60L * 60L * 1000L
+    const val PERIOD_MS = 30_000L
     const val THOR_FALSE_WAKE_RETRY_MS = 60_000L
 
     fun canArm(context: Context): Boolean {
@@ -27,7 +27,7 @@ object SyncMaintenanceScheduler {
         scheduleAfter(
             context = context,
             delayMs = PERIOD_MS,
-            logMessage = "Periodic sleep sync scheduled in 24h"
+            logMessage = "Periodic sleep sync scheduled in 30s [TEST ONLY]"
         )
 
     fun scheduleThorFalseWakeRetry(context: Context): Boolean =
