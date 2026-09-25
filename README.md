@@ -1,216 +1,282 @@
 # SleepManager
 
-SleepManager is an Android sleep and wake manager for gaming handhelds, phones and tablets designed to reduce unnecessary standby battery drain by managing Wi-Fi, Bluetooth, Syncthing-Fork, BasicSync, Tailscale and other background integrations while the device sleeps.
+SleepManager helps Android handhelds, phones and tablets use less battery while they sleep.
 
-It restores only the state it actually changed when the device wakes, with extra closed-lid protection and dock controls for the **AYN Thor**.
+It can temporarily disable selected radios and background services when the screen turns off, then restore only the state it actually changed when the device wakes. It also includes sleep battery statistics, sync automation and dedicated closed-lid / dock features for the **AYN Thor**.
 
 **No root, Shizuku or ADB is required for normal use.**
 
-## Why SleepManager?
+## At a glance
 
-Android gaming handhelds can stay asleep for hours or days between sessions. SleepManager helps reduce unnecessary standby activity by temporarily disabling selected radios and services during sleep, then restoring only the state it changed when the device wakes.
+SleepManager can:
 
-It is designed for devices such as **Retroid**, **Odin**, **AYN Thor** and other Android handhelds, while also working on Android phones and tablets.
+- turn **Wi-Fi** and **Bluetooth** off during sleep and restore them safely on wake
+- pause and resume **Syncthing-Fork**
+- manage **BasicSync**, **Tailscale** and **JamesDSP**
+- run optional **sync-before-sleep**, **sync-after-wake** and **periodic sleep sync** workflows with supported providers
+- track sleep drain, measured mAh, deep sleep and standby estimates
+- protect the **AYN Thor** from closed-lid false wakes
+- handle Thor dock disconnects and power-button sleep behavior
+- keep recent activity and diagnostics for troubleshooting
+- check and install signed stable updates from inside the app
 
-## Features
+SleepManager is designed primarily for Android gaming handhelds such as **AYN Thor**, **AYN Odin** and **Retroid** devices, but it also works on regular Android phones and tablets.
 
-### Sleep actions
+## Quick start
 
-SleepManager can manage these actions when the screen turns off:
+1. Install the latest **SleepManager** APK.
+2. If you want SleepManager to control Wi-Fi or Bluetooth, install the optional **SleepManager Helper**.
+3. Open SleepManager and choose what should happen when the device sleeps.
+4. Enable SleepManager, then tap **Finish setup**.
 
-- **Wi-Fi** — turn it off during sleep and restore it only if SleepManager changed it.
-- **Bluetooth** — same state-aware behavior as Wi-Fi.
-- **Syncthing-Fork** — send STOP during sleep and FOLLOW again on wake after Helper-managed radio restoration; Syncthing-Fork then handles network reconnection itself.
-- **Tailscale** — disconnect during sleep and reconnect only when SleepManager verified that it disconnected it.
-- **JamesDSP** — apply OFF during sleep and ON again after wake.
-- **BasicSync** — with BasicSync 3.18+, observe the current mode/run state while awake, stop it only when active, then restore the exact previous mode on wake.
+That is enough for the basic sleep / wake automation.
 
-### Sleep rules
+Optional integrations such as Syncthing-Fork and BasicSync need one setting enabled inside those apps; see [Integrations](#integrations).
 
-- Immediate, 5-second or 10-second grace period
-- Custom delay of 1, 5, 10 or 30 minutes
-- Optional battery threshold
-- Optional `Not charging` condition
-- Optional Android Battery Saver condition
-- Optional schedule / time window
-- Enabled conditions use **AND logic**
+## How SleepManager behaves
 
-### Advanced sync
+The main rule is simple:
 
-SleepManager 0.6 adds two optional completion-aware sync modes:
+> **Restore only what SleepManager changed.**
 
-- **Periodic sync while sleeping** — periodically bring back Helper-managed Wi-Fi when needed, wait for a usable network, sync, stop the client, then return to the previous sleep state.
-- **Sync then stop on sleep & wake** — sync before sleep and after wake, then stop the client again once synchronization has completed.
+Examples:
 
-These modes require a sync client that exposes reliable synchronization state. **BasicSync 3.19+** is currently supported.
+- Wi-Fi was already OFF before sleep → it stays OFF after wake.
+- Wi-Fi was ON and SleepManager turned it OFF → it is restored on wake.
+- Tailscale is restored only if SleepManager verified that it disconnected it.
+- BasicSync 3.18+ restores the previous Auto / Manual state instead of forcing a new one.
+- Pending restore state is saved so a process or service restart does not silently forget it.
 
-### Battery statistics
+JamesDSP is the main exception: it does not expose a reliable public power-state query, so enabling its integration explicitly means **OFF during sleep → ON after wake**.
 
-SleepManager records sleep-session information such as:
+## Sleep actions
+
+### Wi-Fi and Bluetooth
+
+With the optional Helper installed, SleepManager can turn Wi-Fi and Bluetooth off while the device sleeps and restore only the radios it changed.
+
+The Helper has no launcher icon or separate interface. It runs only when SleepManager asks it to perform a supported action.
+
+### Syncthing-Fork
+
+SleepManager can send Syncthing-Fork:
+
+- **STOP** before managed sleep networking is removed
+- **FOLLOW** after wake and radio restoration
+
+On wake, FOLLOW is sent after managed radio restoration without waiting for Android's internet-validation delay; Syncthing-Fork handles its own reconnection from there.
+
+### BasicSync
+
+SleepManager uses BasicSync's official Android remote-control and state broadcasts.
+
+With **BasicSync 3.18+**, SleepManager can preserve its previous run mode across sleep:
+
+- **Auto mode + active** → stop for sleep → restore Auto mode
+- **Manual mode + started** → stop for sleep → restore started Manual mode
+- **Manual mode + stopped** → leave it untouched
+
+With **BasicSync 3.19+**, SleepManager can also read official folder/device synchronization counters and use the completion-aware sync features described below.
+
+### Tailscale
+
+SleepManager can disconnect the official Tailscale Android app during sleep and reconnect it only when SleepManager verified that it performed the disconnect.
+
+### JamesDSP
+
+Supported JamesDSP builds can be powered off for sleep and powered on again after wake.
+
+Because JamesDSP does not provide a readable public power state, this integration is an explicit **OFF asleep / ON awake** policy.
+
+## Sleep rules
+
+Sleep actions can be limited with optional conditions:
+
+- grace period: Immediate, 5 seconds or 10 seconds
+- custom delay: 1, 5, 10 or 30 minutes
+- battery threshold
+- **Not charging**
+- Android Battery Saver state
+- schedule / time window
+
+When several conditions are enabled, they use **AND logic**: all enabled conditions must match.
+
+## Advanced sync
+
+SleepManager 0.6 adds two optional completion-aware workflows.
+
+### Periodic sync while sleeping
+
+During a long sleep session, SleepManager can periodically:
+
+1. temporarily restore Helper-managed Wi-Fi when needed
+2. wait for usable connectivity
+3. start the supported sync client
+4. wait until synchronization is complete
+5. stop the client
+6. return Wi-Fi to the sleep state
+
+The next maintenance attempt uses a one-shot 24-hour alarm. There is no permanent maintenance polling.
+
+### Sync then stop on sleep & wake
+
+SleepManager can also sync immediately before sleep and after a real wake, then stop the client again once synchronization has completed.
+
+This is useful when you want a sync client available only for short, controlled synchronization windows.
+
+### Current provider support
+
+Completion-aware sync currently requires **BasicSync 3.19+**.
+
+Syncthing-Fork STOP/FOLLOW sleep/wake control remains supported, but the advanced completion-aware workflows stay unavailable until Syncthing-Fork exposes a supported synchronization-completion API.
+
+## Battery statistics
+
+SleepManager records sleep-session information including:
 
 - battery change
 - sleep duration
 - drain per hour
-- measured mAh when Android exposes a charge counter
+- measured mAh when Android exposes a usable charge counter
 - deep-sleep percentage
-- 7-day drain averages
-- estimated standby time
+- 7-day drain average
 - best / worst measured drain
-- a more precise current battery percentage when Android exposes charge-counter and full-charge data
-- learned full-charge capacity when available, with design capacity and level-based fallbacks
+- estimated standby time
+- more precise current battery percentage when the required Android battery data is available
+- learned full-charge capacity when available, with design/fallback estimates otherwise
 
-To keep long-term estimates meaningful, only **eligible sleep sessions of at least 3 hours** are used for battery statistics and standby estimates.
+### Short vs long sessions
 
-Shorter sleeps are still shown in **Last sleep** and remain part of the recent session history. Sessions containing charging are excluded from drain statistics.
+**Last sleep** can show short sessions immediately.
 
-### Activity log and diagnostics
+For long-term averages and standby estimates, SleepManager only uses eligible, non-charging sleep sessions of at least **3 hours**. Shorter sessions remain visible but do not distort the long-term statistics.
 
-The Activity page shows recent sleep/wake actions and provides a copyable diagnostic report.
+Sessions that include charging are excluded from drain averages.
 
-On Android 11+, diagnostics also include recent Android process-exit history, including system exit reasons such as low-memory kills, crashes, ANRs and user/system-requested stops, plus sampled process memory information when Android provides it.
+## Activity and diagnostics
 
-Wi-Fi diagnostics distinguish between:
+The Activity page keeps recent SleepManager events and can generate a copyable diagnostic report.
 
-- Wi-Fi already in the requested state
-- a successful Wi-Fi change
-- a Wi-Fi toggle attempt that failed
-- failure while **Airplane mode is enabled**
+Diagnostics include configuration and restore state, plus details that help distinguish between:
 
-This makes it easier to tell the difference between “nothing needed to change” and “SleepManager tried, but Android did not allow the change”.
+- a radio already being in the requested state
+- a successful change
+- a failed change
+- Wi-Fi failure while Airplane mode is enabled
 
-### Built-in updater
+On **Android 11+**, diagnostics also include recent Android process-exit information when available. This can help identify low-memory kills, crashes, ANRs, user-requested stops and other reasons Android ended the SleepManager process.
 
-SleepManager can check both the main app and the optional Helper for stable updates from **About → Updates**.
+## AYN Thor
 
-With **Automatic update checks** enabled, SleepManager also refreshes Main + Helper release metadata whenever the app enters the foreground, while keeping the existing daily background check. Foreground checks are deduplicated and wait briefly for validated connectivity without polling or holding a wake lock.
+SleepManager includes extra controls when the Thor lid sensor is detected.
 
-If the Helper is not installed, SleepManager can download and install the signed Helper directly from the app. If it is already installed, SleepManager offers a Helper update only when a newer Helper version is published.
+### Closed-lid protection
 
-For a direct install or update, SleepManager verifies:
+If the Thor wakes unexpectedly while the lid is still closed, SleepManager can immediately return it to sleep instead of running the normal wake sequence.
+
+During a blocked false wake, SleepManager does not prematurely restore radios or integrations.
+
+This feature uses Android **Device Admin** only for the one-time permission required by the return-to-sleep action.
+
+### Dock-safe behavior
+
+Closed-lid protection understands an active external display.
+
+When the Thor is intentionally docked with the lid closed, SleepManager does not treat that as a false wake.
+
+Two optional Thor controls are available:
+
+- **Sleep when external display disconnects** — disconnecting the external display while the lid is closed can start a normal SleepManager sleep cycle.
+- **Power button sleeps with lid closed** — pressing Power while the Thor is awake with the lid closed can start a normal sleep cycle, including while docked.
+
+SleepManager does not wake an already sleeping Thor just to implement these options.
+
+## Integrations
+
+### Syncthing-Fork setup
+
+In Syncthing-Fork, enable:
+
+**Settings → Behaviour → Service Control by Broadcast**
+
+Then enable Syncthing-Fork in SleepManager.
+
+### BasicSync setup
+
+In BasicSync, enable:
+
+**Allow remote control**
+
+BasicSync 3.18+ is recommended for state-aware normal sleep/wake behavior.
+
+BasicSync 3.19+ is required for **Periodic sync while sleeping** and **Sync then stop on sleep & wake**.
+
+### Tailscale setup
+
+Install and sign in to the official Tailscale Android app, then enable Tailscale in SleepManager.
+
+### JamesDSP setup
+
+Install a supported JamesDSP build, then enable JamesDSP in SleepManager if you want the explicit OFF-during-sleep / ON-after-wake behavior.
+
+## Installation
+
+### 1. Install SleepManager
+
+Download the latest stable APK from [GitHub Releases](https://github.com/Baggio94/SleepManager/releases):
+
+`SleepManager-<version>.apk`
+
+Install it normally through Android.
+
+### 2. Install the Helper if you want Wi-Fi / Bluetooth control
+
+Inside SleepManager, open:
+
+**About → Updates → Install Helper**
+
+SleepManager downloads, verifies and hands the signed Helper APK to Android's package installer.
+
+You can also install the matching release asset manually:
+
+`SleepManager-Helper-<version>.apk`
+
+The Helper is optional unless you want Wi-Fi / Bluetooth control.
+
+### 3. Configure your actions
+
+Open SleepManager, choose the actions and optional rules you want, enable SleepManager, then tap **Finish setup**.
+
+### 4. Configure optional integrations
+
+If you use Syncthing-Fork or BasicSync, enable the required setting shown in the [Integrations](#integrations) section above.
+
+### Permissions you may see
+
+Depending on which features you use, Android may ask for:
+
+- notification permission
+- **Install unknown apps** permission when using the built-in updater
+- **Device Admin** only if you enable AYN Thor closed-lid protection
+
+**No root, Shizuku or ADB is required on the device.**
+
+## Updates
+
+SleepManager can check the main app and optional Helper for stable updates from:
+
+**About → Updates**
+
+With **Automatic update checks** enabled, it checks when the app enters the foreground and also keeps the daily background check.
+
+Before offering a direct APK install, SleepManager verifies:
 
 - SHA-256
 - package name
 - version metadata
 - the permanent SleepManager signing certificate
 
-The verified APK is then handed to Android's official package installer.
-
-### Appearance
-
-SleepManager uses its own fixed light/dark palette by default.
-
-On Android 12 / API 31 or newer, **Use system colors** can be enabled to use Material You dynamic colors instead. Active integration states such as **Running**, **Starting** and **Connected** use the same highlighted status treatment throughout the app.
-
-## AYN Thor
-
-SleepManager includes optional Thor-specific behavior when the Thor lid sensor is detected.
-
-### Closed-lid protection
-
-If the Thor wakes unexpectedly while the lid is still closed, SleepManager returns it to sleep instead of running the normal wake sequence.
-
-During a blocked closed-lid wake, SleepManager does not prematurely restore managed radios or integrations.
-
-Android Device Admin permission is required only for the `lockNow()` action used by this protection.
-
-### Dock-safe behavior
-
-Closed-lid protection is aware of an attached external display.
-
-When an external display is active and the Thor lid is closed, SleepManager treats this as intentional docked use and does **not** force the device back to sleep.
-
-Two optional controls are available:
-
-- **Sleep when external display disconnects** — if enabled, disconnecting the external display while the lid is still closed starts a normal SleepManager sleep cycle. If disabled, the Thor keeps AYN's default awake behavior.
-- **Power button sleeps with lid closed** — when the Thor is awake with the lid closed, pressing Power can start a normal sleep cycle, whether still docked or after the external display has been disconnected. Turning this option off keeps AYN's default behavior.
-
-SleepManager never wakes an already sleeping Thor to implement these options.
-
-## Installation
-
-### 1. Install SleepManager
-
-Install the latest:
-
-`SleepManager-<version>.apk`
-
-### 2. Install the Helper if you want Wi-Fi / Bluetooth control
-
-Open SleepManager and use **Install Helper**. SleepManager downloads, verifies and hands the signed Helper APK to Android's package installer.
-
-You can also install `SleepManager-Helper-<version>.apk` manually from the GitHub release if needed.
-
-The Helper has no launcher icon or separate UI.
-
-### 3. Configure SleepManager
-
-Open SleepManager, choose what should be managed during sleep, configure any optional rules, then enable SleepManager.
-
-## Optional integrations
-
-### Syncthing-Fork
-
-SleepManager detects supported Syncthing-Fork builds automatically.
-
-In Syncthing-Fork, enable:
-
-**Settings → Behaviour → Service Control by Broadcast**
-
-Then enable Syncthing inside SleepManager.
-
-Sleep/wake STOP/FOLLOW control is supported. The new completion-aware maintenance modes remain unavailable for Syncthing-Fork until it exposes a supported synchronization-completion API.
-
-### Tailscale
-
-Install and sign in to the official Tailscale Android app, then enable Tailscale inside SleepManager.
-
-### BasicSync
-
-SleepManager uses BasicSync's official Android remote-control and state broadcasts.
-
-In BasicSync, enable **Allow remote control**.
-
-With **BasicSync 3.18 or newer**, SleepManager observes BasicSync's mode and run state while the SleepManager service is active. This preserves the state from before screen-off instead of trying to discover it after BasicSync may already have reacted to sleep.
-
-With **BasicSync 3.19 or newer**, SleepManager can also use BasicSync's official folder/device counters for completion-aware maintenance. SleepManager treats errors, blocked states and incomplete observations conservatively, and requires a stable completed state before stopping BasicSync.
-
-The Integrations page also shows the latest observed BasicSync state, such as **Auto mode · Running** or **Manual mode · Stopped**.
-
-Sleep behavior is state-aware:
-
-- **AUTO mode + active** → STOP during sleep → restore **AUTO mode** on wake
-- **Manual mode + started** → STOP during sleep → restore **started manual mode** on wake
-- **Manual mode + stopped** → leave BasicSync untouched
-- Already inactive/transitional states are left untouched when there is nothing useful to stop
-
-If no reliable pre-sleep state has been observed yet, SleepManager leaves BasicSync unchanged rather than guessing. If **Allow remote control** is disabled, BasicSync ignores the remote-control/state requests and SleepManager likewise leaves it untouched.
-
-Older BasicSync versions remain supported with the legacy policy:
-
-**STOP during sleep → AUTO mode after wake**
-
-### JamesDSP
-
-SleepManager supports the commonly used O2P JamesDSP Manager package and the standard RootlessJamesDSP package when available.
-
-JamesDSP does not expose a reliable public state-query API to normal third-party apps. For that reason, enabling this integration is an explicit policy:
-
-**OFF during sleep → ON after wake**
-
-If you prefer to keep JamesDSP manually disabled while awake, leave its SleepManager integration disabled.
-
-## How sleep / wake restoration works
-
-SleepManager tries to restore only state that it actually changed.
-
-For example:
-
-- if Wi-Fi was already OFF before sleep, SleepManager leaves it OFF on wake
-- if Wi-Fi was ON and SleepManager successfully turned it OFF, it is restored
-- Tailscale waits for usable connectivity before restoration; Syncthing-Fork FOLLOW is sent after managed radio restoration so Syncthing can handle its own reconnect timing
-- pending restore state is stored so a process/service restart does not silently lose track of it
-
-This state-aware model is used to avoid forcing unrelated user state.
+Official releases keep the same package IDs and signing identity, so normal updates preserve existing settings.
 
 ## Compatibility
 
@@ -219,52 +285,51 @@ This state-aware model is used to avoid forcing unrelated user state.
 - Optional Helper target SDK: **28**
 - Main package: `com.med.sleepmanager`
 - Helper package: `com.med.sleepmanager.helper`
-- Extra AYN Thor controls appear only when the Thor lid sensor is detected
+- AYN Thor-specific controls appear only when the Thor lid sensor is detected
 
-The Helper intentionally targets API 28 because modern Android target-SDK restrictions prevent a normal current-target app from directly toggling Wi-Fi/Bluetooth in the way SleepManager needs.
+The Helper intentionally targets API 28 because newer Android target-SDK restrictions prevent a normal current-target app from directly toggling Wi-Fi/Bluetooth in the way SleepManager needs.
 
 Main ↔ Helper communication is protected by a signature-level permission, and official APKs use the same permanent signing certificate.
-
-## Updates and app identity
-
-Official releases keep the same Android package IDs and signing identity so they can be installed as normal updates without losing settings.
-
-Install the main APK first, then update/install the Helper if you use Wi-Fi or Bluetooth management.
-
-Android may ask once for:
-
-- notification permission
-- **Install unknown apps** permission for direct APK updates initiated from SleepManager
 
 ## Troubleshooting
 
 ### Wi-Fi or Bluetooth does not change
 
-Make sure the **SleepManager Helper** is installed and matches the official SleepManager signing identity.
+Make sure the **SleepManager Helper** is installed.
 
-If Wi-Fi remains unchanged, check the Activity log. SleepManager reports failed toggle attempts separately and includes the current Airplane-mode state in diagnostics.
+If Wi-Fi still does not change, check **Activity** and copy the diagnostics. SleepManager reports attempted actions, success/failure and Airplane-mode state when relevant.
 
-### Syncthing does not pause or resume
+### Syncthing-Fork does not pause or resume
 
-Make sure:
+Check that:
 
 - a supported Syncthing-Fork build is detected
-- **Service Control by Broadcast** is enabled
+- **Settings → Behaviour → Service Control by Broadcast** is enabled in Syncthing-Fork
 - the correct Syncthing target is selected if several supported builds are installed
+
+### BasicSync does not respond
+
+Make sure **Allow remote control** is enabled in BasicSync.
+
+For the advanced completion-aware sync workflows, use **BasicSync 3.19+**.
 
 ### Tailscale does not reconnect
 
-Open Tailscale and confirm it is signed in and able to connect normally. SleepManager only restores Tailscale when it verified that SleepManager itself disconnected it.
+Open Tailscale and confirm that it is signed in and can connect normally. SleepManager restores it only when SleepManager verified that it performed the sleep disconnect.
 
-### JamesDSP does not return to a manually disabled state
+### JamesDSP turns on after wake
 
-When JamesDSP management is enabled, SleepManager intentionally applies **OFF on sleep / ON on wake** because JamesDSP does not expose a readable public power state.
+That is the intended behavior when JamesDSP management is enabled. Because JamesDSP does not expose a reliable readable power state, the integration is explicitly **OFF during sleep → ON after wake**.
 
-### Thor closed-lid protection cannot be enabled
+### AYN Thor closed-lid protection cannot be enabled
 
-The Thor-specific controls are shown only when SleepManager detects the Thor Hall sensor.
+The Thor options appear only when SleepManager detects the Hall/lid sensor.
 
-Closed-lid protection also requires Android Device Admin permission for the return-to-sleep action.
+Closed-lid protection also needs the Android Device Admin permission used for the return-to-sleep action.
+
+### SleepManager unexpectedly stops
+
+On Android 11+, open **Activity → Copy diagnostics** after reopening SleepManager. The process-exit section can show why Android ended the previous process when the system provides that information.
 
 ## Build from source
 
@@ -288,11 +353,8 @@ app/build/outputs/apk/debug/app-debug.apk
 helper/build/outputs/apk/debug/helper-debug.apk
 ```
 
-## Releases
+## Release information
 
-See:
-
+- [Latest GitHub release](https://github.com/Baggio94/SleepManager/releases/latest)
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) — current release explained in detail
 - [CHANGELOG.md](CHANGELOG.md) — version history
-- [RELEASE_NOTES.md](RELEASE_NOTES.md) — notes for the current release
-- [GitHub Releases](https://github.com/Baggio94/SleepManager/releases) — official APK downloads
-
