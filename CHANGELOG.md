@@ -12,6 +12,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Added a stable completion window before a sync client is considered finished.
 - Added Helper 1.1 temporary Wi-Fi control for sleep maintenance without changing the saved wake-restore state.
 - Periodic maintenance uses a one-shot 24-hour alarm, validated-network checks and bounded wake locks.
+- Hardened validated-network detection on OEM Android builds with a bounded 500 ms active-network recheck alongside the normal ConnectivityManager callback, preventing unnecessary 15-second wake restore delays when callbacks are missed.
 - Managed sync clients are stopped before SleepManager turns managed Wi-Fi off.
 - Advanced battery, charging, Battery Saver and schedule conditions also apply to maintenance syncs.
 - Improved AYN Thor handling around closed-lid false wakes and periodic maintenance.
