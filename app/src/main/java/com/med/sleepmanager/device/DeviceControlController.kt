@@ -63,32 +63,58 @@ object DeviceControlController {
 
     fun setBatterySaverEnabled(enabled: Boolean): Boolean {
         val value = if (enabled) 1 else 0
-        return executePrivileged("cmd power set-mode $value").isSuccess
+        if (executePrivileged("cmd power set-mode $value").isFailure) {
+            return false
+        }
+        return readPrivilegedBoolean(
+            "settings get global low_power"
+        ) == enabled
     }
 
-    fun chargingSeparationState(context: Context): Boolean? =
-        runCatching {
-            val raw = Settings.System.getString(
-                context.contentResolver,
-                CHARGING_SEPARATION_KEY
-            ) ?: return null
+    fun chargingSeparationState(context: Context): Boolean? {
+        val regularRead =
+            runCatching {
+                Settings.System.getString(
+                    context.contentResolver,
+                    CHARGING_SEPARATION_KEY
+                )
+            }.getOrNull()
+                ?.let(::parseBooleanSetting)
 
-            when (raw.trim()) {
-                "1", "true" -> true
-                "0", "false" -> false
-                else -> null
-            }
-        }.getOrNull()
+        return regularRead
+            ?: readPrivilegedBoolean(
+                "settings get system $CHARGING_SEPARATION_KEY"
+            )
+    }
 
     fun supportsChargingSeparationControl(context: Context): Boolean =
         capabilities(context).chargingSeparationControl
 
     fun setChargingSeparationEnabled(enabled: Boolean): Boolean {
         val value = if (enabled) 1 else 0
-        return executePrivileged(
-            "settings put system $CHARGING_SEPARATION_KEY $value"
-        ).isSuccess
+        if (
+            executePrivileged(
+                "settings put system $CHARGING_SEPARATION_KEY $value"
+            ).isFailure
+        ) {
+            return false
+        }
+        return readPrivilegedBoolean(
+            "settings get system $CHARGING_SEPARATION_KEY"
+        ) == enabled
     }
+
+    private fun readPrivilegedBoolean(command: String): Boolean? =
+        executePrivileged(command)
+            .getOrNull()
+            ?.let(::parseBooleanSetting)
+
+    private fun parseBooleanSetting(raw: String): Boolean? =
+        when (raw.trim()) {
+            "1", "true" -> true
+            "0", "false" -> false
+            else -> null
+        }
 
     @SuppressLint("PrivateApi")
     private fun findPServerBinder(): IBinder? =
