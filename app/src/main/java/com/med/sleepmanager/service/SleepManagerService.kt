@@ -783,7 +783,7 @@ class SleepManagerService : Service() {
                         sleepActionsApplied
                     ) {
                         applyFreshSleepActions(
-                            keepSyncClientsStopped = true
+                            keepBasicSyncStopped = true
                         )
                     } else {
                         Log.i(
@@ -800,12 +800,12 @@ class SleepManagerService : Service() {
         }
 
         applyFreshSleepActions(
-            keepSyncClientsStopped = transitionSyncAvailable
+            keepBasicSyncStopped = transitionSyncAvailable
         )
     }
 
     private fun applyFreshSleepActions(
-        keepSyncClientsStopped: Boolean
+        keepBasicSyncStopped: Boolean
     ) {
         val wifi = AppPreferences.manageWifi(this)
         val bluetooth = AppPreferences.manageBluetooth(this)
@@ -835,18 +835,13 @@ class SleepManagerService : Service() {
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
-                "basicSync=$basicSync keepSyncStopped=$keepSyncClientsStopped"
+                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped"
         )
 
-        val syncthingStopSent =
-            if (syncthing && keepSyncClientsStopped) {
-                SyncthingController.sendStop(this)
-            } else {
-                false
-            }
-
+        // Syncthing always keeps its normal STOP/FOLLOW ownership. Advanced
+        // completion-aware maintenance is BasicSync-only.
         val syncthingResult =
-            if (syncthing && !keepSyncClientsStopped) {
+            if (syncthing) {
                 SyncthingConnector.sleep(this)
             } else {
                 null
@@ -857,17 +852,6 @@ class SleepManagerService : Service() {
                 this,
                 SyncthingConnector.id,
                 syncthingResult.restoreToken
-            )
-        }
-
-        if (syncthing && keepSyncClientsStopped) {
-            SleepCycleStore.clearConnectorChange(
-                this,
-                SyncthingConnector.id
-            )
-            Log.i(
-                TAG,
-                "Syncthing STOP sent=$syncthingStopSent; wake restore intentionally disabled"
             )
         }
 
@@ -903,14 +887,14 @@ class SleepManagerService : Service() {
         }
 
         val basicSyncStopSent =
-            if (basicSync && keepSyncClientsStopped) {
+            if (basicSync && keepBasicSyncStopped) {
                 BasicSyncController.sendStop(this)
             } else {
                 false
             }
 
         val basicSyncResult =
-            if (basicSync && !keepSyncClientsStopped) {
+            if (basicSync && !keepBasicSyncStopped) {
                 BasicSyncConnector.sleep(this)
             } else {
                 null
@@ -938,32 +922,27 @@ class SleepManagerService : Service() {
             Log.i(TAG, "BasicSync unchanged: ${basicSyncResult.detail}")
         }
 
-        if (basicSync && keepSyncClientsStopped) {
+        if (basicSync && keepBasicSyncStopped) {
             SleepCycleStore.clearConnectorChange(
                 this,
                 BasicSyncConnector.id
             )
             Log.i(
                 TAG,
-                "BasicSync STOP sent=$basicSyncStopSent; wake restore intentionally disabled"
+                "BasicSync STOP sent=$basicSyncStopSent; advanced sync ownership retained"
             )
         }
 
-        val stopSent =
-            if (keepSyncClientsStopped) {
-                syncthingStopSent
-            } else {
-                syncthingResult?.changed == true
-            }
+        val syncthingStopRequested = syncthingResult?.changed == true
         val basicSyncStopRequested =
-            if (keepSyncClientsStopped) {
+            if (keepBasicSyncStopped) {
                 basicSyncStopSent
             } else {
                 basicSyncResult?.changed == true
             }
         val tailscaleVerificationPending = isTailscaleSleepVerificationPending()
         val waitForSyncStopBeforeWifi =
-            wifi && (stopSent || basicSyncStopRequested)
+            wifi && (syncthingStopRequested || basicSyncStopRequested)
 
         if (
             helperAvailable &&
@@ -971,7 +950,7 @@ class SleepManagerService : Service() {
         ) {
             pendingSleepWifi = wifi
             pendingSleepBluetooth = bluetooth
-            pendingSleepSyncthing = wifi && stopSent
+            pendingSleepSyncthing = wifi && syncthingStopRequested
             pendingSleepBasicSync = wifi && basicSyncStopRequested
             initializeSleepStopWait()
 
@@ -996,7 +975,7 @@ class SleepManagerService : Service() {
             applySleepConnectivity(
                 wifi = wifi,
                 bluetooth = bluetooth,
-                syncthing = stopSent
+                syncthing = syncthingStopRequested
             )
         }
 
