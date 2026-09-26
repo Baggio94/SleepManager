@@ -474,11 +474,39 @@ class SleepManagerService : Service() {
         startForegroundCompat()
         registerScreenReceiver()
         registerHelperResultReceiver()
+        recoverOwnedDeviceControls()
         recoverInterruptedSleepWifiMaintenance()
         refreshBasicSyncObserver()
         maybeRestoreOwnedBasicSyncState()
         refreshThorLidMonitor()
         Log.i(TAG, "Service started")
+    }
+
+    private fun recoverOwnedDeviceControls() {
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val batterySaverOwned =
+            DeviceControlStore.batterySaver(this)
+
+        if (batterySaverOwned.owned) {
+            if (powerManager?.isInteractive == true) {
+                restoreOwnedBatterySaver("Recovery")
+            } else if (
+                !batterySaverOwned.previous &&
+                AppPreferences.manageBatterySaver(this) &&
+                !DeviceControlController.batterySaverEnabled(this)
+            ) {
+                if (
+                    DeviceControlController
+                        .setBatterySaverEnabled(true)
+                ) {
+                    Log.i(
+                        TAG,
+                        "Recovery -> Battery Saver sleep state re-applied"
+                    )
+                }
+            }
+        }
     }
 
     private fun recoverInterruptedSleepWifiMaintenance() {
