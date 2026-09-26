@@ -319,6 +319,8 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         val bluetooth = BluetoothAdapter.getDefaultAdapter()
 
         val activeCycleId = prefs.getLong(KEY_CYCLE_ID, 0L)
+        val effectiveCycleId =
+            activeCycleId.takeIf { it != 0L } ?: requestedCycleId
         val wifiPrevious = prefs.getBoolean(KEY_WIFI_PREVIOUS, false)
         val wifiChanged = prefs.getBoolean(KEY_WIFI_CHANGED, false)
         val airplaneModeOn = isAirplaneModeOn(context)
@@ -348,7 +350,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         if (restoreSuccess) {
             prefs.edit()
                 .clear()
-                .putLong(KEY_LAST_RESTORED_CYCLE_ID, activeCycleId)
+                .putLong(KEY_LAST_RESTORED_CYCLE_ID, effectiveCycleId)
                 .commit()
         } else {
             prefs.edit()
