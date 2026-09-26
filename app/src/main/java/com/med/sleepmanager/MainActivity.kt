@@ -4021,64 +4021,6 @@ private fun AboutPage(
         }
 
         SectionTitle(
-            title = "Background reliability",
-            subtitle = "Android settings that can affect long-running background automation."
-        )
-
-        SettingsCard {
-            AboutActionRow(
-                title = "Battery optimization",
-                subtitle = when (
-                    backgroundReliability?.batteryOptimization
-                ) {
-                    BackgroundReliability.Status.OK ->
-                        "Exempt • SleepManager is not battery-optimized"
-                    BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "Active • Recommended to disable for reliable background operation"
-                    BackgroundReliability.Status.UNAVAILABLE ->
-                        "Not available on this Android version"
-                    BackgroundReliability.Status.UNKNOWN ->
-                        "Unable to read the current setting"
-                    null ->
-                        "Checking…"
-                },
-                actionLabel = "Open",
-                enabled =
-                    backgroundReliability?.batteryOptimization !=
-                        BackgroundReliability.Status.UNAVAILABLE,
-                onClick = onOpenBatteryOptimization
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-
-            AboutActionRow(
-                title = "Unused app restrictions",
-                subtitle = when (
-                    backgroundReliability?.unusedAppRestrictions
-                ) {
-                    BackgroundReliability.Status.OK ->
-                        "Off • Android will not hibernate SleepManager when unused"
-                    BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "Enabled • Recommended to disable for long-term background reliability"
-                    BackgroundReliability.Status.UNAVAILABLE ->
-                        "Not available on this device"
-                    BackgroundReliability.Status.UNKNOWN ->
-                        "Unable to read the current setting"
-                    null ->
-                        "Checking…"
-                },
-                actionLabel = "Open",
-                enabled =
-                    backgroundReliability?.unusedAppRestrictions !=
-                        BackgroundReliability.Status.UNAVAILABLE,
-                onClick = onOpenUnusedAppRestrictions
-            )
-        }
-
-        SectionTitle(
             title = "Updates",
             subtitle = "Check GitHub releases and keep SleepManager and the optional Helper up to date."
         )
@@ -4392,6 +4334,64 @@ private fun AboutPage(
                     }
                 )
             }
+        }
+
+        SectionTitle(
+            title = "Background reliability",
+            subtitle = "Android settings that can affect long-running background automation."
+        )
+
+        SettingsCard {
+            AboutActionRow(
+                title = "Battery optimization",
+                subtitle = when (
+                    backgroundReliability?.batteryOptimization
+                ) {
+                    BackgroundReliability.Status.OK ->
+                        "Exempt • SleepManager is not battery-optimized"
+                    BackgroundReliability.Status.NEEDS_ATTENTION ->
+                        "Active • Recommended to disable for reliable background operation"
+                    BackgroundReliability.Status.UNAVAILABLE ->
+                        "Not available on this Android version"
+                    BackgroundReliability.Status.UNKNOWN ->
+                        "Unable to read the current setting"
+                    null ->
+                        "Checking…"
+                },
+                actionLabel = "Open",
+                enabled =
+                    backgroundReliability?.batteryOptimization !=
+                        BackgroundReliability.Status.UNAVAILABLE,
+                onClick = onOpenBatteryOptimization
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AboutActionRow(
+                title = "Unused app restrictions",
+                subtitle = when (
+                    backgroundReliability?.unusedAppRestrictions
+                ) {
+                    BackgroundReliability.Status.OK ->
+                        "Off • Android will not hibernate SleepManager when unused"
+                    BackgroundReliability.Status.NEEDS_ATTENTION ->
+                        "Enabled • Recommended to disable for long-term background reliability"
+                    BackgroundReliability.Status.UNAVAILABLE ->
+                        "Not available on this device"
+                    BackgroundReliability.Status.UNKNOWN ->
+                        "Unable to read the current setting"
+                    null ->
+                        "Checking…"
+                },
+                actionLabel = "Open",
+                enabled =
+                    backgroundReliability?.unusedAppRestrictions !=
+                        BackgroundReliability.Status.UNAVAILABLE,
+                onClick = onOpenUnusedAppRestrictions
+            )
         }
 
         SectionTitle(
