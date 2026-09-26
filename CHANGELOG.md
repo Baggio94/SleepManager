@@ -2,6 +2,38 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.6.1-beta1 — 2026-09-26 — Preview
+
+### New
+
+- Added optional **Battery Saver during sleep** on devices where SleepManager can actually control it.
+- Added **Charging Separation with lid closed** on compatible clamshells, with lid/dock-aware ownership restoration.
+- Added generic standard **SW_LID** detection while keeping the existing Thor `hall_switch` path first.
+- Added passive background-reliability checks for battery optimization and unused-app restrictions.
+- Added **Release notes** links to update UI.
+
+### Fixed and improved
+
+- Foreground-service restarts after Android memory pressure preserve and resume active sleep transactions more clearly.
+- Main ↔ Helper restore requests are cycle-aware and replay-safe, preventing a completed Helper restore from becoming a false pending-restore warning after a process restart.
+- BasicSync advanced sync no longer becomes unavailable just because Syncthing-Fork is also managed.
+- Syncthing-Fork keeps its normal STOP/FOLLOW ownership while BasicSync uses completion-aware advanced sync.
+- In normal BasicSync mode, an already-running sync can finish before SleepManager sends STOP and removes managed Wi-Fi; the wait is bounded.
+- Battery Saver and Charging Separation changes are ownership-aware and survive process recovery.
+- Battery Saver action and Battery Saver condition are mutually exclusive.
+- Unsupported system controls stay hidden.
+- Home sleep controls are reorganized into **System controls**, **Sleep behavior** and **App integrations**.
+- Changed the unplugged condition wording to **Only start sleep actions when unplugged**.
+- Expanded diagnostics with lid detection, privileged-control capability and recovery state.
+
+### Compatibility
+
+- Main app: **0.6.1-beta1 / versionCode 540**.
+- Helper: **1.1.1 / versionCode 1110**.
+- No root, Shizuku or ADB is required for normal use.
+
+---
+
 ## 0.6.0 — 2026-09-25
 
 ### New

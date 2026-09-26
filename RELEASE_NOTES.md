@@ -1,107 +1,71 @@
-# SleepManager 0.6.0
+# SleepManager 0.6.1-beta1
 
-SleepManager 0.6 focuses on **smarter syncing, better battery information and improved reliability**.
+This beta focuses on **reliability, smarter sync behavior and new device-aware sleep controls**.
 
-The biggest addition is new sync automation with BasicSync 3.19+, together with faster Syncthing-Fork wake behavior, more precise sleep battery stats and better diagnostics.
+It includes the fixes and features planned for 0.6.1 so they can now be tested together on real handhelds.
 
 **No root, Shizuku or ADB is required for normal use.**
 
 ## What's new
 
-### Smarter sync with BasicSync
+### Better recovery
 
-With **BasicSync 3.19+**, SleepManager now supports two new options:
+- Improved recovery when Android kills and restarts the SleepManager foreground service under memory pressure.
+- Main ↔ Helper restore handling is now cycle-aware and idempotent, avoiding false **Pending restore needs attention** warnings when a restore already completed before the main process was restarted.
+- Diagnostics now include more recovery and device-capability information.
 
-- **Periodic sync while sleeping** — let BasicSync sync occasionally during long sleep sessions, then return the device to its previous sleep state.
-- **Sync then stop on sleep & wake** — sync before sleep and after wake, then stop BasicSync again when the sync is finished.
+### BasicSync improvements
 
-SleepManager also remembers the BasicSync state it changed and restores it without overwriting newer manual changes.
+- If BasicSync is already syncing when the device goes to sleep, SleepManager can let that sync finish before stopping it and turning managed Wi-Fi off.
+- A bounded timeout prevents an active sync from keeping the sleep transition open indefinitely.
+- BasicSync 3.19 advanced sync now works independently when Syncthing-Fork is also enabled.
+- Syncthing-Fork keeps its normal STOP/FOLLOW behavior while BasicSync uses completion-aware sync.
 
-BasicSync 3.18+ remains supported for the normal state-aware sleep/wake integration.
+### Battery Saver during sleep
 
-### Faster Syncthing-Fork wake
+On supported devices, SleepManager can now enable Android Battery Saver after pre-sleep sync/STOP work is finished, then restore the previous state on wake.
 
-Syncthing-Fork still uses the familiar STOP/FOLLOW sleep/wake integration.
+If Battery Saver was already enabled before sleep, SleepManager leaves it alone.
 
-In 0.6, FOLLOW is sent as soon as SleepManager has restored the managed connection instead of waiting for Android's internet-validation delay. This makes Syncthing-Fork resume much faster on affected devices.
+The Battery Saver action and Battery Saver sleep condition are mutually exclusive to avoid conflicting behavior.
 
-### Better battery statistics
+### Charging Separation with lid closed
 
-SleepManager can now use more precise battery data when Android provides it.
+On compatible clamshell devices, SleepManager can temporarily disable Charging Separation while the lid is closed so the battery can charge normally, then restore the user's previous setting when the lid opens.
 
-This improves:
+Dock behavior is preserved:
 
-- **Last sleep**
-- drain per hour
-- 7-day averages
-- best / worst drain
-- standby estimates
+- closing the lid while docked leaves Charging Separation unchanged
+- connecting an external display restores the original state
+- disconnecting the display while the lid remains closed returns to the closed-lid behavior
 
-Short sessions still appear in Last sleep, while long-term averages continue to use eligible non-charging sessions of at least **3 hours**.
+This automation follows lid/dock state and is independent from normal sleep conditions.
 
-### Better diagnostics
+### Broader clamshell support
 
-On Android 11+, copied diagnostics can now include the reason Android stopped the previous SleepManager process when that information is available.
+The existing Thor `hall_switch` path remains the first choice, while SleepManager can now also detect the standard Linux `SW_LID` capability as a fallback.
 
-This can help identify problems such as low-memory kills, crashes or system/user stops.
+This prepares the closed-lid features for other compatible AYN, Retroid and Android clamshell handhelds without hard-coding model names.
 
-### AYN Thor improvements
+### Cleaner UI and background reliability
 
-The new sync features work with Thor closed-lid protection without treating false wakes as real wakes or interrupting an active sync.
+- **System controls** now groups Wi-Fi, Bluetooth and Battery Saver.
+- **Sleep behavior** contains closed-lid, Charging Separation, dock and grace-period options.
+- Unsupported Battery Saver / Charging Separation controls stay hidden instead of showing unusable options.
+- Added passive checks for Android battery optimization and unused-app restrictions without adding a setup wall of permission prompts.
+- Added **Release notes** next to update actions.
+- Improved wording and diagnostics.
 
-Existing Thor dock controls remain available:
+## Beta notes
 
-- **Sleep when external display disconnects**
-- **Power button sleeps with lid closed**
+This is a preview build. The new Battery Saver, Charging Separation, recovery and generic lid-detection paths need broader real-device testing before the stable 0.6.1 release.
 
-### Helper 1.1
-
-The optional Helper has been updated to support the temporary Wi-Fi changes needed by the new sleep-sync features.
+The AYN Thor system controls have already been verified at the system level; this beta will validate the complete in-app control path and state restoration.
 
 ## Compatibility
 
 - Android **9 / API 28 or newer**
-- BasicSync **3.18+** for normal state-aware sleep/wake control
-- BasicSync **3.19+** for the new advanced sync modes
-- Syncthing-Fork STOP/FOLLOW sleep/wake control remains supported
-- Helper **1.1.0**
-
-## Installation
-
-### 1. Install SleepManager
-
-Download and install:
-
-**SleepManager-0.6.0.apk**
-
-### 2. Install the Helper if you use Wi-Fi / Bluetooth control
-
-Inside SleepManager, open:
-
-**About → Updates → Install Helper**
-
-or install:
-
-**SleepManager-Helper-1.1.0.apk**
-
-### 3. Configure SleepManager
-
-Choose the actions and optional rules you want, enable SleepManager, then tap **Finish setup**.
-
-For **Syncthing-Fork**, enable:
-
-**Settings → Behaviour → Service Control by Broadcast**
-
-For **BasicSync**, enable:
-
-**Allow remote control**
-
-For **AYN Thor closed-lid protection**, enable the option in SleepManager and approve the Device Admin permission when prompted.
-
-## Updating
-
-SleepManager 0.5.1 and newer can check for stable updates from:
-
-**About → Updates**
-
-Official updates preserve your existing settings.
+- BasicSync **3.18+** for normal state-aware sleep/wake
+- BasicSync **3.19+** for completion-aware advanced sync
+- Syncthing-Fork STOP/FOLLOW remains supported
+- Helper **1.1.1**
