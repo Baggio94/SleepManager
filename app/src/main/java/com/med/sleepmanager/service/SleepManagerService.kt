@@ -576,7 +576,7 @@ class SleepManagerService : Service() {
             helperRestoreNeeded && networkRestoreNeeded
 
         if (helperRestoreNeeded) {
-            val sent = HelperController.restoreNow(this)
+            val sent = HelperController.restoreNow(this, cycle.cycleId)
             if (sent) {
                 Log.i(TAG, "Disable requested -> waiting for Helper restore result")
                 return
@@ -1238,7 +1238,7 @@ class SleepManagerService : Service() {
         syncthing: Boolean
     ) {
         val helperSent = if (wifi || bluetooth) {
-            HelperController.sendSleep(this, wifi, bluetooth)
+            HelperController.sendSleep(this, wifi, bluetooth, SleepCycleStore.current(this).cycleId)
         } else {
             false
         }
@@ -1786,13 +1786,9 @@ class SleepManagerService : Service() {
                 this,
                 BasicSyncConnector.id
             )
-            SleepCycleStore.clearConnectorChange(
-                this,
-                SyncthingConnector.id
-            )
             Log.i(
                 TAG,
-                "Wake sync mode active; BasicSync/Syncthing restore tokens cleared"
+                "Wake sync mode active; BasicSync restore token cleared"
             )
         } else {
             restorePendingBasicSync()
@@ -1832,7 +1828,7 @@ class SleepManagerService : Service() {
             helperRestoreNeeded && networkRestoreNeeded
 
         val helperSent = if (helperRestoreNeeded) {
-            HelperController.sendWake(this)
+            HelperController.sendWake(this, cycle.cycleId)
         } else {
             false
         }
