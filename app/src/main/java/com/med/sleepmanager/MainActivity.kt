@@ -4348,13 +4348,13 @@ private fun AboutPage(
                     backgroundReliability?.batteryOptimization
                 ) {
                     BackgroundReliability.Status.OK ->
-                        "Exempt • SleepManager is not battery-optimized"
+                        "✓ Exempt • SleepManager is not battery-optimized"
                     BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "Active • Recommended to disable for reliable background operation"
+                        "⚠ Active • Recommended to disable for reliable background operation"
                     BackgroundReliability.Status.UNAVAILABLE ->
-                        "Not available on this Android version"
+                        "— Not available on this Android version"
                     BackgroundReliability.Status.UNKNOWN ->
-                        "Unable to read the current setting"
+                        "? Unable to read the current setting"
                     null ->
                         "Checking…"
                 },
@@ -4376,13 +4376,13 @@ private fun AboutPage(
                     backgroundReliability?.unusedAppRestrictions
                 ) {
                     BackgroundReliability.Status.OK ->
-                        "Off • Android will not hibernate SleepManager when unused"
+                        "✓ Off • Android will not hibernate SleepManager when unused"
                     BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "Enabled • Recommended to disable for long-term background reliability"
+                        "⚠ Enabled • Recommended to disable for long-term background reliability"
                     BackgroundReliability.Status.UNAVAILABLE ->
-                        "Not available on this device"
+                        "— Not available on this device"
                     BackgroundReliability.Status.UNKNOWN ->
-                        "Unable to read the current setting"
+                        "? Unable to read the current setting"
                     null ->
                         "Checking…"
                 },
