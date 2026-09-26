@@ -505,6 +505,26 @@ class SleepManagerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent == null && AppPreferences.isEnabled(this)) {
+            val activeCycle = SleepCycleStore.isActive(this)
+            val message =
+                if (activeCycle) {
+                    "Foreground service restarted with an active sleep transaction"
+                } else {
+                    "Foreground service restarted by Android"
+                }
+            DeviceControlStore.recordServiceRecovery(this, message)
+            AppPreferences.recordEvent(
+                this,
+                if (activeCycle) {
+                    "Recovery → service restarted · transaction resumed"
+                } else {
+                    "Recovery → service restarted"
+                }
+            )
+            Log.i(TAG, message)
+        }
+
         if (intent?.action == ACTION_DISABLE_AND_RESTORE) {
             beginDisableAndRestore()
             return START_NOT_STICKY
