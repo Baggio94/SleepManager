@@ -51,6 +51,8 @@ import com.med.sleepmanager.sync.SyncMaintenanceScheduler
 import com.med.sleepmanager.sync.SyncMaintenanceTrigger
 import com.med.sleepmanager.sync.SyncStopOwnershipStore
 import com.med.sleepmanager.sync.SyncTransitionStore
+import com.med.sleepmanager.sync.SyncCompletionState
+import com.med.sleepmanager.sync.basicSyncCompletionState
 
 class SleepManagerService : Service() {
     companion object {
@@ -62,6 +64,9 @@ class SleepManagerService : Service() {
         private const val SYNCTHING_UNVERIFIED_STOP_GRACE_MS = 2500L
         private const val SYNC_STOP_POLL_INTERVAL_MS = 250L
         private const val SYNC_STOP_TIMEOUT_MS = 5_000L
+        private const val BASIC_SYNC_ACTIVE_FINISH_TIMEOUT_MS = 120_000L
+        private const val BASIC_SYNC_ACTIVE_FINISH_POLL_MS = 500L
+        private const val BASIC_SYNC_IDLE_STABILITY_MS = 3_000L
         private const val TAILSCALE_VERIFY_INTERVAL_MS = 500L
         private const val TAILSCALE_VERIFY_MAX_ATTEMPTS = 8
         private const val TAILSCALE_WAKE_RETRY_AT_ATTEMPT = 4
@@ -99,6 +104,13 @@ class SleepManagerService : Service() {
     private var lastWakeBluetoothChanged = false
     private var sleepActionsApplied = false
     private var sleepSkippedByConditions = false
+    private var waitingForActiveBasicSync = false
+    private var activeBasicSyncWaitStartedAt = 0L
+    private var activeBasicSyncSyncedSince = 0L
+
+    private val activeBasicSyncFinishRunnable = Runnable {
+        pollActiveBasicSyncBeforeSleep()
+    }
 
     private var pendingSleepWifi = false
     private var pendingSleepBluetooth = false
@@ -724,6 +736,7 @@ class SleepManagerService : Service() {
         sleepActionsApplied = true
 
         handler.removeCallbacks(sleepRadioRunnable)
+        cancelActiveBasicSyncWait()
         releaseSleepTransitionWakeLock()
 
         val conditions = SleepConditionEvaluator.evaluate(this)
@@ -743,6 +756,134 @@ class SleepManagerService : Service() {
         sleepSkippedByConditions = false
 
         val transitionSyncRequested = syncThenStopAvailable()
+        if (
+            !transitionSyncRequested &&
+            shouldWaitForActiveBasicSyncBeforeSleep()
+        ) {
+            startActiveBasicSyncWait()
+            return
+        }
+
+        continueFreshSleepActions(transitionSyncRequested)
+    }
+
+    private fun shouldWaitForActiveBasicSyncBeforeSleep(): Boolean {
+        if (
+            !AppPreferences.manageBasicSync(this) ||
+            !BasicSyncController.isInstalled(this) ||
+            !BasicSyncController.supportsSyncCounters(this)
+        ) {
+            return false
+        }
+
+        BasicSyncController.startStateObserver(this)
+        return basicSyncCompletionState(
+            BasicSyncController.lastObservedState()
+        ) == SyncCompletionState.SYNCING
+    }
+
+    private fun startActiveBasicSyncWait() {
+        waitingForActiveBasicSync = true
+        activeBasicSyncWaitStartedAt = SystemClock.elapsedRealtime()
+        activeBasicSyncSyncedSince = 0L
+        acquireSleepTransitionWakeLock(
+            BASIC_SYNC_ACTIVE_FINISH_TIMEOUT_MS +
+                SLEEP_TRANSITION_WAKELOCK_TIMEOUT_MS
+        )
+        BasicSyncController.requestStateBroadcast(this)
+        handler.post(activeBasicSyncFinishRunnable)
+        Log.i(
+            TAG,
+            "BasicSync is already syncing; waiting for it to finish before sleep actions"
+        )
+        AppPreferences.recordEvent(
+            this,
+            "Sleep → waiting for active BasicSync sync to finish"
+        )
+    }
+
+    private fun pollActiveBasicSyncBeforeSleep() {
+        if (!waitingForActiveBasicSync) return
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (
+            powerManager?.isInteractive == true ||
+            !AppPreferences.isEnabled(this)
+        ) {
+            cancelActiveBasicSyncWait()
+            return
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        val elapsed = now - activeBasicSyncWaitStartedAt
+        val completion =
+            basicSyncCompletionState(
+                BasicSyncController.lastObservedState()
+            )
+
+        when (completion) {
+            SyncCompletionState.SYNCING -> {
+                activeBasicSyncSyncedSince = 0L
+            }
+
+            SyncCompletionState.SYNCED -> {
+                if (activeBasicSyncSyncedSince == 0L) {
+                    activeBasicSyncSyncedSince = now
+                } else if (
+                    now - activeBasicSyncSyncedSince >=
+                    BASIC_SYNC_IDLE_STABILITY_MS
+                ) {
+                    cancelActiveBasicSyncWait()
+                    AppPreferences.recordEvent(
+                        this,
+                        "Sleep → active BasicSync sync finished"
+                    )
+                    continueFreshSleepActions(
+                        transitionSyncRequested = false
+                    )
+                    return
+                }
+            }
+
+            SyncCompletionState.UNKNOWN -> {
+                activeBasicSyncSyncedSince = 0L
+            }
+        }
+
+        if (elapsed >= BASIC_SYNC_ACTIVE_FINISH_TIMEOUT_MS) {
+            cancelActiveBasicSyncWait()
+            Log.w(
+                TAG,
+                "Timed out waiting for active BasicSync sync; continuing with STOP"
+            )
+            AppPreferences.recordEvent(
+                this,
+                "Sleep → BasicSync active sync wait timed out"
+            )
+            continueFreshSleepActions(
+                transitionSyncRequested = false
+            )
+            return
+        }
+
+        BasicSyncController.requestStateBroadcast(this)
+        handler.postDelayed(
+            activeBasicSyncFinishRunnable,
+            BASIC_SYNC_ACTIVE_FINISH_POLL_MS
+        )
+    }
+
+    private fun cancelActiveBasicSyncWait() {
+        handler.removeCallbacks(activeBasicSyncFinishRunnable)
+        waitingForActiveBasicSync = false
+        activeBasicSyncWaitStartedAt = 0L
+        activeBasicSyncSyncedSince = 0L
+    }
+
+    private fun continueFreshSleepActions(
+        transitionSyncRequested: Boolean
+    ) {
         val transitionOwnershipReady =
             !transitionSyncRequested ||
                 !AppPreferences.manageBasicSync(this) ||
@@ -1728,6 +1869,7 @@ class SleepManagerService : Service() {
 
     private fun onScreenOn() {
         cancelNetworkReadyWait()
+        cancelActiveBasicSyncWait()
 
         val closedLidProtectionApplies =
             AppPreferences.manageThorProtection(this) &&
@@ -2635,6 +2777,7 @@ class SleepManagerService : Service() {
             sleepGracePending = false
         }
         clearPendingSleepStopWait()
+        cancelActiveBasicSyncWait()
         cancelTailscaleVerification()
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
