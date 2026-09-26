@@ -20,11 +20,33 @@ object DeviceControlController {
 
     fun capabilities(context: Context): ControlCapabilities {
         val pServer = findPServerBinder() != null
+        val privilegedBatterySaverRead =
+            if (pServer) {
+                executePrivileged("settings get global low_power")
+                    .getOrNull()
+                    ?.trim()
+                    ?.takeIf { it == "0" || it == "1" }
+            } else {
+                null
+            }
+        val privilegedChargingRead =
+            if (pServer) {
+                executePrivileged(
+                    "settings get system $CHARGING_SEPARATION_KEY"
+                )
+                    .getOrNull()
+                    ?.trim()
+                    ?.takeIf { it == "0" || it == "1" }
+            } else {
+                null
+            }
+
         return ControlCapabilities(
             pServerAvailable = pServer,
-            batterySaverControl = pServer,
+            batterySaverControl = privilegedBatterySaverRead != null,
             chargingSeparationControl =
-                pServer && chargingSeparationState(context) != null
+                privilegedChargingRead != null &&
+                    chargingSeparationState(context) != null
         )
     }
 
@@ -91,7 +113,12 @@ object DeviceControlController {
         val reply = Parcel.obtain()
         return try {
             data.writeStringArray(arrayOf(command, "1"))
-            binder.transact(0, data, reply, 0)
+            val sent = binder.transact(0, data, reply, 0)
+            if (!sent) {
+                return Result.failure(
+                    IllegalStateException("PServerBinder command was not accepted")
+                )
+            }
             val output =
                 reply.createByteArray()
                     ?.toString(Charset.defaultCharset())
