@@ -28,6 +28,8 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.device.DeviceControlController
+import com.med.sleepmanager.device.DeviceControlStore
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
@@ -554,6 +556,8 @@ class SleepManagerService : Service() {
         SyncTransitionStore.clear(this)
 
         cancelNetworkReadyWait()
+        restoreOwnedBatterySaver("Wake")
+
         SyncMaintenanceScheduler.cancel(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
         cancelSleepDelay()
@@ -562,6 +566,8 @@ class SleepManagerService : Service() {
         releaseSleepTransitionWakeLock()
 
         maybeRestoreOwnedBasicSyncState()
+        restoreOwnedBatterySaver("Disable")
+        restoreOwnedChargingSeparation("Disable")
         prepareTailscaleVerificationForWake()
         restorePendingJamesDsp()
         restorePendingBasicSync()
@@ -1378,6 +1384,8 @@ class SleepManagerService : Service() {
         bluetooth: Boolean,
         syncthing: Boolean
     ) {
+        applyBatterySaverForSleep()
+
         val helperSent = if (wifi || bluetooth) {
             HelperController.sendSleep(this, wifi, bluetooth, SleepCycleStore.current(this).cycleId)
         } else {
@@ -1402,6 +1410,183 @@ class SleepManagerService : Service() {
                 )
             )
         }
+    }
+
+    private fun applyBatterySaverForSleep() {
+        if (
+            !AppPreferences.manageBatterySaver(this) ||
+            !DeviceControlController.supportsBatterySaverControl(this)
+        ) {
+            return
+        }
+
+        if (DeviceControlStore.batterySaver(this).owned) {
+            return
+        }
+
+        val previous = DeviceControlController.batterySaverEnabled(this)
+        if (previous) {
+            return
+        }
+
+        // Persist ownership before the privileged call. If the process dies
+        // immediately after the toggle, wake recovery still knows what to undo.
+        DeviceControlStore.takeBatterySaverOwnership(
+            this,
+            previous = false
+        )
+
+        if (DeviceControlController.setBatterySaverEnabled(true)) {
+            Log.i(TAG, "Battery Saver enabled for sleep")
+            AppPreferences.recordEvent(
+                this,
+                "Sleep → Battery Saver enabled"
+            )
+        } else {
+            DeviceControlStore.clearBatterySaverOwnership(this)
+            Log.w(TAG, "Unable to enable Battery Saver for sleep")
+        }
+    }
+
+    private fun restoreOwnedBatterySaver(reason: String): Boolean {
+        val owned = DeviceControlStore.batterySaver(this)
+        if (!owned.owned) return true
+
+        val current = DeviceControlController.batterySaverEnabled(this)
+        if (current == owned.previous) {
+            DeviceControlStore.clearBatterySaverOwnership(this)
+            return true
+        }
+
+        val restored =
+            DeviceControlController.setBatterySaverEnabled(
+                owned.previous
+            )
+        if (restored) {
+            DeviceControlStore.clearBatterySaverOwnership(this)
+            Log.i(TAG, "Battery Saver restored after $reason")
+            AppPreferences.recordEvent(
+                this,
+                "$reason → Battery Saver restored"
+            )
+        } else {
+            Log.w(TAG, "Battery Saver restore failed after $reason")
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "Battery Saver restore is still pending."
+            )
+        }
+        return restored
+    }
+
+    private fun temporarilyRestoreBatterySaverForMaintenance(): Boolean {
+        val owned = DeviceControlStore.batterySaver(this)
+        if (!owned.owned || owned.previous) return false
+        if (!DeviceControlController.batterySaverEnabled(this)) return false
+
+        val restored =
+            DeviceControlController.setBatterySaverEnabled(false)
+        if (restored) {
+            Log.i(TAG, "Battery Saver temporarily restored for periodic sync")
+        }
+        return restored
+    }
+
+    private fun reapplyBatterySaverAfterMaintenance() {
+        val owned = DeviceControlStore.batterySaver(this)
+        if (!owned.owned || owned.previous) return
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isInteractive == true) return
+
+        if (!DeviceControlController.batterySaverEnabled(this)) {
+            if (DeviceControlController.setBatterySaverEnabled(true)) {
+                Log.i(TAG, "Battery Saver re-enabled after periodic sync")
+            } else {
+                Log.w(TAG, "Unable to re-enable Battery Saver after periodic sync")
+            }
+        }
+    }
+
+    private fun shouldMonitorLid(): Boolean =
+        ThorLidMonitor.isSupported() &&
+            (
+                AppPreferences.manageThorProtection(this) ||
+                    (
+                        AppPreferences.manageChargingSeparationWithLid(this) &&
+                            DeviceControlController
+                                .supportsChargingSeparationControl(this)
+                    )
+            )
+
+    private fun applyClosedLidChargingSeparation(reason: String) {
+        if (
+            !AppPreferences.manageChargingSeparationWithLid(this) ||
+            !ThorLidMonitor.isSupported() ||
+            !DeviceControlController.supportsChargingSeparationControl(this) ||
+            !thorLidClosed ||
+            hasExternalDisplayConnected()
+        ) {
+            restoreOwnedChargingSeparation(reason)
+            return
+        }
+
+        if (DeviceControlStore.chargingSeparation(this).owned) {
+            return
+        }
+
+        val previous =
+            DeviceControlController.chargingSeparationState(this)
+                ?: return
+        if (!previous) return
+
+        DeviceControlStore.takeChargingSeparationOwnership(
+            this,
+            previous = true
+        )
+
+        if (DeviceControlController.setChargingSeparationEnabled(false)) {
+            Log.i(
+                TAG,
+                "Charging Separation disabled while lid is closed ($reason)"
+            )
+            AppPreferences.recordEvent(
+                this,
+                "Lid closed → Charging Separation disabled"
+            )
+        } else {
+            DeviceControlStore.clearChargingSeparationOwnership(this)
+            Log.w(TAG, "Unable to disable Charging Separation")
+        }
+    }
+
+    private fun restoreOwnedChargingSeparation(reason: String): Boolean {
+        val owned = DeviceControlStore.chargingSeparation(this)
+        if (!owned.owned) return true
+
+        val current =
+            DeviceControlController.chargingSeparationState(this)
+        if (current == owned.previous) {
+            DeviceControlStore.clearChargingSeparationOwnership(this)
+            return true
+        }
+
+        val restored =
+            DeviceControlController.setChargingSeparationEnabled(
+                owned.previous
+            )
+        if (restored) {
+            DeviceControlStore.clearChargingSeparationOwnership(this)
+            Log.i(TAG, "Charging Separation restored ($reason)")
+            AppPreferences.recordEvent(
+                this,
+                "$reason → Charging Separation restored"
+            )
+        } else {
+            Log.w(TAG, "Charging Separation restore failed ($reason)")
+        }
+        return restored
     }
 
     private fun isTailscaleSleepVerificationPending(): Boolean =
@@ -1741,6 +1926,9 @@ class SleepManagerService : Service() {
             return
         }
 
+        val batterySaverTemporarilyRestored =
+            temporarilyRestoreBatterySaverForMaintenance()
+
         val started =
             syncRunner().start(
                 SyncMaintenanceTrigger.PERIODIC_SLEEP
@@ -1749,6 +1937,10 @@ class SleepManagerService : Service() {
                     this,
                     "Periodic sync → ${snapshot.outcome}"
                 )
+
+                if (batterySaverTemporarilyRestored) {
+                    reapplyBatterySaverAfterMaintenance()
+                }
 
                 val stillSleeping =
                     (getSystemService(Context.POWER_SERVICE) as? PowerManager)
@@ -1765,6 +1957,9 @@ class SleepManagerService : Service() {
             }
 
         if (!started) {
+            if (batterySaverTemporarilyRestored) {
+                reapplyBatterySaverAfterMaintenance()
+            }
             SyncMaintenanceScheduler.scheduleNext(this)
         }
     }
