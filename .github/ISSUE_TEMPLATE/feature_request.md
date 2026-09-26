@@ -1,5 +1,5 @@
 ---
-name: Feature request
+name: 🚀 Enhancement
 about: Suggest an idea or integration
 title: ''
 labels: enhancement
