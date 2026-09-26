@@ -119,6 +119,8 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
+import com.med.sleepmanager.device.BackgroundReliability
+import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
@@ -500,7 +502,7 @@ class MainActivity : ComponentActivity() {
             putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, thorAdminComponent())
             putExtra(
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "Allows SleepManager to immediately return the AYN Thor to sleep if it wakes while the lid is still closed."
+                "Allows SleepManager to immediately return the device to sleep if it wakes while the lid is still closed."
             )
         }
         startActivity(intent)
@@ -521,7 +523,7 @@ class MainActivity : ComponentActivity() {
         if (!ThorLidMonitor.isSupported()) {
             Toast.makeText(
                 this,
-                "AYN Thor hall sensor not detected",
+                "Compatible lid sensor not detected",
                 Toast.LENGTH_SHORT
             ).show()
             return
@@ -593,7 +595,7 @@ class MainActivity : ComponentActivity() {
         ) {
             Toast.makeText(
                 this,
-                "Enable AYN Thor closed-lid protection permission first",
+                "Enable closed-lid protection permission first",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -873,6 +875,14 @@ class MainActivity : ComponentActivity() {
         var bluetoothEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageBluetooth(this))
         }
+        var batterySaverActionEnabled by remember(refreshToken) {
+            mutableStateOf(AppPreferences.manageBatterySaver(this))
+        }
+        var chargingSeparationWithLidEnabled by remember(refreshToken) {
+            mutableStateOf(
+                AppPreferences.manageChargingSeparationWithLid(this)
+            )
+        }
         var syncthingEnabled by remember(refreshToken) {
             mutableStateOf(AppPreferences.manageSyncthing(this))
         }
@@ -968,6 +978,23 @@ class MainActivity : ComponentActivity() {
         }
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
+        }
+        val deviceControlCapabilities = remember(refreshToken) {
+            DeviceControlController.capabilities(this)
+        }
+        val batterySaverControlSupported =
+            deviceControlCapabilities.batterySaverControl
+        val chargingSeparationSupported =
+            thorProtectionSupported &&
+                deviceControlCapabilities.chargingSeparationControl
+
+        var backgroundReliability by remember(refreshToken) {
+            mutableStateOf<BackgroundReliability.Snapshot?>(null)
+        }
+        LaunchedEffect(refreshToken) {
+            backgroundReliability = withContext(Dispatchers.IO) {
+                BackgroundReliability.snapshot(this@MainActivity)
+            }
         }
         val thorAdminActive = remember(refreshToken) {
             isThorAdminActive()
@@ -1254,6 +1281,32 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                if (backgroundReliability?.needsAttention == true) {
+                    item {
+                        InfoCard(
+                            title = "Background reliability",
+                            text = buildString {
+                                if (
+                                    backgroundReliability
+                                        ?.batteryOptimizationExempt == false
+                                ) {
+                                    append("Battery optimization is active. ")
+                                }
+                                if (
+                                    backgroundReliability
+                                        ?.unusedAppRestrictionsActive == true
+                                ) {
+                                    append(
+                                        "Android may pause the app if it is unused for a long time."
+                                    )
+                                }
+                            }.trim(),
+                            actionLabel = "Open app settings",
+                            onAction = { openAppInfo() }
+                        )
+                    }
+                }
+
                 if (availableUpdate != null || availableHelperUpdate != null) {
                     item {
                         UpdateAvailableCard(
@@ -1316,8 +1369,8 @@ class MainActivity : ComponentActivity() {
 
                 item {
                     SectionTitle(
-                        title = "When device sleeps",
-                        subtitle = "Choose what SleepManager should temporarily switch off."
+                        title = "System controls",
+                        subtitle = "Choose which system features SleepManager manages during sleep."
                     )
                 }
 
@@ -1374,6 +1427,34 @@ class MainActivity : ComponentActivity() {
                             }
                         )
 
+                        if (batterySaverControlSupported) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+
+                            SettingRow(
+                                icon = R.drawable.ic_battery,
+                                title = "Battery Saver",
+                                subtitle = "Enable during sleep and restore the previous state on wake.",
+                                status = "Privileged control available",
+                                checked = batterySaverActionEnabled,
+                                enabled = true,
+                                onCheckedChange = {
+                                    batterySaverActionEnabled = it
+                                    AppPreferences.setManageBatterySaver(
+                                        this@MainActivity,
+                                        it
+                                    )
+                                    if (it) {
+                                        batterySaverMode =
+                                            AppPreferences.BATTERY_SAVER_IGNORE
+                                    }
+                                    refreshRunningService()
+                                }
+                            )
+                        }
+
                     }
                 }
 
@@ -1400,8 +1481,8 @@ class MainActivity : ComponentActivity() {
                         if (thorProtectionSupported) {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
-                                title = "AYN Thor closed-lid protection",
-                                subtitle = "Return the Thor to sleep after accidental trigger wake-ups with the lid closed. Dock-safe: external displays won\'t trigger false sleeps.",
+                                title = "Closed-lid protection",
+                                subtitle = "Return the device to sleep after accidental wake-ups while the lid is still closed. Dock-safe with external displays.",
                                 checked = thorProtectionEnabled && thorAdminActive,
                                 enabled = true,
                                 onCheckedChange = { enabled ->
@@ -1412,6 +1493,29 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
+                            if (chargingSeparationSupported) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 56.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+
+                                SettingRow(
+                                    icon = R.drawable.ic_battery,
+                                    title = "Charging Separation with lid closed",
+                                    subtitle = "Temporarily disable Charging Separation while closed so the battery can charge. Dock mode keeps your original setting.",
+                                    checked = chargingSeparationWithLidEnabled,
+                                    enabled = true,
+                                    onCheckedChange = {
+                                        chargingSeparationWithLidEnabled = it
+                                        AppPreferences.setManageChargingSeparationWithLid(
+                                            this@MainActivity,
+                                            it
+                                        )
+                                        refreshRunningService()
+                                    }
+                                )
+                            }
+
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 56.dp),
                                 color = MaterialTheme.colorScheme.outlineVariant
@@ -1420,7 +1524,7 @@ class MainActivity : ComponentActivity() {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "Sleep when external display disconnects",
-                                subtitle = "With the lid closed, put the Thor to sleep when dock video is unplugged. Off keeps AYN's default awake behavior.",
+                                subtitle = "With the lid closed, put the device to sleep when dock video is unplugged. Off keeps the device's default awake behavior.",
                                 checked = thorDockDisconnectSleeps,
                                 enabled = thorProtectionEnabled && thorAdminActive,
                                 onCheckedChange = {
@@ -1440,7 +1544,7 @@ class MainActivity : ComponentActivity() {
                             SettingRow(
                                 icon = R.drawable.ic_lid_lock,
                                 title = "Power button sleeps with lid closed",
-                                subtitle = "With the lid closed and Thor awake, press Power to sleep—docked or after disconnecting the external display. Off keeps AYN's default behavior.",
+                                subtitle = "With the lid closed and the device awake, press Power to sleep—docked or after disconnecting the external display.",
                                 checked = thorClosedPowerSleeps,
                                 enabled = thorProtectionEnabled && thorAdminActive,
                                 onCheckedChange = {
@@ -1758,6 +1862,7 @@ class MainActivity : ComponentActivity() {
                         item {
                             AdvancedSettingsPage(
                                 periodicSyncWhileSleeping = periodicSyncWhileSleeping,
+                                batterySaverControlSupported = batterySaverControlSupported,
                                 syncThenStopOnSleepWake = syncThenStopOnSleepWake,
                                 syncConditionsAvailable =
                                     ManagedSyncProviders.completionReady(
@@ -1833,6 +1938,12 @@ class MainActivity : ComponentActivity() {
                                 onBatterySaverModeChange = {
                                     batterySaverMode = it
                                     AppPreferences.setBatterySaverMode(this@MainActivity, it)
+                                    if (
+                                        it !=
+                                        AppPreferences.BATTERY_SAVER_IGNORE
+                                    ) {
+                                        batterySaverActionEnabled = false
+                                    }
                                 },
                                 onScheduleEnabledChange = {
                                     scheduleEnabled = it
@@ -3309,6 +3420,7 @@ private fun SleepGraceSelector(
 @Composable
 private fun AdvancedSettingsPage(
     periodicSyncWhileSleeping: Boolean,
+    batterySaverControlSupported: Boolean,
     syncThenStopOnSleepWake: Boolean,
     syncConditionsAvailable: Boolean,
     onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
@@ -3479,7 +3591,7 @@ private fun AdvancedSettingsPage(
             AdvancedToggleRow(
                 title = "Not charging",
                 subtitle = if (notChargingOnly) {
-                    "Only run sleep actions while unplugged"
+                    "Only start sleep actions when unplugged"
                 } else {
                     "Ignore charging state"
                 },
@@ -3487,45 +3599,49 @@ private fun AdvancedSettingsPage(
                 onCheckedChange = onNotChargingOnlyChange
             )
 
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "Battery Saver",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    when (batterySaverMode) {
-                        AppPreferences.BATTERY_SAVER_ON -> "Only when Android Battery Saver is ON"
-                        AppPreferences.BATTERY_SAVER_OFF -> "Only when Android Battery Saver is OFF"
-                        else -> "Ignore Battery Saver state"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (batterySaverControlSupported) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
                 )
 
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val modes = listOf(
-                        "Ignore" to AppPreferences.BATTERY_SAVER_IGNORE,
-                        "ON" to AppPreferences.BATTERY_SAVER_ON,
-                        "OFF" to AppPreferences.BATTERY_SAVER_OFF
+                    Text(
+                        "Battery Saver",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
                     )
-                    items(modes.size) { index ->
-                        val (label, mode) = modes[index]
-                        FilterChip(
-                            selected = batterySaverMode == mode,
-                            onClick = feedbackClick { onBatterySaverModeChange(mode) },
-                            label = { Text(label) }
+                    Text(
+                        when (batterySaverMode) {
+                            AppPreferences.BATTERY_SAVER_ON -> "Only when Android Battery Saver is ON"
+                            AppPreferences.BATTERY_SAVER_OFF -> "Only when Android Battery Saver is OFF"
+                            else -> "Ignore Battery Saver state"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val modes = listOf(
+                            "Ignore" to AppPreferences.BATTERY_SAVER_IGNORE,
+                            "ON" to AppPreferences.BATTERY_SAVER_ON,
+                            "OFF" to AppPreferences.BATTERY_SAVER_OFF
                         )
+                        items(modes.size) { index ->
+                            val (label, mode) = modes[index]
+                            FilterChip(
+                                selected = batterySaverMode == mode,
+                                onClick = feedbackClick {
+                                    onBatterySaverModeChange(mode)
+                                },
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
             }
