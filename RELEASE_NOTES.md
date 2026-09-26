@@ -1,6 +1,8 @@
-# SleepManager 0.6.1-beta1
+# SleepManager 0.6.1-beta2
 
 This beta focuses on **reliability, smarter sync behavior and new device-aware sleep controls**.
+
+Beta2 also hardens the edge cases found during the overlap/contradiction audit: fresh BasicSync state probing before a normal sleep STOP, Charging Separation recovery after a process kill, bounded system-setting restore retries when SleepManager is disabled, and capability-gated closed-lid Power controls.
 
 It includes the fixes and features planned for 0.6.1 so they can now be tested together on real handhelds.
 

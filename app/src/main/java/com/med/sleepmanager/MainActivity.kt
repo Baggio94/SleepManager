@@ -131,6 +131,7 @@ import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import com.med.sleepmanager.protection.ThorLidMonitor
+import com.med.sleepmanager.protection.ThorPowerButtonMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.sync.ManagedSyncProviders
@@ -979,6 +980,9 @@ class MainActivity : ComponentActivity() {
         val thorProtectionSupported = remember(refreshToken) {
             ThorLidMonitor.isSupported()
         }
+        val closedLidPowerSupported = remember(refreshToken) {
+            ThorPowerButtonMonitor.isSupported()
+        }
         val deviceControlCapabilities = remember(refreshToken) {
             DeviceControlController.capabilities(this)
         }
@@ -991,6 +995,24 @@ class MainActivity : ComponentActivity() {
         var backgroundReliability by remember(refreshToken) {
             mutableStateOf<BackgroundReliability.Snapshot?>(null)
         }
+
+        LaunchedEffect(
+            deviceControlCapabilities.pServerAvailable
+        ) {
+            if (
+                !deviceControlCapabilities.pServerAvailable &&
+                batterySaverMode !=
+                    AppPreferences.BATTERY_SAVER_IGNORE
+            ) {
+                AppPreferences.setBatterySaverMode(
+                    this@MainActivity,
+                    AppPreferences.BATTERY_SAVER_IGNORE
+                )
+                batterySaverMode =
+                    AppPreferences.BATTERY_SAVER_IGNORE
+            }
+        }
+
         LaunchedEffect(refreshToken) {
             backgroundReliability = withContext(Dispatchers.IO) {
                 BackgroundReliability.snapshot(this@MainActivity)
@@ -1543,25 +1565,27 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 56.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
+                            if (closedLidPowerSupported) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 56.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
 
-                            SettingRow(
-                                icon = R.drawable.ic_lid_lock,
-                                title = "Power button sleeps with lid closed",
-                                subtitle = "With the lid closed and the device awake, press Power to sleep—docked or after disconnecting the external display.",
-                                checked = thorClosedPowerSleeps,
-                                enabled = thorProtectionEnabled && thorAdminActive,
-                                onCheckedChange = {
-                                    thorClosedPowerSleeps = it
-                                    AppPreferences.setThorClosedPowerSleeps(
-                                        this@MainActivity,
-                                        it
-                                    )
-                                }
-                            )
+                                SettingRow(
+                                    icon = R.drawable.ic_lid_lock,
+                                    title = "Power button sleeps with lid closed",
+                                    subtitle = "With the lid closed and the device awake, press Power to sleep—docked or after disconnecting the external display.",
+                                    checked = thorClosedPowerSleeps,
+                                    enabled = thorProtectionEnabled && thorAdminActive,
+                                    onCheckedChange = {
+                                        thorClosedPowerSleeps = it
+                                        AppPreferences.setThorClosedPowerSleeps(
+                                            this@MainActivity,
+                                            it
+                                        )
+                                    }
+                                )
+                            }
 
                             HorizontalDivider(
                                 modifier = Modifier.padding(start = 16.dp, end = 16.dp),

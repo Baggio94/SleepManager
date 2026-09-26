@@ -2,7 +2,19 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## 0.6.1-beta1 — 2026-09-26 — Preview
+## 0.6.1-beta2 — 2026-09-26 — Preview
+
+### Beta2 hardening
+
+- Re-checks fresh BasicSync state before the normal sleep path can STOP it, closing the race where a sync started just before sleep.
+- Reconciles persisted Charging Separation ownership after a service/process restart and re-applies the intended closed-lid state when needed.
+- Retries Battery Saver / Charging Separation restoration for a bounded period when SleepManager is disabled before giving up and preserving a restore warning.
+- Prevents the disable flow from finishing while owned system-state restoration is still being initialized or retried.
+- Shows **Power button sleeps with lid closed** only when the compatible power-key input is actually detected.
+- Clears a stale Battery Saver condition when the privileged control service is definitively unavailable.
+
+### Included from beta1
+
 
 ### New
 
@@ -28,7 +40,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 
 ### Compatibility
 
-- Main app: **0.6.1-beta1 / versionCode 540**.
+- Main app: **0.6.1-beta2 / versionCode 541**.
 - Helper: **1.1.1 / versionCode 1110**.
 - No root, Shizuku or ADB is required for normal use.
 
