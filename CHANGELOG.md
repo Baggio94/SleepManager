@@ -2,6 +2,21 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.6.1-beta3 — 2026-09-27 — Preview
+
+### Beta3 UI and reliability
+
+- Moved Battery optimization and unused-app restrictions from the Home warning card to **About → Background reliability**.
+- Added direct Android settings actions for both reliability settings.
+- Re-checks reliability settings automatically when returning to SleepManager.
+- Fixed the periodic Home UI flash caused by resetting asynchronous reliability state to an empty value every three seconds.
+- Device-control capability checks now run off the UI thread and retain their last known value while refreshing.
+- Asynchronous UI status keeps its last known value while background checks complete instead of temporarily reverting to an empty/loading state.
+- Main app: **0.6.1-beta3 / versionCode 542**.
+- Helper remains **1.1.1 / versionCode 1110**.
+
+---
+
 ## 0.6.1-beta2 — 2026-09-26 — Preview
 
 ### Beta2 hardening

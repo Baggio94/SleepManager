@@ -28,6 +28,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
+import androidx.core.content.IntentCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
@@ -215,8 +216,17 @@ class MainActivity : ComponentActivity() {
     private var currentSyncthingState by mutableStateOf<SyncthingController.RuntimeState?>(null)
     private var currentTailscaleConnected by mutableStateOf<Boolean?>(null)
     private var currentBasicSyncState by mutableStateOf<BasicSyncController.RemoteState?>(null)
+    private var currentBackgroundReliability by
+        mutableStateOf<BackgroundReliability.Snapshot?>(null)
+    private var currentDeviceControlCapabilities by
+        mutableStateOf<DeviceControlController.ControlCapabilities?>(null)
+
     @Volatile
     private var syncthingStateProbeRunning = false
+    @Volatile
+    private var backgroundReliabilityProbeRunning = false
+    @Volatile
+    private var deviceCapabilitiesProbeRunning = false
     private var helperStateReceiverRegistered = false
     private var pendingThorAdminEnable = false
     private var pendingExactAlarmEnable = false
@@ -278,6 +288,56 @@ class MainActivity : ComponentActivity() {
                 syncthingStateProbeRunning = false
             }
         }.start()
+    }
+
+    private fun refreshBackgroundReliabilityAsync() {
+        if (backgroundReliabilityProbeRunning) return
+        backgroundReliabilityProbeRunning = true
+        val appContext = applicationContext
+
+        Thread {
+            val snapshot = BackgroundReliability.snapshot(appContext)
+            runOnUiThread {
+                currentBackgroundReliability = snapshot
+                backgroundReliabilityProbeRunning = false
+            }
+        }.apply {
+            name = "SleepManagerReliability"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun refreshDeviceCapabilitiesAsync() {
+        if (deviceCapabilitiesProbeRunning) return
+        deviceCapabilitiesProbeRunning = true
+        val appContext = applicationContext
+
+        Thread {
+            val capabilities =
+                DeviceControlController.capabilities(appContext)
+            runOnUiThread {
+                currentDeviceControlCapabilities = capabilities
+                deviceCapabilitiesProbeRunning = false
+
+                if (
+                    !capabilities.pServerAvailable &&
+                    AppPreferences.batterySaverMode(
+                        this@MainActivity
+                    ) != AppPreferences.BATTERY_SAVER_IGNORE
+                ) {
+                    AppPreferences.setBatterySaverMode(
+                        this@MainActivity,
+                        AppPreferences.BATTERY_SAVER_IGNORE
+                    )
+                    activityRefreshToken++
+                }
+            }
+        }.apply {
+            name = "SleepManagerCapabilities"
+            isDaemon = true
+            start()
+        }
     }
 
     private val helperStateReceiver = object : BroadcastReceiver() {
@@ -404,9 +464,24 @@ class MainActivity : ComponentActivity() {
 
         ensureServiceRunning()
         refreshRunningService()
+        refreshBackgroundReliabilityAsync()
+        refreshDeviceCapabilitiesAsync()
 
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
         statusRefreshRunnable.run()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == UNUSED_APP_RESTRICTIONS_REQUEST_CODE) {
+            pendingExternalNavigation = false
+            refreshBackgroundReliabilityAsync()
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -751,6 +826,64 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun openBatteryOptimizationSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            Toast.makeText(
+                this,
+                "Battery optimization is not available on this Android version",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val powerManager =
+            getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val alreadyExempt =
+            powerManager?.isIgnoringBatteryOptimizations(packageName) == true
+
+        val intent =
+            if (alreadyExempt) {
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            } else {
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$packageName")
+                )
+            }
+
+        launchExternalActivity(
+            intent = intent,
+            failureMessage = "Unable to open battery optimization settings"
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun openUnusedAppRestrictionsSettings() {
+        val intent =
+            runCatching {
+                IntentCompat.createManageUnusedAppRestrictionsIntent(
+                    this,
+                    packageName
+                )
+            }.getOrNull()
+
+        if (intent == null) {
+            openAppInfo()
+            return
+        }
+
+        pendingExternalNavigation = true
+        runCatching {
+            startActivityForResult(
+                intent,
+                UNUSED_APP_RESTRICTIONS_REQUEST_CODE
+            )
+        }.onFailure {
+            pendingExternalNavigation = false
+            openAppInfo()
+        }
+    }
+
     private fun installVerifiedUpdate(apkPath: String) {
         val apk = File(apkPath)
         if (!apk.isFile) {
@@ -983,41 +1116,15 @@ class MainActivity : ComponentActivity() {
         val closedLidPowerSupported = remember(refreshToken) {
             ThorPowerButtonMonitor.isSupported()
         }
-        val deviceControlCapabilities = remember(refreshToken) {
-            DeviceControlController.capabilities(this)
-        }
+        val deviceControlCapabilities =
+            currentDeviceControlCapabilities
         val batterySaverControlSupported =
-            deviceControlCapabilities.batterySaverControl
+            deviceControlCapabilities?.batterySaverControl == true
         val chargingSeparationSupported =
             thorProtectionSupported &&
-                deviceControlCapabilities.chargingSeparationControl
-
-        var backgroundReliability by remember(refreshToken) {
-            mutableStateOf<BackgroundReliability.Snapshot?>(null)
-        }
-
-        LaunchedEffect(
-            deviceControlCapabilities.pServerAvailable
-        ) {
-            if (
-                !deviceControlCapabilities.pServerAvailable &&
-                batterySaverMode !=
-                    AppPreferences.BATTERY_SAVER_IGNORE
-            ) {
-                AppPreferences.setBatterySaverMode(
-                    this@MainActivity,
-                    AppPreferences.BATTERY_SAVER_IGNORE
-                )
-                batterySaverMode =
-                    AppPreferences.BATTERY_SAVER_IGNORE
-            }
-        }
-
-        LaunchedEffect(refreshToken) {
-            backgroundReliability = withContext(Dispatchers.IO) {
-                BackgroundReliability.snapshot(this@MainActivity)
-            }
-        }
+                deviceControlCapabilities?.chargingSeparationControl == true
+        val backgroundReliability =
+            currentBackgroundReliability
         val thorAdminActive = remember(refreshToken) {
             isThorAdminActive()
         }
@@ -1301,32 +1408,6 @@ class MainActivity : ComponentActivity() {
                             activityRefreshToken++
                         }
                     )
-                }
-
-                if (backgroundReliability?.needsAttention == true) {
-                    item {
-                        InfoCard(
-                            title = "Background reliability",
-                            text = buildString {
-                                if (
-                                    backgroundReliability
-                                        ?.batteryOptimizationExempt == false
-                                ) {
-                                    append("Battery optimization is active. ")
-                                }
-                                if (
-                                    backgroundReliability
-                                        ?.unusedAppRestrictionsActive == true
-                                ) {
-                                    append(
-                                        "Android may pause the app if it is unused for a long time."
-                                    )
-                                }
-                            }.trim(),
-                            actionLabel = "Open app settings",
-                            onAction = { openAppInfo() }
-                        )
-                    }
                 }
 
                 if (availableUpdate != null || availableHelperUpdate != null) {
@@ -2023,6 +2104,7 @@ class MainActivity : ComponentActivity() {
                         item {
                             AboutPage(
                                 context = this@MainActivity,
+                                backgroundReliability = backgroundReliability,
                                 automaticUpdateChecks = automaticUpdateChecks,
                                 notificationsAllowed = updateNotificationsAllowed,
                                 onAutomaticUpdateChecksChange = { enabled ->
@@ -2049,6 +2131,12 @@ class MainActivity : ComponentActivity() {
                                 onOpenAppInfo = {
                                     openAppInfo()
                                 },
+                                onOpenBatteryOptimization = {
+                                    openBatteryOptimizationSettings()
+                                },
+                                onOpenUnusedAppRestrictions = {
+                                    openUnusedAppRestrictionsSettings()
+                                },
                                 onInstallVerifiedUpdate = { apkPath ->
                                     installVerifiedUpdate(apkPath)
                                 },
@@ -2069,6 +2157,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_UPDATES = "com.med.sleepmanager.extra.OPEN_UPDATES"
         private const val STATUS_REFRESH_INTERVAL_MS = 3000L
         private const val UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE = 5222
+        private const val UNUSED_APP_RESTRICTIONS_REQUEST_CODE = 5223
     }
 }
 
@@ -3840,12 +3929,15 @@ private fun ActivityLogPage(
 @Composable
 private fun AboutPage(
     context: Context,
+    backgroundReliability: BackgroundReliability.Snapshot?,
     automaticUpdateChecks: Boolean,
     notificationsAllowed: Boolean,
     onAutomaticUpdateChecksChange: (Boolean) -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenExternalUrl: (String) -> Unit,
     onOpenAppInfo: () -> Unit,
+    onOpenBatteryOptimization: () -> Unit,
+    onOpenUnusedAppRestrictions: () -> Unit,
     onInstallVerifiedUpdate: (String) -> Unit,
     installerReturnToken: Int,
     onUpdateStateChanged: () -> Unit
@@ -3924,6 +4016,64 @@ private fun AboutPage(
             AboutInfoRow(
                 label = "Android",
                 value = "${Build.VERSION.RELEASE} • API ${Build.VERSION.SDK_INT}"
+            )
+        }
+
+        SectionTitle(
+            title = "Background reliability",
+            subtitle = "Android settings that can affect long-running background automation."
+        )
+
+        SettingsCard {
+            AboutActionRow(
+                title = "Battery optimization",
+                subtitle = when (
+                    backgroundReliability?.batteryOptimization
+                ) {
+                    BackgroundReliability.Status.OK ->
+                        "Exempt • SleepManager is not battery-optimized"
+                    BackgroundReliability.Status.NEEDS_ATTENTION ->
+                        "Active • Recommended to disable for reliable background operation"
+                    BackgroundReliability.Status.UNAVAILABLE ->
+                        "Not available on this Android version"
+                    BackgroundReliability.Status.UNKNOWN ->
+                        "Unable to read the current setting"
+                    null ->
+                        "Checking…"
+                },
+                actionLabel = "Open",
+                enabled =
+                    backgroundReliability?.batteryOptimization !=
+                        BackgroundReliability.Status.UNAVAILABLE,
+                onClick = onOpenBatteryOptimization
+            )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            AboutActionRow(
+                title = "Unused app restrictions",
+                subtitle = when (
+                    backgroundReliability?.unusedAppRestrictions
+                ) {
+                    BackgroundReliability.Status.OK ->
+                        "Off • Android will not hibernate SleepManager when unused"
+                    BackgroundReliability.Status.NEEDS_ATTENTION ->
+                        "Enabled • Recommended to disable for long-term background reliability"
+                    BackgroundReliability.Status.UNAVAILABLE ->
+                        "Not available on this device"
+                    BackgroundReliability.Status.UNKNOWN ->
+                        "Unable to read the current setting"
+                    null ->
+                        "Checking…"
+                },
+                actionLabel = "Open",
+                enabled =
+                    backgroundReliability?.unusedAppRestrictions !=
+                        BackgroundReliability.Status.UNAVAILABLE,
+                onClick = onOpenUnusedAppRestrictions
             )
         }
 

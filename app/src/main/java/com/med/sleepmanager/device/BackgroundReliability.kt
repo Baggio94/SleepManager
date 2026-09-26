@@ -8,48 +8,62 @@ import androidx.core.content.UnusedAppRestrictionsConstants
 import java.util.concurrent.TimeUnit
 
 object BackgroundReliability {
-    data class Snapshot(
-        val batteryOptimizationExempt: Boolean,
-        val unusedAppRestrictionsActive: Boolean?
-    ) {
-        val needsAttention: Boolean
-            get() = !batteryOptimizationExempt ||
-                unusedAppRestrictionsActive == true
+    enum class Status {
+        OK,
+        NEEDS_ATTENTION,
+        UNAVAILABLE,
+        UNKNOWN
     }
+
+    data class Snapshot(
+        val batteryOptimization: Status,
+        val unusedAppRestrictions: Status
+    )
 
     fun snapshot(context: Context): Snapshot =
         Snapshot(
-            batteryOptimizationExempt = batteryOptimizationExempt(context),
-            unusedAppRestrictionsActive =
-                unusedAppRestrictionsActive(context)
+            batteryOptimization = batteryOptimizationStatus(context),
+            unusedAppRestrictions = unusedAppRestrictionsStatus(context)
         )
 
-    private fun batteryOptimizationExempt(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+    private fun batteryOptimizationStatus(context: Context): Status {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return Status.UNAVAILABLE
+        }
+
         val powerManager =
             context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                ?: return true
-        return powerManager.isIgnoringBatteryOptimizations(
-            context.packageName
-        )
+                ?: return Status.UNKNOWN
+
+        return if (
+            powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        ) {
+            Status.OK
+        } else {
+            Status.NEEDS_ATTENTION
+        }
     }
 
-    private fun unusedAppRestrictionsActive(context: Context): Boolean? =
+    private fun unusedAppRestrictionsStatus(context: Context): Status =
         runCatching {
-            val status =
+            when (
                 PackageManagerCompat
                     .getUnusedAppRestrictionsStatus(context)
                     .get(2, TimeUnit.SECONDS)
+            ) {
+                UnusedAppRestrictionsConstants.DISABLED ->
+                    Status.OK
 
-            when (status) {
-                UnusedAppRestrictionsConstants.DISABLED,
-                UnusedAppRestrictionsConstants.FEATURE_NOT_AVAILABLE -> false
+                UnusedAppRestrictionsConstants.FEATURE_NOT_AVAILABLE ->
+                    Status.UNAVAILABLE
 
                 UnusedAppRestrictionsConstants.API_30_BACKPORT,
                 UnusedAppRestrictionsConstants.API_30,
-                UnusedAppRestrictionsConstants.API_31 -> true
+                UnusedAppRestrictionsConstants.API_31 ->
+                    Status.NEEDS_ATTENTION
 
-                else -> null
+                else ->
+                    Status.UNKNOWN
             }
-        }.getOrNull()
+        }.getOrDefault(Status.UNKNOWN)
 }

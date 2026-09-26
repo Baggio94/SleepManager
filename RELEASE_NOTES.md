@@ -1,8 +1,10 @@
-# SleepManager 0.6.1-beta2
+# SleepManager 0.6.1-beta3
 
 This beta focuses on **reliability, smarter sync behavior and new device-aware sleep controls**.
 
-Beta2 also hardens the edge cases found during the overlap/contradiction audit: fresh BasicSync state probing before a normal sleep STOP, Charging Separation recovery after a process kill, bounded system-setting restore retries when SleepManager is disabled, and capability-gated closed-lid Power controls.
+Beta2 hardened the edge cases found during the overlap/contradiction audit: fresh BasicSync state probing before a normal sleep STOP, Charging Separation recovery after a process kill, bounded system-setting restore retries when SleepManager is disabled, and capability-gated closed-lid Power controls.
+
+Beta3 moves background-reliability guidance out of Home into **About → Background reliability**, adds direct Android settings actions for Battery optimization and unused-app restrictions, and keeps asynchronous UI state stable while checks refresh so cards and controls no longer flash or disappear briefly.
 
 It includes the fixes and features planned for 0.6.1 so they can now be tested together on real handhelds.
 
