@@ -1312,7 +1312,14 @@ class MainActivity : ComponentActivity() {
                         UpdateAvailableCard(
                             update = availableUpdate,
                             helperUpdate = availableHelperUpdate,
-                            onUpdate = { currentSection = AppSection.ABOUT }
+                            onUpdate = { currentSection = AppSection.ABOUT },
+                            onReleaseNotes =
+                                (
+                                    availableUpdate?.releaseUrl
+                                        ?: availableHelperUpdate?.releaseUrl
+                                )?.let { url ->
+                                    { openReleaseUrl(url) }
+                                }
                         )
                     }
                 }
@@ -2211,7 +2218,8 @@ private fun OnboardingCard(
 private fun UpdateAvailableCard(
     update: UpdateInfo?,
     helperUpdate: HelperUpdateInfo?,
-    onUpdate: () -> Unit
+    onUpdate: () -> Unit,
+    onReleaseNotes: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -2251,8 +2259,19 @@ private fun UpdateAvailableCard(
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
             }
-            OutlinedButton(onClick = feedbackClick(onUpdate)) {
-                Text("Update")
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                OutlinedButton(onClick = feedbackClick(onUpdate)) {
+                    Text("Update")
+                }
+                if (onReleaseNotes != null) {
+                    TextButton(
+                        onClick = feedbackClick(onReleaseNotes)
+                    ) {
+                        Text("Release notes")
+                    }
+                }
             }
         }
     }
@@ -4003,6 +4022,10 @@ private fun AboutPage(
                         else -> "Open"
                     },
                     enabled = !mainDownloadRunning && !helperDownloadRunning,
+                    secondaryActionLabel = "Release notes",
+                    onSecondaryClick = {
+                        onOpenExternalUrl(update.releaseUrl)
+                    },
                     onClick = {
                         if (!update.directInstallAvailable) {
                             onOpenExternalUrl(update.releaseUrl)
@@ -4267,6 +4290,8 @@ private fun AboutActionRow(
     subtitle: String,
     actionLabel: String,
     enabled: Boolean = true,
+    secondaryActionLabel: String? = null,
+    onSecondaryClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -4289,11 +4314,27 @@ private fun AboutActionRow(
             )
         }
 
-        OutlinedButton(
-            onClick = feedbackClick(onClick),
-            enabled = enabled
+        Column(
+            horizontalAlignment = Alignment.End
         ) {
-            Text(actionLabel)
+            OutlinedButton(
+                onClick = feedbackClick(onClick),
+                enabled = enabled
+            ) {
+                Text(actionLabel)
+            }
+
+            if (
+                secondaryActionLabel != null &&
+                onSecondaryClick != null
+            ) {
+                TextButton(
+                    onClick = feedbackClick(onSecondaryClick),
+                    enabled = enabled
+                ) {
+                    Text(secondaryActionLabel)
+                }
+            }
         }
     }
 }
