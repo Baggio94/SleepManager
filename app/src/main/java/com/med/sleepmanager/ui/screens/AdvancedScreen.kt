@@ -315,6 +315,10 @@ internal fun AdvancedSettingsPage(
                         items(modes.size) { index ->
                             val (label, mode) = modes[index]
                             FilterChip(
+                                modifier = Modifier.semantics {
+                                    contentDescription =
+                                        "Battery Saver $label option"
+                                },
                                 selected = batterySaverMode == mode,
                                 onClick = feedbackClick {
                                     onBatterySaverModeChange(mode)
