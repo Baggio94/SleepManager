@@ -147,15 +147,15 @@ class Beta4RegressionTest {
 
         val list = composeRule.onNodeWithTag("main_list")
 
-        list.performScrollToNode(hasText("Wi-Fi"))
         composeRule.onNodeWithContentDescription("Wi-Fi toggle")
+            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageWifi(targetContext)
         }
 
-        list.performScrollToNode(hasText("Bluetooth"))
         composeRule.onNodeWithContentDescription("Bluetooth toggle")
+            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageBluetooth(targetContext)
