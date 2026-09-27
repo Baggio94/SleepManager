@@ -63,8 +63,14 @@ jobs:
 
           echo "SLEEPMANAGER_STORE_FILE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
-      - name: Test and build signed release APKs
-        run: gradle :app:testDebugUnitTest :app:assembleRelease :helper:assembleRelease
+      - name: Test, lint and build signed release APKs
+        run: |
+          gradle \
+            :app:testDebugUnitTest \
+            :app:lintDebug \
+            :helper:lintDebug \
+            :app:assembleRelease \
+            :helper:assembleRelease
 
       - name: Verify package IDs and signatures
         run: |
