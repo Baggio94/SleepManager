@@ -3,6 +3,7 @@ package com.med.sleepmanager
 import android.content.Intent
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -18,7 +19,11 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.JamesDspController
+import com.med.sleepmanager.integration.SyncthingController
+import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.protection.ThorLidMonitor
 import com.med.sleepmanager.service.SleepManagerService
 import java.io.FileInputStream
@@ -187,14 +192,22 @@ class Beta4RegressionTest {
         list.performScrollToNode(hasTestTag("app_integrations_card"))
         composeRule.onNodeWithTag("app_integrations_card")
             .assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Syncthing‑Fork toggle")
-            .assertIsNotEnabled()
-        composeRule.onNodeWithContentDescription("Tailscale toggle")
-            .assertIsNotEnabled()
-        composeRule.onNodeWithContentDescription("JamesDSP toggle")
-            .assertIsNotEnabled()
-        composeRule.onNodeWithContentDescription("BasicSync toggle")
-            .assertIsNotEnabled()
+        assertIntegrationToggleMatchesAvailability(
+            contentDescription = "Syncthing‑Fork toggle",
+            available = SyncthingController.installedTargets(targetContext).isNotEmpty()
+        )
+        assertIntegrationToggleMatchesAvailability(
+            contentDescription = "Tailscale toggle",
+            available = TailscaleController.isInstalled(targetContext)
+        )
+        assertIntegrationToggleMatchesAvailability(
+            contentDescription = "JamesDSP toggle",
+            available = JamesDspController.isInstalled(targetContext)
+        )
+        assertIntegrationToggleMatchesAvailability(
+            contentDescription = "BasicSync toggle",
+            available = BasicSyncController.isInstalled(targetContext)
+        )
 
         composeRule.activityRule.scenario.recreate()
         composeRule.waitForIdle()
@@ -517,6 +530,18 @@ class Beta4RegressionTest {
         AppPreferences.setScheduleEnabled(targetContext, false)
         AppPreferences.setScheduleStartMinutes(targetContext, 23 * 60)
         AppPreferences.setScheduleEndMinutes(targetContext, 7 * 60)
+    }
+
+    private fun assertIntegrationToggleMatchesAvailability(
+        contentDescription: String,
+        available: Boolean
+    ) {
+        val node = composeRule.onNodeWithContentDescription(contentDescription)
+        if (available) {
+            node.assertIsEnabled()
+        } else {
+            node.assertIsNotEnabled()
+        }
     }
 
     private fun applyDisplay(

@@ -98,9 +98,14 @@ class AdvancedSettingsComponentsTest {
         assertTrue(customDelayEnabled)
 
         composeRule.onNodeWithText("30 min")
-            .performScrollTo().performClick()
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 2_000) {
+            customDelayMs == 1_800_000L
+        }
         assertEquals(1_800_000L, customDelayMs)
         composeRule.onNodeWithText("30 min")
+            .performScrollTo()
             .assertIsSelected()
 
         composeRule.onNodeWithContentDescription("Battery level toggle")
