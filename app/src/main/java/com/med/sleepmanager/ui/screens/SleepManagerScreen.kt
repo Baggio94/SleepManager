@@ -713,7 +713,7 @@ import com.med.sleepmanager.ui.feedbackChange
                 item {
                     SectionTitle(
                         title = "Sleep behavior",
-                        subtitle = "Choose the delay before sleep actions begin."
+                        subtitle = "Control how SleepManager reacts when the screen turns off."
                     )
                 }
 
