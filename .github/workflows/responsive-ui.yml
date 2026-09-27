@@ -40,6 +40,12 @@ jobs:
         with:
           gradle-version: "9.6.0"
 
+      - name: Validate emulator test scripts
+        run: |
+          bash -n scripts/test_061_beta4_emulator.sh
+          bash -n scripts/run_prebuilt_emulator_tests.sh
+          bash -n scripts/run_real_sleep_wake_tests.sh
+
       - name: Install compile SDK
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
