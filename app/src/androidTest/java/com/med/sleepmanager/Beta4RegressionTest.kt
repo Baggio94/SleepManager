@@ -248,6 +248,9 @@ class Beta4RegressionTest {
             .performScrollToNode(hasText("Battery optimization"))
         composeRule.onNodeWithText("Battery optimization")
             .assertIsDisplayed()
+
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("Unused app restrictions"))
         composeRule.onNodeWithText("Unused app restrictions")
             .assertIsDisplayed()
     }
