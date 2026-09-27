@@ -156,7 +156,7 @@ class Beta4RegressionTest {
         composeRule.onNodeWithTag("system_controls_card")
             .assertIsDisplayed()
 
-        composeRule.onNodeWithContentDescription("Wi-Fi toggle")
+        composeRule.onNodeWithContentDescription("Wi‑Fi toggle")
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageWifi(targetContext)
