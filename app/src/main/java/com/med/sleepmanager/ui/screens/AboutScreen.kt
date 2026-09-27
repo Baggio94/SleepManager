@@ -46,6 +46,7 @@ import com.med.sleepmanager.update.UpdateInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.med.sleepmanager.ui.feedbackChange
 
 @Composable
 internal fun AboutPage(
