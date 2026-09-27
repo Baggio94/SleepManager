@@ -143,6 +143,8 @@ class Beta4RegressionTest {
             HelperController.isInstalled(targetContext)
         )
 
+        openSection("Home", "SleepManager")
+
         val list = composeRule.onNodeWithTag("main_list")
 
         list.performScrollToNode(hasText("Wi-Fi"))
