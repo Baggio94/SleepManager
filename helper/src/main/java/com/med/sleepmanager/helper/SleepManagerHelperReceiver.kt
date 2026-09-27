@@ -1,5 +1,6 @@
 package com.med.sleepmanager.helper
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -458,6 +459,10 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             false
         }
 
+    // The Helper intentionally targets API 28 and declares the legacy
+    // BLUETOOTH/BLUETOOTH_ADMIN permissions so these compatibility calls
+    // remain available on handheld firmware.
+    @SuppressLint("MissingPermission")
     private fun safeBluetoothState(adapter: BluetoothAdapter?): Boolean =
         try {
             adapter?.isEnabled == true
@@ -467,6 +472,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         }
 
     @Suppress("DEPRECATION")
+    @SuppressLint("MissingPermission")
     private fun setBluetooth(adapter: BluetoothAdapter?, enabled: Boolean): Boolean =
         try {
             val result = if (enabled) {
