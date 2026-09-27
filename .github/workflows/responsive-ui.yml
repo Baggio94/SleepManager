@@ -9,7 +9,10 @@ on:
     paths:
       - "app/src/main/**"
       - "app/src/androidTest/**"
+      - "helper/src/main/**"
       - "app/build.gradle.kts"
+      - "helper/build.gradle.kts"
+      - "scripts/test_061_beta4_emulator.sh"
       - ".github/workflows/responsive-ui.yml"
 
 permissions:
@@ -65,7 +68,7 @@ jobs:
             -noaudio
             -no-boot-anim
             -gpu swiftshader_indirect
-          script: gradle :app:connectedDebugAndroidTest
+          script: ADB_SERIAL=emulator-5554 SKIP_STATIC=1 ./scripts/test_061_beta4_emulator.sh
 
       - name: Print responsive UI test results
         if: always()
@@ -80,6 +83,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            build/emulator-regression/
           if-no-files-found: warn
           retention-days: 14
 
