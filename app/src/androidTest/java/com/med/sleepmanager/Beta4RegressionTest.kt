@@ -3,6 +3,7 @@ package com.med.sleepmanager
 import android.content.Intent
 import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasText
@@ -127,6 +128,202 @@ class Beta4RegressionTest {
 
         composeRule.onNodeWithText("5 s")
             .assertIsSelected()
+    }
+
+    @Test
+    fun homeOptions_writeExpectedPreferencesAndCapabilityGatingIsCorrect() {
+        applyDisplay(
+            widthPx = 1440,
+            heightPx = 2600,
+            densityDpi = 320
+        )
+
+        assertTrue(
+            "Regression runner must install the Helper before Home tests",
+            HelperController.isInstalled(targetContext)
+        )
+
+        val list = composeRule.onNodeWithTag("main_list")
+
+        list.performScrollToNode(hasText("Wi-Fi"))
+        composeRule.onNodeWithContentDescription("Wi-Fi toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.manageWifi(targetContext)
+        }
+
+        list.performScrollToNode(hasText("Bluetooth"))
+        composeRule.onNodeWithContentDescription("Bluetooth toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.manageBluetooth(targetContext)
+        }
+
+        list.performScrollToNode(hasText("Grace period"))
+        composeRule.onNodeWithText("10 s")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.sleepGraceMs(targetContext) == 10_000L
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.activity.currentDeviceControlCapabilities != null
+        }
+        assertFalse(
+            "Normal emulator must not report privileged Battery Saver control",
+            composeRule.activity.currentDeviceControlCapabilities
+                ?.batterySaverControl == true
+        )
+
+        list.performScrollToNode(hasText("App integrations"))
+        composeRule.onNodeWithContentDescription("Syncthing-Fork toggle")
+            .assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("Tailscale toggle")
+            .assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("JamesDSP toggle")
+            .assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("BasicSync toggle")
+            .assertIsNotEnabled()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertTrue(AppPreferences.manageWifi(targetContext))
+        assertTrue(AppPreferences.manageBluetooth(targetContext))
+        assertTrue(AppPreferences.sleepGraceMs(targetContext) == 10_000L)
+    }
+
+    @Test
+    fun advancedOptions_writeExpectedPreferencesAndPersist() {
+        applyDisplay(
+            widthPx = 1440,
+            heightPx = 3200,
+            densityDpi = 320
+        )
+
+        assertTrue(
+            "Regression setup should grant exact-alarm access on the emulator",
+            composeRule.activity.canScheduleExactAlarms()
+        )
+
+        openSection("Advanced settings", "Advanced")
+        val list = composeRule.onNodeWithTag("main_list")
+
+        composeRule.onNodeWithContentDescription(
+            "Periodic sync while sleeping toggle"
+        ).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(
+            "Sync then stop on sleep & wake toggle"
+        ).assertIsNotEnabled()
+
+        list.performScrollToNode(hasText("Use custom delay"))
+        composeRule.onNodeWithContentDescription("Use custom delay toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.customDelayEnabled(targetContext)
+        }
+        assertTrue(AppPreferences.sleepGraceMs(targetContext) == 0L)
+
+        list.performScrollToNode(hasText("Delay before sleep actions"))
+        composeRule.onNodeWithText("5 min")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.customDelayMs(targetContext) == 300_000L
+        }
+
+        list.performScrollToNode(hasText("Battery level"))
+        composeRule.onNodeWithContentDescription("Battery level toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.batteryConditionEnabled(targetContext)
+        }
+
+        composeRule.onNodeWithText("< 50%")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.batteryBelowPercent(targetContext) == 50
+        }
+
+        list.performScrollToNode(hasText("Not charging"))
+        composeRule.onNodeWithContentDescription("Not charging toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.notChargingOnly(targetContext)
+        }
+
+        list.performScrollToNode(hasText("Schedule"))
+        composeRule.onNodeWithContentDescription("Schedule toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.scheduleEnabled(targetContext)
+        }
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
+
+        assertTrue(AppPreferences.customDelayEnabled(targetContext))
+        assertTrue(AppPreferences.customDelayMs(targetContext) == 300_000L)
+        assertTrue(AppPreferences.batteryConditionEnabled(targetContext))
+        assertTrue(AppPreferences.batteryBelowPercent(targetContext) == 50)
+        assertTrue(AppPreferences.notChargingOnly(targetContext))
+        assertTrue(AppPreferences.scheduleEnabled(targetContext))
+
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("Battery level"))
+        composeRule.onNodeWithText("Only below 50%")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun batterySaverActionAndConditionRemainMutuallyExclusive() {
+        applyDisplay(
+            widthPx = 1440,
+            heightPx = 3200,
+            densityDpi = 320
+        )
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.activity.currentDeviceControlCapabilities != null
+        }
+
+        composeRule.runOnUiThread {
+            composeRule.activity.currentDeviceControlCapabilities =
+                com.med.sleepmanager.device.DeviceControlController
+                    .ControlCapabilities(
+                        pServerAvailable = true,
+                        batterySaverControl = true,
+                        chargingSeparationControl = false
+                    )
+        }
+        composeRule.waitForIdle()
+
+        val list = composeRule.onNodeWithTag("main_list")
+        list.performScrollToNode(hasText("Battery Saver"))
+        composeRule.onNodeWithContentDescription("Battery Saver toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.manageBatterySaver(targetContext)
+        }
+        assertTrue(
+            AppPreferences.batterySaverMode(targetContext) ==
+                AppPreferences.BATTERY_SAVER_IGNORE
+        )
+
+        openSection("Advanced settings", "Advanced")
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("Battery Saver"))
+
+        composeRule.onNodeWithText("ON")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.batterySaverMode(targetContext) ==
+                AppPreferences.BATTERY_SAVER_ON
+        }
+
+        assertFalse(
+            "Choosing a Battery Saver condition must disable the sleep action",
+            AppPreferences.manageBatterySaver(targetContext)
+        )
     }
 
     @Test
@@ -282,6 +479,13 @@ class Beta4RegressionTest {
         AppPreferences.setSetupComplete(targetContext, false)
         AppPreferences.setManageWifi(targetContext, false)
         AppPreferences.setManageBluetooth(targetContext, false)
+        AppPreferences.setManageBatterySaver(targetContext, false)
+        AppPreferences.setManageSyncthing(targetContext, false)
+        AppPreferences.setManageTailscale(targetContext, false)
+        AppPreferences.setManageJamesDsp(targetContext, false)
+        AppPreferences.setManageBasicSync(targetContext, false)
+        AppPreferences.setPeriodicSyncWhileSleeping(targetContext, false)
+        AppPreferences.setSyncThenStopOnSleepWake(targetContext, false)
         AppPreferences.setManageThorProtection(targetContext, false)
         AppPreferences.setThorDockDisconnectSleeps(targetContext, false)
         AppPreferences.setThorClosedPowerSleeps(targetContext, false)
@@ -290,7 +494,18 @@ class Beta4RegressionTest {
             false
         )
         AppPreferences.setCustomDelayEnabled(targetContext, false)
+        AppPreferences.setCustomDelayMs(targetContext, 60_000L)
         AppPreferences.setSleepGraceMs(targetContext, 0L)
+        AppPreferences.setBatteryConditionEnabled(targetContext, false)
+        AppPreferences.setBatteryBelowPercent(targetContext, 30)
+        AppPreferences.setNotChargingOnly(targetContext, false)
+        AppPreferences.setBatterySaverMode(
+            targetContext,
+            AppPreferences.BATTERY_SAVER_IGNORE
+        )
+        AppPreferences.setScheduleEnabled(targetContext, false)
+        AppPreferences.setScheduleStartMinutes(targetContext, 23 * 60)
+        AppPreferences.setScheduleEndMinutes(targetContext, 7 * 60)
     }
 
     private fun applyDisplay(

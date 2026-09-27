@@ -100,6 +100,10 @@ adb_target install -r -t "$TEST_APK"   | tee "$REPORT_DIR/install-test.txt"
 
 adb_target shell pm grant   com.med.sleepmanager   android.permission.POST_NOTIFICATIONS   >/dev/null 2>&1 || true
 
+# Custom delay uses Android's exact-alarm special access. Grant it on the
+# disposable emulator so the real Advanced-settings toggle can be exercised.
+adb_target shell cmd appops set   com.med.sleepmanager   SCHEDULE_EXACT_ALARM   allow >/dev/null 2>&1 || true
+
 EXPECTED_MAIN_VERSION="$(sed -n 's/^SLEEPMANAGER_VERSION_NAME=//p' gradle.properties)"
 EXPECTED_HELPER_VERSION="$(sed -n 's/^SLEEPMANAGER_HELPER_VERSION_NAME=//p' gradle.properties)"
 ACTUAL_MAIN_VERSION="$(adb_target shell dumpsys package com.med.sleepmanager   | sed -n 's/.*versionName=//p' | head -n 1 | tr -d '\r')"
