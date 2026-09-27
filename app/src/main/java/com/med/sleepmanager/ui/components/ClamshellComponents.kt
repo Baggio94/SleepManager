@@ -48,7 +48,7 @@ internal fun ClamshellOptionsCard(
             SettingRow(
                 icon = R.drawable.ic_lid_lock,
                 title = "Power button sleeps with lid closed",
-                subtitle = "With the lid closed and the device awake, press Power to put it back to sleep.",
+                subtitle = "With the lid closed and the device awake, press Power to put it back to sleep—docked or after disconnecting the external display. Off keeps the device\'s default behavior.",
                 checked = powerButtonSleepsWithLidClosed,
                 enabled = closedLidProtectionEnabled,
                 onCheckedChange = onPowerButtonSleepsWithLidClosedChange
