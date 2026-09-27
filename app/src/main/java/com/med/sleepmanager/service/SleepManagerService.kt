@@ -1,5 +1,6 @@
 package com.med.sleepmanager.service
 
+import androidx.core.content.ContextCompat
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -3143,18 +3144,14 @@ class SleepManagerService : Service() {
         if (helperResultReceiverRegistered) return
 
         val filter = IntentFilter(HelperController.ACTION_RESULT)
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(
-                helperResultReceiver,
-                filter,
-                HelperController.PERMISSION,
-                null,
-                Context.RECEIVER_EXPORTED
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(helperResultReceiver, filter, HelperController.PERMISSION, null)
-        }
+        ContextCompat.registerReceiver(
+            this,
+            helperResultReceiver,
+            filter,
+            HelperController.PERMISSION,
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
         helperResultReceiverRegistered = true
     }
 
@@ -3165,12 +3162,12 @@ class SleepManagerService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_POWER_CONNECTED)
         }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(screenReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            this,
+            screenReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         receiverRegistered = true
     }
 
