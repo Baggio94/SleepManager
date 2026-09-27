@@ -76,6 +76,7 @@ import com.med.sleepmanager.sync.ManagedSyncProviders
 import com.med.sleepmanager.sync.SyncCompletionState
 import com.med.sleepmanager.ui.AppSection
 import com.med.sleepmanager.ui.components.BehaviorCard
+import com.med.sleepmanager.ui.components.ClamshellOptionsCard
 import com.med.sleepmanager.ui.components.CompactIntegrationRow
 import com.med.sleepmanager.ui.components.CompactSideRail
 import com.med.sleepmanager.ui.components.LastActivityCard
@@ -710,98 +711,12 @@ import com.med.sleepmanager.ui.feedbackChange
                 item {
                     SectionTitle(
                         title = "Sleep behavior",
-                        subtitle = "Control how SleepManager reacts when the screen turns off."
+                        subtitle = "Choose the delay before sleep actions begin."
                     )
                 }
 
                 item {
                     SettingsCard {
-                        if (thorProtectionSupported) {
-                            SettingRow(
-                                icon = R.drawable.ic_lid_lock,
-                                title = "Closed-lid protection",
-                                subtitle = "Return the device to sleep after accidental wake-ups while the lid is still closed. Dock-safe with external displays.",
-                                checked = thorProtectionEnabled && thorAdminActive,
-                                enabled = true,
-                                onCheckedChange = { enabled ->
-                                    setThorProtectionEnabled(enabled)
-                                    thorProtectionEnabled =
-                                        AppPreferences.manageThorProtection(this@SleepManagerScreen)
-                                    activityRefreshToken++
-                                }
-                            )
-
-                            if (chargingSeparationSupported) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 56.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant
-                                )
-
-                                SettingRow(
-                                    icon = R.drawable.ic_battery,
-                                    title = "Charging Separation with lid closed",
-                                    subtitle = "Temporarily disable Charging Separation while closed so the battery can charge. Dock mode keeps your original setting.",
-                                    checked = chargingSeparationWithLidEnabled,
-                                    enabled = true,
-                                    onCheckedChange = {
-                                        chargingSeparationWithLidEnabled = it
-                                        AppPreferences.setManageChargingSeparationWithLid(
-                                            this@SleepManagerScreen,
-                                            it
-                                        )
-                                        refreshRunningService()
-                                    }
-                                )
-                            }
-
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 56.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-
-                            SettingRow(
-                                icon = R.drawable.ic_lid_lock,
-                                title = "Sleep when external display disconnects",
-                                subtitle = "With the lid closed, put the device to sleep when dock video is unplugged. Off keeps the device's default awake behavior.",
-                                checked = thorDockDisconnectSleeps,
-                                enabled = thorProtectionEnabled && thorAdminActive,
-                                onCheckedChange = {
-                                    thorDockDisconnectSleeps = it
-                                    AppPreferences.setThorDockDisconnectSleeps(
-                                        this@SleepManagerScreen,
-                                        it
-                                    )
-                                }
-                            )
-
-                            if (closedLidPowerSupported) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 56.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant
-                                )
-
-                                SettingRow(
-                                    icon = R.drawable.ic_lid_lock,
-                                    title = "Power button sleeps with lid closed",
-                                    subtitle = "With the lid closed and the device awake, press Power to sleep—docked or after disconnecting the external display.",
-                                    checked = thorClosedPowerSleeps,
-                                    enabled = thorProtectionEnabled && thorAdminActive,
-                                    onCheckedChange = {
-                                        thorClosedPowerSleeps = it
-                                        AppPreferences.setThorClosedPowerSleeps(
-                                            this@SleepManagerScreen,
-                                            it
-                                        )
-                                    }
-                                )
-                            }
-
-                            HorizontalDivider(
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        }
-
                         SleepGraceSelector(
                             valueMs = sleepGraceMs,
                             customDelayEnabled = customDelayEnabled,
@@ -812,6 +727,57 @@ import com.med.sleepmanager.ui.feedbackChange
                             },
                             onCustom = {
                                 currentSection = AppSection.ADVANCED
+                            }
+                        )
+                    }
+                }
+
+                if (thorProtectionSupported) {
+                    item {
+                        SectionTitle(
+                            title = "Clamshell options",
+                            subtitle = "Extra controls for devices with a compatible lid sensor."
+                        )
+                    }
+
+                    item {
+                        ClamshellOptionsCard(
+                            closedLidProtectionEnabled =
+                                thorProtectionEnabled && thorAdminActive,
+                            chargingSeparationSupported = chargingSeparationSupported,
+                            chargingSeparationEnabled = chargingSeparationWithLidEnabled,
+                            sleepOnExternalDisplayDisconnect = thorDockDisconnectSleeps,
+                            powerButtonSleepSupported = closedLidPowerSupported,
+                            powerButtonSleepsWithLidClosed = thorClosedPowerSleeps,
+                            onClosedLidProtectionChange = { enabled ->
+                                setThorProtectionEnabled(enabled)
+                                thorProtectionEnabled =
+                                    AppPreferences.manageThorProtection(
+                                        this@SleepManagerScreen
+                                    )
+                                activityRefreshToken++
+                            },
+                            onChargingSeparationChange = {
+                                chargingSeparationWithLidEnabled = it
+                                AppPreferences.setManageChargingSeparationWithLid(
+                                    this@SleepManagerScreen,
+                                    it
+                                )
+                                refreshRunningService()
+                            },
+                            onSleepOnExternalDisplayDisconnectChange = {
+                                thorDockDisconnectSleeps = it
+                                AppPreferences.setThorDockDisconnectSleeps(
+                                    this@SleepManagerScreen,
+                                    it
+                                )
+                            },
+                            onPowerButtonSleepsWithLidClosedChange = {
+                                thorClosedPowerSleeps = it
+                                AppPreferences.setThorClosedPowerSleeps(
+                                    this@SleepManagerScreen,
+                                    it
+                                )
                             }
                         )
                     }
@@ -1042,7 +1008,7 @@ import com.med.sleepmanager.ui.feedbackChange
                         tailscale = tailscaleEnabled && tailscaleInstalled,
                         jamesDsp = jamesDspEnabled && jamesDspTarget != null,
                         basicSync = basicSyncEnabled && basicSyncInstalled,
-                        thorProtection = thorProtectionEnabled && thorAdminActive,
+                        closedLidProtection = thorProtectionEnabled && thorAdminActive,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
                             if (batteryConditionEnabled) {

@@ -46,7 +46,7 @@ internal fun BehaviorCard(
     tailscale: Boolean,
     jamesDsp: Boolean,
     basicSync: Boolean,
-    thorProtection: Boolean,
+    closedLidProtection: Boolean,
     sleepGraceMs: Long,
     advancedConditions: List<String>
 ) {
@@ -66,7 +66,7 @@ internal fun BehaviorCard(
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
         if (!hasSleepAction) add("No sleep actions selected")
-        if (thorProtection) add("Thor closed-lid protection")
+        if (closedLidProtection) add("Closed-lid protection")
     }
 
     val wakeLines = buildList {
@@ -144,9 +144,9 @@ internal fun BehaviorCard(
                     )
                 }
 
-                if (thorProtection) {
+                if (closedLidProtection) {
                     Text(
-                        "Thor false wakes with the lid closed are returned to sleep without normal wake restoration.",
+                        "False wakes while the lid is closed are returned to sleep without normal wake restoration.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
