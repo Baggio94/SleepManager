@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.IntentCompat
+import androidx.core.content.ContextCompat
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.device.BackgroundReliability
@@ -371,23 +372,14 @@ class MainActivity : ComponentActivity() {
         if (helperStateReceiverRegistered) return
 
         val filter = IntentFilter(HelperController.ACTION_STATE)
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(
-                helperStateReceiver,
-                filter,
-                HelperController.PERMISSION,
-                null,
-                Context.RECEIVER_EXPORTED
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(
-                helperStateReceiver,
-                filter,
-                HelperController.PERMISSION,
-                null
-            )
-        }
+        ContextCompat.registerReceiver(
+            this,
+            helperStateReceiver,
+            filter,
+            HelperController.PERMISSION,
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
         helperStateReceiverRegistered = true
     }
 
