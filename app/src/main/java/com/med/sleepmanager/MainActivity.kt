@@ -914,9 +914,11 @@ class MainActivity : ComponentActivity() {
             val service = Intent(this, SleepManagerService::class.java)
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(service)
             else startService(service)
-        } catch (_: Th           }
+        } catch (_: Throwable) {
         }
     }
+
+
     companion object {
         const val EXTRA_OPEN_UPDATES = "com.med.sleepmanager.extra.OPEN_UPDATES"
         private const val STATUS_REFRESH_INTERVAL_MS = 3000L
