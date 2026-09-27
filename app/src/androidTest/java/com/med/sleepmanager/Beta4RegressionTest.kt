@@ -6,7 +6,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -134,6 +133,8 @@ class Beta4RegressionTest {
 
     @Test
     fun homeOptions_writeExpectedPreferencesAndCapabilityGatingIsCorrect() {
+        AppPreferences.setSetupComplete(targetContext, true)
+
         applyDisplay(
             widthPx = 1440,
             heightPx = 2600,
@@ -148,19 +149,16 @@ class Beta4RegressionTest {
         openSection("Home", "SleepManager")
 
         val list = composeRule.onNodeWithTag("main_list")
+        list.performScrollToNode(hasText("System controls"))
+        composeRule.onNodeWithText("System controls")
+            .assertIsDisplayed()
 
-        list.performScrollToNode(
-            hasContentDescription("Wi-Fi toggle")
-        )
         composeRule.onNodeWithContentDescription("Wi-Fi toggle")
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageWifi(targetContext)
         }
 
-        list.performScrollToNode(
-            hasContentDescription("Bluetooth toggle")
-        )
         composeRule.onNodeWithContentDescription("Bluetooth toggle")
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
