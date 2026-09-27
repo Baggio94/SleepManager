@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -148,15 +149,19 @@ class Beta4RegressionTest {
 
         val list = composeRule.onNodeWithTag("main_list")
 
+        list.performScrollToNode(
+            hasContentDescription("Wi-Fi toggle")
+        )
         composeRule.onNodeWithContentDescription("Wi-Fi toggle")
-            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageWifi(targetContext)
         }
 
+        list.performScrollToNode(
+            hasContentDescription("Bluetooth toggle")
+        )
         composeRule.onNodeWithContentDescription("Bluetooth toggle")
-            .performScrollTo()
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.manageBluetooth(targetContext)

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -114,15 +115,15 @@ class AdvancedSettingsComponentsTest {
             .performScrollTo().performClick()
         assertTrue(notCharging)
 
-        composeRule.onNodeWithContentDescription(
-            "Battery Saver ON option"
-        ).performScrollTo().performClick()
+        composeRule.onNodeWithTag("battery_saver_mode_on")
+            .performScrollTo()
+            .performClick()
         composeRule.waitForIdle()
         assertEquals(AppPreferences.BATTERY_SAVER_ON, batterySaverMode)
 
-        composeRule.onNodeWithContentDescription(
-            "Battery Saver OFF option"
-        ).performScrollTo().performClick()
+        composeRule.onNodeWithTag("battery_saver_mode_off")
+            .performScrollTo()
+            .performClick()
         composeRule.waitForIdle()
         assertEquals(AppPreferences.BATTERY_SAVER_OFF, batterySaverMode)
 

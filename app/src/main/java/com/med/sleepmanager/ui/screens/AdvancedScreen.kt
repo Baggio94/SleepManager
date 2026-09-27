@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -315,10 +316,12 @@ internal fun AdvancedSettingsPage(
                         items(modes.size) { index ->
                             val (label, mode) = modes[index]
                             FilterChip(
-                                modifier = Modifier.semantics {
-                                    contentDescription =
-                                        "Battery Saver $label option"
-                                },
+                                modifier = Modifier
+                                    .testTag("battery_saver_mode_$mode")
+                                    .semantics {
+                                        contentDescription =
+                                            "Battery Saver $label option"
+                                    },
                                 selected = batterySaverMode == mode,
                                 onClick = feedbackClick {
                                     onBatterySaverModeChange(mode)
