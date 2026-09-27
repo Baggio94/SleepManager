@@ -31,19 +31,6 @@ internal fun ClamshellOptionsCard(
             onCheckedChange = onClosedLidProtectionChange
         )
 
-        if (chargingSeparationSupported) {
-            ClamshellDivider()
-
-            SettingRow(
-                icon = R.drawable.ic_battery,
-                title = "Allow charging with lid closed",
-                subtitle = "Temporarily disable Charging Separation while the lid is closed so the battery can charge. External-display mode keeps your original setting.",
-                checked = chargingSeparationEnabled,
-                enabled = true,
-                onCheckedChange = onChargingSeparationChange
-            )
-        }
-
         ClamshellDivider()
 
         SettingRow(
@@ -65,6 +52,19 @@ internal fun ClamshellOptionsCard(
                 checked = powerButtonSleepsWithLidClosed,
                 enabled = closedLidProtectionEnabled,
                 onCheckedChange = onPowerButtonSleepsWithLidClosedChange
+            )
+        }
+
+        if (chargingSeparationSupported) {
+            ClamshellDivider()
+
+            SettingRow(
+                icon = R.drawable.ic_battery,
+                title = "Disable Charging Separation with lid closed",
+                subtitle = "Temporarily disable Charging Separation while the lid is closed so the battery can charge. External-display mode keeps your original setting.",
+                checked = chargingSeparationEnabled,
+                enabled = true,
+                onCheckedChange = onChargingSeparationChange
             )
         }
     }
