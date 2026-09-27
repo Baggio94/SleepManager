@@ -2,6 +2,20 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.6.1-beta4 — 2026-09-27 — Preview
+
+### UI code refactor
+
+- Split the oversized `MainActivity.kt` into focused UI screen and component files.
+- Kept lifecycle, Android settings/permission flows and service coordination in `MainActivity`.
+- Moved the main Compose screen to a `MainActivity` extension so its existing callbacks and state ownership remain unchanged.
+- Separated Stats, Advanced, Activity and About UI from shared Home/settings/behavior components.
+- This is intentionally a structure-only refactor: no feature behavior is meant to change.
+- Main app: **0.6.1-beta4 / versionCode 543**.
+- Helper remains **1.1.1 / versionCode 1110**.
+
+---
+
 ## 0.6.1-beta3 — 2026-09-27 — Preview
 
 ### Beta3 UI and reliability
