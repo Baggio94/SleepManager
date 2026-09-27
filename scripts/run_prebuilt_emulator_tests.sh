@@ -130,6 +130,15 @@ fi
 adb_target shell wm size reset >/dev/null 2>&1 || true
 adb_target shell wm density reset >/dev/null 2>&1 || true
 
+echo "=== Run real sleep/wake end-to-end scenarios ==="
+if [ "${SKIP_REAL_E2E:-0}" != "1" ]; then
+  REAL_E2E_SCRIPT="$SCRIPT_DIR/run-real-e2e.sh"
+  [ -x "$REAL_E2E_SCRIPT" ] || fail "Real E2E script is missing from the bundle"
+  "$REAL_E2E_SCRIPT" "$SERIAL" || fail "Real sleep/wake end-to-end suite failed"
+else
+  echo "SKIP_REAL_E2E=1 -> skipping real sleep/wake scenarios"
+fi
+
 echo "=== Scan runtime log for crashes / ANRs ==="
 adb_target logcat -d > "$SCRIPT_DIR/logcat.txt" 2>/dev/null || true
 
@@ -144,7 +153,7 @@ fi
 cat <<EOF
 
 ========================================
-SleepManager local emulator regression
+SleepManager local emulator regression + real E2E
 PASS
 Target: $SERIAL
 Main:   $MAIN_VERSION

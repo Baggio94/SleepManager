@@ -14,6 +14,7 @@ on:
       - "helper/build.gradle.kts"
       - "scripts/test_061_beta4_emulator.sh"
       - "scripts/run_prebuilt_emulator_tests.sh"
+      - "scripts/run_real_sleep_wake_tests.sh"
       - ".github/workflows/responsive-ui.yml"
 
 permissions:
@@ -102,7 +103,9 @@ jobs:
           cp helper/build/outputs/apk/debug/helper-debug.apk             local-emulator-test-bundle/SleepManager-Helper-debug.apk
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk             local-emulator-test-bundle/SleepManager-tests.apk
           cp scripts/run_prebuilt_emulator_tests.sh             local-emulator-test-bundle/run-tests.sh
+          cp scripts/run_real_sleep_wake_tests.sh             local-emulator-test-bundle/run-real-e2e.sh
           chmod +x local-emulator-test-bundle/run-tests.sh
+          chmod +x local-emulator-test-bundle/run-real-e2e.sh
 
           cat > local-emulator-test-bundle/README.txt <<EOF
           SleepManager $VERSION_NAME local emulator regression bundle
@@ -113,6 +116,20 @@ jobs:
              ./run-tests.sh emulator-5554
 
           This resets and reinstalls SleepManager + Helper on the selected emulator.
+          It leaves Syncthing-Fork, Tailscale, JamesDSP and BasicSync installed and
+          automatically uses them for real sleep/wake integration tests when present.
+
+          The suite runs:
+          - UI/state regression tests
+          - real SCREEN_OFF / SCREEN_ON cycles
+          - Wi-Fi and Bluetooth sleep/wake restoration
+          - real installed app integration transitions
+          - 5 s Grace period
+          - Custom delay with instant simulated expiry (no 60 s wait)
+          - Advanced battery / charging / Battery Saver / schedule conditions
+          - Sync then stop and Periodic sync with BasicSync when available
+
+          Hardware-only clamshell/dock/Charging Separation checks remain for the AYN Thor.
           It refuses physical devices unless ALLOW_PHYSICAL_DEVICE=1 is explicitly set.
           EOF
 
