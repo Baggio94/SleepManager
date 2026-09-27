@@ -49,7 +49,9 @@ class Beta4RegressionTest {
         targetContext.stopService(
             Intent(targetContext, SleepManagerService::class.java)
         )
-        composeRule.activityRule.scenario.recreate()
+        composeRule.runOnUiThread {
+            composeRule.activity.activityRefreshToken++
+        }
         composeRule.waitForIdle()
     }
 
@@ -149,8 +151,8 @@ class Beta4RegressionTest {
         openSection("Home", "SleepManager")
 
         val list = composeRule.onNodeWithTag("main_list")
-        list.performScrollToNode(hasText("System controls"))
-        composeRule.onNodeWithText("System controls")
+        list.performScrollToNode(hasTestTag("system_controls_card"))
+        composeRule.onNodeWithTag("system_controls_card")
             .assertIsDisplayed()
 
         composeRule.onNodeWithContentDescription("Wi-Fi toggle")
@@ -181,7 +183,9 @@ class Beta4RegressionTest {
                 ?.batterySaverControl == true
         )
 
-        list.performScrollToNode(hasText("App integrations"))
+        list.performScrollToNode(hasTestTag("app_integrations_card"))
+        composeRule.onNodeWithTag("app_integrations_card")
+            .assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Syncthing-Fork toggle")
             .assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Tailscale toggle")

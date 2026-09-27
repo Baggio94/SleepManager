@@ -614,7 +614,9 @@ import com.med.sleepmanager.ui.feedbackChange
                 }
 
                 item {
-                    SettingsCard {
+                    SettingsCard(
+                        modifier = Modifier.testTag("system_controls_card")
+                    ) {
                         SettingRow(
                             icon = R.drawable.ic_wifi,
                             title = "Wi‑Fi",
@@ -791,7 +793,9 @@ import com.med.sleepmanager.ui.feedbackChange
                 }
 
                 item {
-                    SettingsCard {
+                    SettingsCard(
+                        modifier = Modifier.testTag("app_integrations_card")
+                    ) {
                         CompactIntegrationRow(
                             icon = R.drawable.ic_syncthing,
                             title = "Syncthing‑Fork",

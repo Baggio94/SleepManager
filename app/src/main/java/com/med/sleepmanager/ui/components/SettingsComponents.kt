@@ -57,9 +57,12 @@ internal fun SectionTitle(title: String, subtitle: String) {
 }
 
 @Composable
-internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
