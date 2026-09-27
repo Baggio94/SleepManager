@@ -187,7 +187,7 @@ class Beta4RegressionTest {
         list.performScrollToNode(hasTestTag("app_integrations_card"))
         composeRule.onNodeWithTag("app_integrations_card")
             .assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Syncthing-Fork toggle")
+        composeRule.onNodeWithContentDescription("Syncthing‑Fork toggle")
             .assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Tailscale toggle")
             .assertIsNotEnabled()
