@@ -4348,9 +4348,9 @@ private fun AboutPage(
                     backgroundReliability?.batteryOptimization
                 ) {
                     BackgroundReliability.Status.OK ->
-                        "✓ Exempt • SleepManager is not battery-optimized"
+                        "✓ Disabled • Recommended for reliable background operation"
                     BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "⚠ Active • Recommended to disable for reliable background operation"
+                        "⚠ Enabled • Recommended to disable for reliable background operation"
                     BackgroundReliability.Status.UNAVAILABLE ->
                         "— Not available on this Android version"
                     BackgroundReliability.Status.UNKNOWN ->
@@ -4358,10 +4358,11 @@ private fun AboutPage(
                     null ->
                         "Checking…"
                 },
-                actionLabel = "Open",
+                actionLabel = "Settings",
                 enabled =
                     backgroundReliability?.batteryOptimization !=
                         BackgroundReliability.Status.UNAVAILABLE,
+                textAction = true,
                 onClick = onOpenBatteryOptimization
             )
 
@@ -4376,9 +4377,9 @@ private fun AboutPage(
                     backgroundReliability?.unusedAppRestrictions
                 ) {
                     BackgroundReliability.Status.OK ->
-                        "✓ Off • Android will not hibernate SleepManager when unused"
+                        "✓ Disabled • Recommended for reliable background operation"
                     BackgroundReliability.Status.NEEDS_ATTENTION ->
-                        "⚠ Enabled • Recommended to disable for long-term background reliability"
+                        "⚠ Enabled • Recommended to disable for reliable background operation"
                     BackgroundReliability.Status.UNAVAILABLE ->
                         "— Not available on this device"
                     BackgroundReliability.Status.UNKNOWN ->
@@ -4386,10 +4387,11 @@ private fun AboutPage(
                     null ->
                         "Checking…"
                 },
-                actionLabel = "Open",
+                actionLabel = "Settings",
                 enabled =
                     backgroundReliability?.unusedAppRestrictions !=
                         BackgroundReliability.Status.UNAVAILABLE,
+                textAction = true,
                 onClick = onOpenUnusedAppRestrictions
             )
         }
@@ -4465,6 +4467,7 @@ private fun AboutActionRow(
     subtitle: String,
     actionLabel: String,
     enabled: Boolean = true,
+    textAction: Boolean = false,
     secondaryActionLabel: String? = null,
     onSecondaryClick: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -4492,11 +4495,20 @@ private fun AboutActionRow(
         Column(
             horizontalAlignment = Alignment.End
         ) {
-            OutlinedButton(
-                onClick = feedbackClick(onClick),
-                enabled = enabled
-            ) {
-                Text(actionLabel)
+            if (textAction) {
+                TextButton(
+                    onClick = feedbackClick(onClick),
+                    enabled = enabled
+                ) {
+                    Text(actionLabel)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = feedbackClick(onClick),
+                    enabled = enabled
+                ) {
+                    Text(actionLabel)
+                }
             }
 
             if (
