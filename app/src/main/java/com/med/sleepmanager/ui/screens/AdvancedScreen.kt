@@ -210,6 +210,9 @@ internal fun AdvancedSettingsPage(
                         items(options.size) { index ->
                             val (label, value) = options[index]
                             FilterChip(
+                                modifier = Modifier.testTag(
+                                    "custom_delay_option_$value"
+                                ),
                                 selected = customDelayMs == value,
                                 onClick = feedbackClick { onCustomDelayChange(value) },
                                 label = { Text(label) }
