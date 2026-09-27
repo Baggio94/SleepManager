@@ -24,6 +24,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -86,6 +87,22 @@ class MainActivity : ComponentActivity() {
     private var pendingPackageInstallerReturn = false
     internal var installerReturnToken by mutableIntStateOf(0)
     internal var openUpdatesOnLaunch = false
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) {
+            pendingExternalNavigation = false
+            activityRefreshToken++
+        }
+
+    private val unusedAppRestrictionsLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) {
+            pendingExternalNavigation = false
+            refreshBackgroundReliabilityAsync()
+        }
 
     private val statusRefreshHandler = Handler(Looper.getMainLooper())
     private val statusRefreshRunnable = object : Runnable {
@@ -320,31 +337,6 @@ class MainActivity : ComponentActivity() {
 
         statusRefreshHandler.removeCallbacks(statusRefreshRunnable)
         statusRefreshRunnable.run()
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == UNUSED_APP_RESTRICTIONS_REQUEST_CODE) {
-            pendingExternalNavigation = false
-            refreshBackgroundReliabilityAsync()
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE) {
-            pendingExternalNavigation = false
-            activityRefreshToken++
-        }
     }
 
     override fun onPause() {
@@ -699,7 +691,6 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    @Suppress("DEPRECATION")
     internal fun openUnusedAppRestrictionsSettings() {
         val intent =
             runCatching {
@@ -716,10 +707,7 @@ class MainActivity : ComponentActivity() {
 
         pendingExternalNavigation = true
         runCatching {
-            startActivityForResult(
-                intent,
-                UNUSED_APP_RESTRICTIONS_REQUEST_CODE
-            )
+            unusedAppRestrictionsLauncher.launch(intent)
         }.onFailure {
             pendingExternalNavigation = false
             openAppInfo()
@@ -778,9 +766,8 @@ class MainActivity : ComponentActivity() {
                 PackageManager.PERMISSION_GRANTED
         ) {
             pendingExternalNavigation = true
-            requestPermissions(
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE
+            notificationPermissionLauncher.launch(
+                Manifest.permission.POST_NOTIFICATIONS
             )
         }
     }
@@ -816,8 +803,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_OPEN_UPDATES = "com.med.sleepmanager.extra.OPEN_UPDATES"
         private const val STATUS_REFRESH_INTERVAL_MS = 3000L
-        private const val UPDATE_NOTIFICATION_PERMISSION_REQUEST_CODE = 5222
-        private const val UNUSED_APP_RESTRICTIONS_REQUEST_CODE = 5223
     }
 }
 

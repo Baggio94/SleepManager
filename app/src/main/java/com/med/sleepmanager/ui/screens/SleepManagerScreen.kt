@@ -379,7 +379,7 @@ import com.med.sleepmanager.ui.feedbackChange
                             )
                         }
 
-                        AppSection.values().forEach { section ->
+                        AppSection.entries.forEach { section ->
                             NavigationDrawerItem(
                                 modifier = Modifier.height(48.dp),
                                 icon = {

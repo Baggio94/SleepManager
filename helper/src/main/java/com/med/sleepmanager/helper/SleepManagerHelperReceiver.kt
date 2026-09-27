@@ -2,6 +2,7 @@ package com.med.sleepmanager.helper
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -93,7 +94,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
     private fun reportCurrentState(context: Context) {
         val wifiManager =
             context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val bluetooth = BluetoothAdapter.getDefaultAdapter()
+        val bluetooth = bluetoothAdapter(context)
 
         val wifiOn = safeWifiState(wifiManager)
         val bluetoothOn = safeBluetoothState(bluetooth)
@@ -132,7 +133,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         val wifiManager =
             context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val bluetooth = BluetoothAdapter.getDefaultAdapter()
+        val bluetooth = bluetoothAdapter(context)
 
         val wifiWasOn = safeWifiState(wifiManager)
         val bluetoothWasOn = safeBluetoothState(bluetooth)
@@ -317,7 +318,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
 
         val wifiManager =
             context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val bluetooth = BluetoothAdapter.getDefaultAdapter()
+        val bluetooth = bluetoothAdapter(context)
 
         val activeCycleId = prefs.getLong(KEY_CYCLE_ID, 0L)
         val effectiveCycleId =
@@ -458,6 +459,12 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             Log.e(TAG, "Wi-Fi toggle failed", t)
             false
         }
+
+    private fun bluetoothAdapter(context: Context): BluetoothAdapter? =
+        (
+            context.getSystemService(Context.BLUETOOTH_SERVICE)
+                as? BluetoothManager
+        )?.adapter
 
     // The Helper intentionally targets API 28 and declares the legacy
     // BLUETOOTH/BLUETOOTH_ADMIN permissions so these compatibility calls
