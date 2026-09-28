@@ -103,7 +103,7 @@ internal fun BatteryStatsPage(
                     ),
                     "Deep sleep" to (
                         stats.averageDeepSleepPercent?.let {
-                            "${formatPercentOneDecimal(it)}%"
+                            "${formatPercentTwoDecimals(it)}%"
                         } ?: "Collecting data"
                     ),
                     "Measured sleep" to formatSleepSessionDuration(
@@ -163,7 +163,7 @@ internal fun BatteryStatsPage(
                         ),
                         "Deep sleep" to (
                             last.deepSleepPercent?.let {
-                                "${formatPercentOneDecimal(it)}%"
+                                "${formatPercentTwoDecimals(it)}%"
                             } ?: "Collecting data"
                         )
                     )
@@ -496,7 +496,7 @@ internal fun InteractiveBatteryGauge(
 
     val deepSleepText =
         averageDeepSleepPercent?.let {
-            "Deep sleep • ${String.format(Locale.US, "%.0f", it)}%"
+            "Deep sleep • ${formatPercentTwoDecimals(it)}%"
         } ?: "Deep sleep • Collecting data"
 
     val infoTexts = listOf(
