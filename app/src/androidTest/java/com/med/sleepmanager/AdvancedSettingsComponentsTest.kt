@@ -47,7 +47,6 @@ class AdvancedSettingsComponentsTest {
                 ) {
                     AdvancedSettingsPage(
                         periodicSyncWhileSleeping = periodic,
-                        batterySaverControlSupported = true,
                         syncThenStopOnSleepWake = syncThenStop,
                         syncConditionsAvailable = true,
                         onPeriodicSyncWhileSleepingChange = { periodic = it },
@@ -117,12 +116,12 @@ class AdvancedSettingsComponentsTest {
             .performScrollTo().performClick()
         assertTrue(notCharging)
 
-        // Battery Saver's real Home/Advanced mutual-exclusion flow is
-        // exercised by Beta4RegressionTest. Here we only verify that the
-        // capability-gated controls are composed with stable test semantics.
+        // The Battery Saver condition only reads Android state and must
+        // remain available even without privileged Home action control.
         composeRule.onNodeWithTag("battery_saver_mode_on")
             .performScrollTo()
-            .fetchSemanticsNode()
+            .performClick()
+        assertEquals(AppPreferences.BATTERY_SAVER_ON, batterySaverMode)
         composeRule.onNodeWithTag("battery_saver_mode_off")
             .fetchSemanticsNode()
 
