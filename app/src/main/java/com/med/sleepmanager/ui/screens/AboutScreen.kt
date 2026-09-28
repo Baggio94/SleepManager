@@ -521,26 +521,35 @@ internal fun AboutPage(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
+            val unusedAppRestrictionsDeviceAdminExempt =
+                backgroundReliability
+                    ?.unusedAppRestrictionsExemptByDeviceAdmin == true
+
             AboutActionRow(
                 title = "Unused app restrictions",
-                subtitle = when (
-                    backgroundReliability?.unusedAppRestrictions
-                ) {
-                    BackgroundReliability.Status.OK ->
+                subtitle = when {
+                    unusedAppRestrictionsDeviceAdminExempt ->
+                        "✓ Disabled • Device administrator exemption"
+                    backgroundReliability?.unusedAppRestrictions ==
+                        BackgroundReliability.Status.OK ->
                         "✓ Disabled • Recommended for reliable background operation"
-                    BackgroundReliability.Status.NEEDS_ATTENTION ->
+                    backgroundReliability?.unusedAppRestrictions ==
+                        BackgroundReliability.Status.NEEDS_ATTENTION ->
                         "⚠ Enabled • Recommended to disable for reliable background operation"
-                    BackgroundReliability.Status.UNAVAILABLE ->
+                    backgroundReliability?.unusedAppRestrictions ==
+                        BackgroundReliability.Status.UNAVAILABLE ->
                         "— Not available on this device"
-                    BackgroundReliability.Status.UNKNOWN ->
+                    backgroundReliability?.unusedAppRestrictions ==
+                        BackgroundReliability.Status.UNKNOWN ->
                         "? Unable to read the current setting"
-                    null ->
+                    else ->
                         "Checking…"
                 },
                 actionLabel = "Settings",
                 enabled =
-                    backgroundReliability?.unusedAppRestrictions !=
-                        BackgroundReliability.Status.UNAVAILABLE,
+                    !unusedAppRestrictionsDeviceAdminExempt &&
+                        backgroundReliability?.unusedAppRestrictions !=
+                            BackgroundReliability.Status.UNAVAILABLE,
                 textAction = true,
                 onClick = onOpenUnusedAppRestrictions
             )
