@@ -4,6 +4,7 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -237,48 +238,102 @@ internal fun UpdateAvailableCard(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         )
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (update != null && helperUpdate != null) {
-                        "Updates available"
-                    } else {
-                        "Update available"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    when {
-                        update != null && helperUpdate != null ->
-                            "SleepManager ${update.versionName} and Helper ${helperUpdate.versionName} are available."
-                        update != null ->
-                            "SleepManager ${update.versionName} is available on GitHub."
-                        helperUpdate != null ->
-                            "SleepManager Helper ${helperUpdate.versionName} is available."
-                        else -> "An update is available."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            }
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                OutlinedButton(onClick = feedbackClick(onUpdate)) {
-                    Text("Update")
-                }
-                if (onReleaseNotes != null) {
-                    TextButton(
-                        onClick = feedbackClick(onReleaseNotes)
+            val compact = maxWidth < 520.dp
+
+            if (compact) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    UpdateAvailableText(
+                        update = update,
+                        helperUpdate = helperUpdate
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Release notes")
+                        UpdateAvailableActions(
+                            onUpdate = onUpdate,
+                            onReleaseNotes = onReleaseNotes
+                        )
                     }
                 }
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        UpdateAvailableText(
+                            update = update,
+                            helperUpdate = helperUpdate
+                        )
+                    }
+                    UpdateAvailableActions(
+                        onUpdate = onUpdate,
+                        onReleaseNotes = onReleaseNotes
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateAvailableText(
+    update: UpdateInfo?,
+    helperUpdate: HelperUpdateInfo?
+) {
+    Text(
+        if (update != null && helperUpdate != null) {
+            "Updates available"
+        } else {
+            "Update available"
+        },
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold
+    )
+    Text(
+        when {
+            update != null && helperUpdate != null ->
+                "SleepManager ${update.versionName} and Helper ${helperUpdate.versionName} are available."
+            update != null ->
+                "SleepManager ${update.versionName} is available on GitHub."
+            helperUpdate != null ->
+                "SleepManager Helper ${helperUpdate.versionName} is available."
+            else -> "An update is available."
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+}
+
+@Composable
+private fun UpdateAvailableActions(
+    onUpdate: () -> Unit,
+    onReleaseNotes: (() -> Unit)?
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        OutlinedButton(onClick = feedbackClick(onUpdate)) {
+            Text(
+                "Update",
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (onReleaseNotes != null) {
+            TextButton(
+                onClick = feedbackClick(onReleaseNotes)
+            ) {
+                Text("Release notes")
             }
         }
     }
