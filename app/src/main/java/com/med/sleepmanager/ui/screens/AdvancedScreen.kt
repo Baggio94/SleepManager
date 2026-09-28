@@ -109,7 +109,6 @@ internal enum class AdvancedScrollTarget {
 @Composable
 internal fun AdvancedSettingsPage(
     periodicSyncWhileSleeping: Boolean,
-    batterySaverControlSupported: Boolean,
     syncThenStopOnSleepWake: Boolean,
     syncConditionsAvailable: Boolean,
     onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
@@ -305,7 +304,6 @@ internal fun AdvancedSettingsPage(
                 onCheckedChange = onNotChargingOnlyChange
             )
 
-            if (batterySaverControlSupported) {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
                     color = MaterialTheme.colorScheme.outlineVariant
@@ -356,7 +354,6 @@ internal fun AdvancedSettingsPage(
                         }
                     }
                 }
-            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
