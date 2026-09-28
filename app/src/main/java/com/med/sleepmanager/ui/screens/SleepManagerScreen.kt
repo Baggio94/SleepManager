@@ -721,7 +721,7 @@ import com.med.sleepmanager.ui.feedbackChange
                                 icon = R.drawable.ic_battery,
                                 title = "Battery Saver",
                                 subtitle = "Enable during sleep and restore the previous state on wake.",
-                                status = "Privileged control available",
+                                status = null,
                                 checked = batterySaverActionEnabled,
                                 enabled = true,
                                 onCheckedChange = {
