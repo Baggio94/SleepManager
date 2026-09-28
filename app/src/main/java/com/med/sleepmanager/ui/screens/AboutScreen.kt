@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +52,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.med.sleepmanager.ui.feedbackChange
 
+internal enum class AboutScrollTarget {
+    UPDATES,
+    HELPER
+}
+
 @Composable
 internal fun AboutPage(
     context: Context,
@@ -63,7 +71,10 @@ internal fun AboutPage(
     onOpenUnusedAppRestrictions: () -> Unit,
     onInstallVerifiedUpdate: (String) -> Unit,
     installerReturnToken: Int,
-    onUpdateStateChanged: () -> Unit
+    onUpdateStateChanged: () -> Unit,
+    scrollTarget: AboutScrollTarget? = null,
+    scrollRequestId: Int = 0,
+    onScrollTargetConsumed: () -> Unit = {}
 ) {
     val packageInfo = runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0)
@@ -82,6 +93,22 @@ internal fun AboutPage(
     val cachedHelperUpdate = UpdateChecker.cachedHelperUpdate(context)
     val cachedHelperRelease = UpdateChecker.cachedHelperReleaseInfo(context)
     val latestMainVersion = AppPreferences.latestReleaseVersion(context)
+    val updatesRequester = remember { BringIntoViewRequester() }
+    val helperRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(scrollRequestId, scrollTarget) {
+        when (scrollTarget) {
+            AboutScrollTarget.UPDATES -> updatesRequester.bringIntoView()
+            AboutScrollTarget.HELPER -> {
+                runCatching { helperRequester.bringIntoView() }
+                    .onFailure { updatesRequester.bringIntoView() }
+            }
+            null -> Unit
+        }
+        if (scrollTarget != null) {
+            onScrollTargetConsumed()
+        }
+    }
 
     LaunchedEffect(installerReturnToken) {
         if (installerReturnToken > 0) {
@@ -144,7 +171,8 @@ internal fun AboutPage(
 
         SectionTitle(
             title = "Updates",
-            subtitle = "Check GitHub releases and keep SleepManager and the optional Helper up to date."
+            subtitle = "Check GitHub releases and keep SleepManager and the optional Helper up to date.",
+            modifier = Modifier.bringIntoViewRequester(updatesRequester)
         )
 
         SettingsCard {
@@ -314,6 +342,7 @@ internal fun AboutPage(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 AboutActionRow(
+                    modifier = Modifier.bringIntoViewRequester(helperRequester),
                     title = helperActionInfo?.let {
                         "SleepManager Helper ${it.versionName}"
                     } ?: "SleepManager Helper",
@@ -588,6 +617,7 @@ internal fun AboutActionRow(
     title: String,
     subtitle: String,
     actionLabel: String,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true,
     textAction: Boolean = false,
     secondaryActionLabel: String? = null,
@@ -595,7 +625,7 @@ internal fun AboutActionRow(
     onClick: () -> Unit
 ) {
     BoxWithConstraints(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
