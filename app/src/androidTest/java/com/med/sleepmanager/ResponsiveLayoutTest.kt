@@ -118,7 +118,7 @@ class ResponsiveLayoutTest {
             .performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("Advanced sync conditions")
+        composeRule.onNodeWithText("Advanced sync behavior")
             .assertIsDisplayed()
         composeRule.onNodeWithText("Periodic sync while sleeping")
             .assertIsDisplayed()
