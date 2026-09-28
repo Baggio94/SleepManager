@@ -275,6 +275,16 @@ class Beta4RegressionTest {
             AppPreferences.notChargingOnly(targetContext)
         }
 
+        // Battery Saver condition is read-only and must remain available
+        // on the normal emulator even though privileged Home control is absent.
+        list.performScrollToNode(hasText("Battery Saver"))
+        composeRule.onNodeWithText("ON")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.batterySaverMode(targetContext) ==
+                AppPreferences.BATTERY_SAVER_ON
+        }
+
         list.performScrollToNode(hasText("Schedule"))
         composeRule.onNodeWithContentDescription("Schedule toggle")
             .performClick()
@@ -290,6 +300,10 @@ class Beta4RegressionTest {
         assertTrue(AppPreferences.batteryConditionEnabled(targetContext))
         assertTrue(AppPreferences.batteryBelowPercent(targetContext) == 50)
         assertTrue(AppPreferences.notChargingOnly(targetContext))
+        assertTrue(
+            AppPreferences.batterySaverMode(targetContext) ==
+                AppPreferences.BATTERY_SAVER_ON
+        )
         assertTrue(AppPreferences.scheduleEnabled(targetContext))
 
         composeRule.onNodeWithTag("main_list")
