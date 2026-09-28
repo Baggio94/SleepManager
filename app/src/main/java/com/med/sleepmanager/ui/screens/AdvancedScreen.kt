@@ -196,7 +196,7 @@ internal fun AdvancedSettingsPage(
                 subtitle = if (customDelayEnabled) {
                     "Sleep actions will start after ${formatDuration(customDelayMs)}."
                 } else {
-                    "Grace period uses Immediate / 5s / 10s."
+                    "Choose a longer delay before sleep actions than the standard Grace period options."
                 },
                 checked = customDelayEnabled,
                 onCheckedChange = onCustomDelayEnabledChange
