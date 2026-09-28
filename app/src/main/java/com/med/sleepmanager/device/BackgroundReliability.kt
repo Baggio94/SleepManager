@@ -1,10 +1,13 @@
 package com.med.sleepmanager.device
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
 import androidx.core.content.PackageManagerCompat
 import androidx.core.content.UnusedAppRestrictionsConstants
+import com.med.sleepmanager.protection.ThorDeviceAdminReceiver
 import java.util.concurrent.TimeUnit
 
 object BackgroundReliability {
@@ -17,14 +20,23 @@ object BackgroundReliability {
 
     data class Snapshot(
         val batteryOptimization: Status,
-        val unusedAppRestrictions: Status
+        val unusedAppRestrictions: Status,
+        val unusedAppRestrictionsExemptByDeviceAdmin: Boolean
     )
 
-    fun snapshot(context: Context): Snapshot =
-        Snapshot(
+    fun snapshot(context: Context): Snapshot {
+        val deviceAdminActive = sleepManagerDeviceAdminActive(context)
+
+        return Snapshot(
             batteryOptimization = batteryOptimizationStatus(context),
-            unusedAppRestrictions = unusedAppRestrictionsStatus(context)
+            unusedAppRestrictions =
+                unusedAppRestrictionsStatus(
+                    context = context,
+                    deviceAdminActive = deviceAdminActive
+                ),
+            unusedAppRestrictionsExemptByDeviceAdmin = deviceAdminActive
         )
+    }
 
     private fun batteryOptimizationStatus(context: Context): Status {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
@@ -44,8 +56,18 @@ object BackgroundReliability {
         }
     }
 
-    private fun unusedAppRestrictionsStatus(context: Context): Status =
-        runCatching {
+    private fun unusedAppRestrictionsStatus(
+        context: Context,
+        deviceAdminActive: Boolean
+    ): Status {
+        // Android exempts active device-admin apps from unused-app
+        // restrictions. Some vendor builds can still report the generic
+        // restriction API as enabled, so prefer the stronger exemption.
+        if (deviceAdminActive) {
+            return Status.OK
+        }
+
+        return runCatching {
             when (
                 PackageManagerCompat
                     .getUnusedAppRestrictionsStatus(context)
@@ -66,4 +88,19 @@ object BackgroundReliability {
                     Status.UNKNOWN
             }
         }.getOrDefault(Status.UNKNOWN)
+    }
+
+    private fun sleepManagerDeviceAdminActive(context: Context): Boolean =
+        runCatching {
+            val dpm =
+                context.getSystemService(Context.DEVICE_POLICY_SERVICE)
+                    as? DevicePolicyManager
+                    ?: return@runCatching false
+            dpm.isAdminActive(
+                ComponentName(
+                    context,
+                    ThorDeviceAdminReceiver::class.java
+                )
+            )
+        }.getOrDefault(false)
 }
