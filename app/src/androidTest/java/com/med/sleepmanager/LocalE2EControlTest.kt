@@ -89,6 +89,18 @@ class LocalE2EControlTest {
             }
             else -> error("Unknown local E2E mode: $mode")
         }
+
+        flushScenarioPreferences(context)
+    }
+
+    private fun flushScenarioPreferences(context: Context) {
+        check(
+            context.getSharedPreferences("sleep_manager", Context.MODE_PRIVATE)
+                .edit()
+                .commit()
+        ) {
+            "Failed to synchronously flush local E2E preferences"
+        }
     }
 
     private fun resetScenarioState(context: Context) {
