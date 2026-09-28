@@ -66,7 +66,7 @@ internal fun SleepGraceSelector(
             if (customDelayEnabled) {
                 "Using custom delay from Advanced settings."
             } else {
-                "Wait before applying sleep actions. If the screen wakes during this period, nothing is changed."
+                "Wait before applying sleep actions. If the device wakes during this period, no changes are applied."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
