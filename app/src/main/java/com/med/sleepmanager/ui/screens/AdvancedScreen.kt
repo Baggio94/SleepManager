@@ -148,8 +148,8 @@ internal fun AdvancedSettingsPage(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         SectionTitle(
-            title = "Advanced sync conditions",
-            subtitle = "Control when managed sync clients run outside their normal sleep behavior."
+            title = "Advanced sync behavior",
+            subtitle = "Control how supported sync apps run during sleep and wake transitions."
         )
 
         SettingsCard {
@@ -158,7 +158,7 @@ internal fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "While the device stays asleep, sync managed clients every 24h, then stop them and restore the sleep state."
                 } else {
-                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
+                    "Requires BasicSync 3.19+. Syncthing-Fork support is planned."
                 },
                 checked = periodicSyncWhileSleeping,
                 enabled = syncConditionsAvailable,
@@ -175,7 +175,7 @@ internal fun AdvancedSettingsPage(
                 subtitle = if (syncConditionsAvailable) {
                     "Sync managed clients after wake and again before sleep. After each sync completes, stop them to reduce background battery use."
                 } else {
-                    "BasicSync 3.19+ required; Syncthing-Fork support pending."
+                    "Requires BasicSync 3.19+. Syncthing-Fork support is planned."
                 },
                 checked = syncThenStopOnSleepWake,
                 enabled = syncConditionsAvailable,
@@ -194,7 +194,7 @@ internal fun AdvancedSettingsPage(
             AdvancedToggleRow(
                 title = "Use custom delay",
                 subtitle = if (customDelayEnabled) {
-                    "Grace period will show Advanced • ${formatDuration(customDelayMs)}"
+                    "Sleep actions will start after ${formatDuration(customDelayMs)}."
                 } else {
                     "Grace period uses Immediate / 5s / 10s."
                 },
@@ -246,20 +246,13 @@ internal fun AdvancedSettingsPage(
 
         SectionTitle(
             title = "Conditions",
-            subtitle = "All enabled conditions must be true."
+            subtitle = "All enabled conditions must be true for sleep actions to run."
         )
-
-        Text(
-            "Conditions are combined with AND logic. If one enabled condition is false, sleep actions are skipped.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         SettingsCard {
             AdvancedToggleRow(
                 title = "Battery level",
                 subtitle = if (batteryConditionEnabled) {
-                    "Only below ${batteryBelowPercent}%"
+                    "Only when battery is below ${batteryBelowPercent}%"
                 } else {
                     "Ignore battery percentage"
                 },
@@ -296,7 +289,7 @@ internal fun AdvancedSettingsPage(
             AdvancedToggleRow(
                 title = "Not charging",
                 subtitle = if (notChargingOnly) {
-                    "Only start sleep actions when unplugged"
+                    "Only when the device is unplugged"
                 } else {
                     "Ignore charging state"
                 },
