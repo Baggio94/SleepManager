@@ -12,7 +12,7 @@ on:
       - "helper/src/main/**"
       - "app/build.gradle.kts"
       - "helper/build.gradle.kts"
-      - "scripts/test_061_beta4_emulator.sh"
+      - "scripts/test_emulator_regression.sh"
       - "scripts/run_prebuilt_emulator_tests.sh"
       - "scripts/run_real_sleep_wake_tests.sh"
       - ".github/workflows/responsive-ui.yml"
@@ -42,7 +42,7 @@ jobs:
 
       - name: Validate emulator test scripts
         run: |
-          bash -n scripts/test_061_beta4_emulator.sh
+          bash -n scripts/test_emulator_regression.sh
           bash -n scripts/run_prebuilt_emulator_tests.sh
           bash -n scripts/run_real_sleep_wake_tests.sh
 
@@ -76,7 +76,7 @@ jobs:
             -noaudio
             -no-boot-anim
             -gpu swiftshader_indirect
-          script: ADB_SERIAL=emulator-5554 SKIP_STATIC=1 ./scripts/test_061_beta4_emulator.sh
+          script: ADB_SERIAL=emulator-5554 SKIP_STATIC=1 ./scripts/test_emulator_regression.sh
 
       - name: Print responsive UI test results
         if: always()
@@ -146,7 +146,7 @@ jobs:
           name: SleepManager-${{ steps.local_bundle.outputs.version }}-emulator-tests
           path: local-emulator-test-bundle/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
 
       - name: Fail when responsive tests fail
         if: steps.responsive_tests.outcome != 'success'
