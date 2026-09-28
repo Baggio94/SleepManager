@@ -441,7 +441,7 @@ class Beta4RegressionTest {
             .assertTextEquals("SleepManager")
 
         openSection("Advanced settings", "Advanced")
-        composeRule.onNodeWithText("Advanced sync conditions")
+        composeRule.onNodeWithText("Advanced sync behavior")
             .assertIsDisplayed()
 
         openSection("Stats", "Stats")
