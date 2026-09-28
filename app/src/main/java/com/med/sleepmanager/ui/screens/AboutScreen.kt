@@ -189,7 +189,7 @@ internal fun AboutPage(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        "Check SleepManager and Helper when you open the app, and daily in the background.",
+                        "Check for updates when you open the app, and daily in the background.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
