@@ -19,6 +19,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -789,13 +790,24 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun ensureServiceRunning() {
-        if (!AppPreferences.isEnabled(this) || SleepManagerService.running) return
+        val enabled = AppPreferences.isEnabled(this)
+        val running = SleepManagerService.running
+
+        if (!enabled || running) {
+            Log.d(
+                "SleepManager",
+                "ensureServiceRunning skipped: enabled=$enabled running=$running"
+            )
+            return
+        }
 
         try {
             val service = Intent(this, SleepManagerService::class.java)
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(service)
             else startService(service)
-        } catch (_: Throwable) {
+            Log.i("SleepManager", "ensureServiceRunning requested service start")
+        } catch (error: Throwable) {
+            Log.e("SleepManager", "ensureServiceRunning failed", error)
         }
     }
 
