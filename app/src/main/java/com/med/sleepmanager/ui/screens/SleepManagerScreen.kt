@@ -1118,7 +1118,6 @@ import com.med.sleepmanager.ui.feedbackChange
                         item {
                             AdvancedSettingsPage(
                                 periodicSyncWhileSleeping = periodicSyncWhileSleeping,
-                                batterySaverControlSupported = batterySaverControlSupported,
                                 syncThenStopOnSleepWake = syncThenStopOnSleepWake,
                                 syncConditionsAvailable =
                                     ManagedSyncProviders.completionReady(
