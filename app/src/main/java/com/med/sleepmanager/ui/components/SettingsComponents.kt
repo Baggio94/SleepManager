@@ -41,8 +41,15 @@ import kotlinx.coroutines.withContext
 import com.med.sleepmanager.ui.feedbackChange
 
 @Composable
-internal fun SectionTitle(title: String, subtitle: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+internal fun SectionTitle(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,
