@@ -113,6 +113,24 @@ import com.med.sleepmanager.ui.feedbackChange
                 if (openUpdatesOnLaunch) AppSection.ABOUT else AppSection.HOME
             )
         }
+        var aboutScrollTarget by remember {
+            mutableStateOf(
+                if (openUpdatesOnLaunch) {
+                    AboutScrollTarget.UPDATES
+                } else {
+                    null
+                }
+            )
+        }
+        var aboutScrollRequestId by remember {
+            mutableStateOf(if (openUpdatesOnLaunch) 1 else 0)
+        }
+        var advancedScrollTarget by remember {
+            mutableStateOf<AdvancedScrollTarget?>(null)
+        }
+        var advancedScrollRequestId by remember {
+            mutableStateOf(0)
+        }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
         val statsListState = rememberLazyListState()
@@ -127,6 +145,26 @@ import com.med.sleepmanager.ui.feedbackChange
         }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val drawerScope = rememberCoroutineScope()
+
+        fun navigateToAbout(target: AboutScrollTarget) {
+            aboutScrollTarget = target
+            aboutScrollRequestId++
+            currentSection = AppSection.ABOUT
+        }
+
+        fun navigateToAdvanced(target: AdvancedScrollTarget) {
+            advancedScrollTarget = target
+            advancedScrollRequestId++
+            currentSection = AppSection.ADVANCED
+        }
+
+        fun navigateToActivityLog() {
+            currentSection = AppSection.ACTIVITY_LOG
+            drawerScope.launch {
+                activityListState.animateScrollToItem(0)
+            }
+        }
+
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
 
         var managerEnabled by remember(refreshToken) {
@@ -544,7 +582,9 @@ import com.med.sleepmanager.ui.feedbackChange
                         UpdateAvailableCard(
                             update = availableUpdate,
                             helperUpdate = availableHelperUpdate,
-                            onUpdate = { currentSection = AppSection.ABOUT },
+                            onUpdate = {
+                                navigateToAbout(AboutScrollTarget.UPDATES)
+                            },
                             onReleaseNotes =
                                 (
                                     availableUpdate?.releaseUrl
@@ -569,7 +609,9 @@ import com.med.sleepmanager.ui.feedbackChange
                             basicSyncInstalled = basicSyncInstalled,
                             basicSyncVersion = basicSyncVersion,
                             managerEnabled = managerEnabled,
-                            onGetHelper = { currentSection = AppSection.ABOUT },
+                            onGetHelper = {
+                                navigateToAbout(AboutScrollTarget.HELPER)
+                            },
                             onShowTest = { showTestDialog = true }
                         )
                     }
@@ -705,7 +747,9 @@ import com.med.sleepmanager.ui.feedbackChange
                             title = "Compatibility helper not installed",
                             text = "The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.",
                             actionLabel = "Install Helper",
-                            onAction = { currentSection = AppSection.ABOUT }
+                            onAction = {
+                                navigateToAbout(AboutScrollTarget.HELPER)
+                            }
                         )
                     }
                 }
@@ -728,7 +772,9 @@ import com.med.sleepmanager.ui.feedbackChange
                                 AppPreferences.setSleepGraceMs(this@SleepManagerScreen, value)
                             },
                             onCustom = {
-                                currentSection = AppSection.ADVANCED
+                                navigateToAdvanced(
+                                    AdvancedScrollTarget.CUSTOM_DELAY
+                                )
                             }
                         )
                     }
@@ -1062,7 +1108,7 @@ import com.med.sleepmanager.ui.feedbackChange
                 item {
                     LastActivityCard(
                         context = this@SleepManagerScreen,
-                        onViewLog = { currentSection = AppSection.ACTIVITY_LOG },
+                        onViewLog = { navigateToActivityLog() },
                         onCopyLog = { copyDiagnostics() }
                     )
                 }
@@ -1176,6 +1222,11 @@ import com.med.sleepmanager.ui.feedbackChange
                                             value
                                         )
                                     }
+                                },
+                                scrollTarget = advancedScrollTarget,
+                                scrollRequestId = advancedScrollRequestId,
+                                onScrollTargetConsumed = {
+                                    advancedScrollTarget = null
                                 }
                             )
                         }
@@ -1241,6 +1292,11 @@ import com.med.sleepmanager.ui.feedbackChange
                                 installerReturnToken = installerReturnToken,
                                 onUpdateStateChanged = {
                                     activityRefreshToken++
+                                },
+                                scrollTarget = aboutScrollTarget,
+                                scrollRequestId = aboutScrollRequestId,
+                                onScrollTargetConsumed = {
+                                    aboutScrollTarget = null
                                 }
                             )
                         }
