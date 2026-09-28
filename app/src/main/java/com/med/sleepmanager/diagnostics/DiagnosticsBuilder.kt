@@ -146,6 +146,8 @@ object DiagnosticsBuilder {
             appendLine("- JamesDSP: ${AppPreferences.manageJamesDsp(context)}")
             appendLine("- BasicSync: ${AppPreferences.manageBasicSync(context)}")
             appendLine("- Closed-lid protection: ${AppPreferences.manageThorProtection(context)}")
+            appendLine("- Sleep when external display disconnects: ${AppPreferences.thorDockDisconnectSleeps(context)}")
+            appendLine("- Power button sleeps with lid closed: ${AppPreferences.thorClosedPowerSleeps(context)}")
             appendLine()
             appendLine("Advanced sync conditions")
             appendLine("- Periodic sync while sleeping: ${AppPreferences.periodicSyncWhileSleeping(context)}")
