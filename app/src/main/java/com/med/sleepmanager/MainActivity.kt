@@ -419,6 +419,7 @@ class MainActivity : ComponentActivity() {
             if (dpm.isAdminActive(thorAdminComponent())) {
                 runCatching { dpm.removeActiveAdmin(thorAdminComponent()) }
             }
+            refreshBackgroundReliabilityAsync()
             return
         }
 
