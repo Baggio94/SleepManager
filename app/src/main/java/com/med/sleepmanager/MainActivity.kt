@@ -189,18 +189,9 @@ class MainActivity : ComponentActivity() {
                 currentDeviceControlCapabilities = capabilities
                 deviceCapabilitiesProbeRunning = false
 
-                if (
-                    !capabilities.pServerAvailable &&
-                    AppPreferences.batterySaverMode(
-                        this@MainActivity
-                    ) != AppPreferences.BATTERY_SAVER_IGNORE
-                ) {
-                    AppPreferences.setBatterySaverMode(
-                        this@MainActivity,
-                        AppPreferences.BATTERY_SAVER_IGNORE
-                    )
-                    activityRefreshToken++
-                }
+                // Battery Saver conditions only read PowerManager state and
+                // stay valid on every Android device. Privileged capability
+                // detection gates only the Home Battery Saver sleep action.
             }
         }.apply {
             name = "SleepManagerCapabilities"
