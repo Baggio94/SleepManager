@@ -48,4 +48,81 @@ class SleepWakePolicyTest {
         assertFalse(decision.cancelSleepDelay)
         assertFalse(decision.restoreNormalWake)
     }
+
+
+    @Test
+    fun batterySaverAlone_waitsForSyncthingStop() {
+        assertTrue(
+            SleepWakePolicy.shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                wifiManaged = false,
+                helperAvailable = false,
+                batterySaverWillEnable = true,
+                syncthingStopRequested = true,
+                basicSyncStopRequested = false
+            )
+        )
+    }
+
+    @Test
+    fun batterySaverAlone_waitsForBasicSyncStop() {
+        assertTrue(
+            SleepWakePolicy.shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                wifiManaged = false,
+                helperAvailable = false,
+                batterySaverWillEnable = true,
+                syncthingStopRequested = false,
+                basicSyncStopRequested = true
+            )
+        )
+    }
+
+    @Test
+    fun wifiWithHelper_keepsExistingStopGate() {
+        assertTrue(
+            SleepWakePolicy.shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                wifiManaged = true,
+                helperAvailable = true,
+                batterySaverWillEnable = false,
+                syncthingStopRequested = true,
+                basicSyncStopRequested = false
+            )
+        )
+    }
+
+    @Test
+    fun wifiWithoutHelper_doesNotPretendItCanDisruptNetworking() {
+        assertFalse(
+            SleepWakePolicy.shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                wifiManaged = true,
+                helperAvailable = false,
+                batterySaverWillEnable = false,
+                syncthingStopRequested = true,
+                basicSyncStopRequested = false
+            )
+        )
+    }
+
+    @Test
+    fun bluetoothOnly_doesNotCreateSyncStopGate() {
+        assertFalse(
+            SleepWakePolicy.shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                wifiManaged = false,
+                helperAvailable = true,
+                batterySaverWillEnable = false,
+                syncthingStopRequested = true,
+                basicSyncStopRequested = false
+            )
+        )
+    }
+
+    @Test
+    fun batterySaver_waitsForPendingTailscaleDisconnectVerification() {
+        assertTrue(
+            SleepWakePolicy.shouldWaitForTailscaleBeforeDisruptiveSleepAction(
+                helperAvailable = false,
+                batterySaverWillEnable = true,
+                tailscaleVerificationPending = true
+            )
+        )
+    }
 }
