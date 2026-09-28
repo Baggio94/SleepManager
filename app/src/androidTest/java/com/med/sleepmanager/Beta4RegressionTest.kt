@@ -308,7 +308,7 @@ class Beta4RegressionTest {
 
         composeRule.onNodeWithTag("main_list")
             .performScrollToNode(hasText("Battery level"))
-        composeRule.onNodeWithText("Only below 50%")
+        composeRule.onNodeWithText("Only when battery is below 50%")
             .assertIsDisplayed()
     }
 
