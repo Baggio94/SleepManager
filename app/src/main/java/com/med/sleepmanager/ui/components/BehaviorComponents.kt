@@ -42,54 +42,100 @@ import kotlinx.coroutines.withContext
 internal fun BehaviorCard(
     wifi: Boolean,
     bluetooth: Boolean,
+    batterySaver: Boolean,
     syncthing: Boolean,
     tailscale: Boolean,
     jamesDsp: Boolean,
     basicSync: Boolean,
     closedLidProtection: Boolean,
+    chargingSeparationWithLid: Boolean,
+    sleepOnExternalDisplayDisconnect: Boolean,
+    powerButtonSleepsWithLidClosed: Boolean,
     sleepGraceMs: Long,
-    advancedConditions: List<String>
+    advancedConditions: List<String>,
+    periodicSyncWhileSleeping: Boolean,
+    syncThenStopOnSleepWake: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
     val hasSleepAction =
-        wifi || bluetooth || syncthing || tailscale || jamesDsp || basicSync
+        wifi || bluetooth || batterySaver || syncthing || tailscale ||
+            jamesDsp || basicSync || syncThenStopOnSleepWake
+    val hasClamshellBehavior =
+        closedLidProtection ||
+            chargingSeparationWithLid ||
+            sleepOnExternalDisplayDisconnect ||
+            powerButtonSleepsWithLidClosed
 
     val sleepLines = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) {
             add("Wait ${formatDuration(sleepGraceMs)}")
         }
         advancedConditions.forEach { add("Only if $it") }
+        if (syncThenStopOnSleepWake) {
+            add("Sync supported clients before sleep, then stop them")
+        }
         if (syncthing) add("Pause Syncthing‑Fork")
         if (tailscale) add("Disconnect Tailscale")
         if (jamesDsp) add("Power off JamesDSP")
-        if (basicSync) add("Stop BasicSync when active")
+        if (basicSync && !syncThenStopOnSleepWake) add("Stop BasicSync when active")
+        if (batterySaver) add("Enable Battery Saver")
         if (wifi) add("Wi‑Fi off")
         if (bluetooth) add("Bluetooth off")
-        if (!hasSleepAction) add("No sleep actions selected")
-        if (closedLidProtection) add("Closed-lid protection")
+        if (!hasSleepAction) add("No screen-off actions selected")
     }
 
     val wakeLines = buildList {
         if (wifi) add("Restore Wi‑Fi")
         if (bluetooth) add("Restore Bluetooth")
+        if (batterySaver) add("Restore Battery Saver previous state")
         if (syncthing) add("Resume Syncthing‑Fork")
         if (tailscale) add("Restore Tailscale if SleepManager disconnected it")
         if (jamesDsp) add("Restore JamesDSP")
-        if (basicSync) add("Restore BasicSync previous mode")
+        if (basicSync && !syncThenStopOnSleepWake) add("Restore BasicSync previous mode")
+        if (syncThenStopOnSleepWake) {
+            add("Sync supported clients after wake, then stop them")
+        }
+    }
+
+    val clamshellLines = buildList {
+        if (closedLidProtection) {
+            add("Return accidental closed-lid wake-ups to sleep")
+        }
+        if (chargingSeparationWithLid) {
+            add("Disable Charging Separation while lid is closed")
+        }
+        if (sleepOnExternalDisplayDisconnect) {
+            add("Sleep when external display disconnects with lid closed")
+        }
+        if (powerButtonSleepsWithLidClosed) {
+            add("Power button sleeps while lid is closed")
+        }
+    }
+
+    val sleepMaintenanceLines = buildList {
+        if (periodicSyncWhileSleeping) {
+            add("Run supported sync clients every 24h, then stop them")
+        }
     }
 
     val compactSleepSummary = buildList {
         if (sleepGraceMs > 0L && hasSleepAction) add(formatDuration(sleepGraceMs))
         if (wifi) add("Wi‑Fi")
         if (bluetooth) add("Bluetooth")
+        if (batterySaver) add("Battery Saver")
         if (syncthing) add("Syncthing")
         if (tailscale) add("Tailscale")
         if (jamesDsp) add("JamesDSP")
         if (basicSync) add("BasicSync")
+        if (syncThenStopOnSleepWake) add("Sleep/wake sync")
+        if (periodicSyncWhileSleeping) add("Periodic sync")
         if (advancedConditions.isNotEmpty()) {
             add("${advancedConditions.size} condition${if (advancedConditions.size > 1) "s" else ""}")
         }
-        if (!hasSleepAction) add("No actions")
+        if (hasClamshellBehavior) add("Clamshell")
+        if (!hasSleepAction && !hasClamshellBehavior && !periodicSyncWhileSleeping) {
+            add("No actions")
+        }
     }.joinToString(" • ")
 
     Card(
@@ -136,9 +182,25 @@ internal fun BehaviorCard(
                     lines = wakeLines.ifEmpty { listOf("Nothing to restore") }
                 )
 
-                if (wifi || bluetooth) {
+                if (sleepMaintenanceLines.isNotEmpty()) {
+                    BehaviorGroup(
+                        title = "While sleeping",
+                        lines = sleepMaintenanceLines
+                    )
+                }
+
+                if (clamshellLines.isNotEmpty()) {
+                    BehaviorGroup(
+                        title = "Clamshell behavior",
+                        lines = clamshellLines
+                    )
+                }
+
+                if (wifi || bluetooth || batterySaver || basicSync || syncthing ||
+                    tailscale || jamesDsp
+                ) {
                     Text(
-                        "Only states changed by SleepManager are restored.",
+                        "Only states changed by SleepManager are restored on wake.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -213,15 +275,23 @@ internal fun LastActivityCard(
                 val subject = when {
                     action.startsWith("Wi‑Fi ") -> "Wi‑Fi"
                     action.startsWith("Bluetooth ") -> "Bluetooth"
+                    action.startsWith("Battery Saver ") -> "Battery Saver"
+                    action.startsWith("Charging Separation ") -> "Charging Separation"
                     action.startsWith("Syncthing ") -> "Syncthing"
                     action.startsWith("Tailscale ") -> "Tailscale"
+                    action.startsWith("JamesDSP ") -> "JamesDSP"
+                    action.startsWith("BasicSync ") -> "BasicSync"
                     else -> null
                 }
                 val detail = when (subject) {
                     "Wi‑Fi" -> action.removePrefix("Wi‑Fi ").replaceFirstChar { it.uppercase() }
                     "Bluetooth" -> action.removePrefix("Bluetooth ").replaceFirstChar { it.uppercase() }
+                    "Battery Saver" -> action.removePrefix("Battery Saver ").replaceFirstChar { it.uppercase() }
+                    "Charging Separation" -> action.removePrefix("Charging Separation ").replaceFirstChar { it.uppercase() }
                     "Syncthing" -> action.removePrefix("Syncthing ").replaceFirstChar { it.uppercase() }
                     "Tailscale" -> action.removePrefix("Tailscale ").replaceFirstChar { it.uppercase() }
+                    "JamesDSP" -> action.removePrefix("JamesDSP ").replaceFirstChar { it.uppercase() }
+                    "BasicSync" -> action.removePrefix("BasicSync ").replaceFirstChar { it.uppercase() }
                     else -> action
                 }
 
