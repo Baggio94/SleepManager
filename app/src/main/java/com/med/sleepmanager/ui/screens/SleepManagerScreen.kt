@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.HelperController
@@ -244,6 +245,9 @@ import com.med.sleepmanager.ui.feedbackChange
         }
         val effectiveSleepDelayMs =
             if (customDelayEnabled) customDelayMs else sleepGraceMs
+        val currentBatterySaverState = remember(refreshToken) {
+            DeviceControlController.batterySaverEnabled(this)
+        }
 
         val setupComplete = remember(refreshToken) {
             AppPreferences.isSetupComplete(this)
@@ -721,7 +725,8 @@ import com.med.sleepmanager.ui.feedbackChange
                                 icon = R.drawable.ic_battery,
                                 title = "Battery Saver",
                                 subtitle = "Enable during sleep and restore the previous state on wake.",
-                                status = null,
+                                status =
+                                    "Current state: ${if (currentBatterySaverState) "ON" else "OFF"}",
                                 checked = batterySaverActionEnabled,
                                 enabled = true,
                                 onCheckedChange = {
@@ -1061,11 +1066,19 @@ import com.med.sleepmanager.ui.feedbackChange
                     BehaviorCard(
                         wifi = wifiEnabled && helperInstalled,
                         bluetooth = bluetoothEnabled && helperInstalled,
+                        batterySaver =
+                            batterySaverActionEnabled && batterySaverControlSupported,
                         syncthing = syncthingEnabled && selectedTarget != null,
                         tailscale = tailscaleEnabled && tailscaleInstalled,
                         jamesDsp = jamesDspEnabled && jamesDspTarget != null,
                         basicSync = basicSyncEnabled && basicSyncInstalled,
                         closedLidProtection = thorProtectionEnabled && thorAdminActive,
+                        chargingSeparationWithLid =
+                            chargingSeparationWithLidEnabled && chargingSeparationSupported,
+                        sleepOnExternalDisplayDisconnect =
+                            thorProtectionSupported && thorDockDisconnectSleeps,
+                        powerButtonSleepsWithLidClosed =
+                            closedLidPowerSupported && thorClosedPowerSleeps,
                         sleepGraceMs = effectiveSleepDelayMs,
                         advancedConditions = buildList {
                             if (batteryConditionEnabled) {
@@ -1088,7 +1101,9 @@ import com.med.sleepmanager.ui.feedbackChange
                                         formatTime(scheduleEndMinutes)
                                 )
                             }
-                        }
+                        },
+                        periodicSyncWhileSleeping = periodicSyncWhileSleeping,
+                        syncThenStopOnSleepWake = syncThenStopOnSleepWake
                     )
                 }
 
