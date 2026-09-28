@@ -121,6 +121,7 @@ class AdvancedSettingsComponentsTest {
         composeRule.onNodeWithTag("battery_saver_mode_on")
             .performScrollTo()
             .performClick()
+        composeRule.waitForIdle()
         assertEquals(AppPreferences.BATTERY_SAVER_ON, batterySaverMode)
         composeRule.onNodeWithTag("battery_saver_mode_off")
             .fetchSemanticsNode()
