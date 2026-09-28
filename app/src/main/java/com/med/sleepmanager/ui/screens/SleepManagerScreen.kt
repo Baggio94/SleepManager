@@ -73,6 +73,7 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.sync.basicSyncCompletionState
 import com.med.sleepmanager.sync.ManagedSyncProviders
+import com.med.sleepmanager.sync.SyncMaintenanceScheduler
 import com.med.sleepmanager.sync.SyncCompletionState
 import com.med.sleepmanager.ui.AppSection
 import com.med.sleepmanager.ui.components.BehaviorCard
@@ -1033,6 +1034,12 @@ import com.med.sleepmanager.ui.feedbackChange
                                 } else if (managerEnabled) {
                                     restoreBasicSyncTransactionNow()
                                     SleepCycleStore.completeIfRestored(this@SleepManagerScreen)
+                                    // BasicSync is the only completion-aware
+                                    // provider, so no periodic alarm should
+                                    // remain armed while its integration is off.
+                                    SyncMaintenanceScheduler.cancel(
+                                        this@SleepManagerScreen
+                                    )
                                     // Also let the running service restore the
                                     // original state owned by Sync then stop.
                                     refreshRunningService()
@@ -1129,6 +1136,11 @@ import com.med.sleepmanager.ui.feedbackChange
                                         this@SleepManagerScreen,
                                         it
                                     )
+                                    if (!it) {
+                                        SyncMaintenanceScheduler.cancel(
+                                            this@SleepManagerScreen
+                                        )
+                                    }
                                 },
                                 onSyncThenStopOnSleepWakeChange = {
                                     syncThenStopOnSleepWake = it
