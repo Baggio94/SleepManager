@@ -123,6 +123,7 @@ class SleepManagerService : Service() {
     private var pendingSleepBluetooth = false
     private var pendingSleepSyncthing = false
     private var pendingSleepBasicSync = false
+    private var pendingSleepPostStopActions = false
     private var sleepStopWaitStartedAtElapsed = 0L
     private var lastBasicSyncStopStateRequestAtElapsed = 0L
     private var syncthingStopProbeInFlight = false
@@ -831,65 +832,96 @@ class SleepManagerService : Service() {
         if (sleepActionsApplied || existingCycle.active) {
             sleepActionsApplied = true
 
-            if (isTailscaleSleepVerificationPending()) {
-                if (
-                    existingCycle.active &&
+            val helperSleepPending =
+                existingCycle.active &&
                     existingCycle.helperExpected &&
                     !existingCycle.helperSleepRequested
-                ) {
-                    val elapsed =
-                        (System.currentTimeMillis() - existingCycle.startedAt)
-                            .coerceAtLeast(0L)
-                    pendingSleepWifi = existingCycle.wifiManaged
-                    pendingSleepBluetooth = existingCycle.bluetoothManaged
-                    pendingSleepSyncthing =
-                        SleepCycleStore.hasConnectorChange(
-                            this,
-                            SyncthingConnector.id
-                        )
-                    pendingSleepBasicSync =
-                        SleepCycleStore.hasConnectorChange(
-                            this,
-                            BasicSyncConnector.id
-                        )
-                    initializeSleepStopWait(elapsed)
+            val batterySaverWillEnable =
+                batterySaverWillEnableForSleep()
+            val syncthingStopPending =
+                SleepCycleStore.hasConnectorChange(
+                    this,
+                    SyncthingConnector.id
+                )
+            val basicSyncStopPending =
+                SleepCycleStore.hasConnectorChange(
+                    this,
+                    BasicSyncConnector.id
+                )
+            val tailscaleVerificationPending =
+                isTailscaleSleepVerificationPending()
+
+            val waitForManagedStops =
+                SleepWakePolicy
+                    .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                        wifiManaged = existingCycle.wifiManaged,
+                        helperAvailable = helperSleepPending,
+                        batterySaverWillEnable = batterySaverWillEnable,
+                        syncthingStopRequested = syncthingStopPending,
+                        basicSyncStopRequested = basicSyncStopPending
+                    )
+            val waitForTailscale =
+                SleepWakePolicy
+                    .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
+                        helperAvailable = helperSleepPending,
+                        batterySaverWillEnable = batterySaverWillEnable,
+                        tailscaleVerificationPending =
+                            tailscaleVerificationPending
+                    )
+
+            val postStopRecoveryNeeded =
+                waitForManagedStops ||
+                    waitForTailscale ||
+                    helperSleepPending ||
+                    batterySaverWillEnable
+
+            if (postStopRecoveryNeeded) {
+                val elapsed =
+                    (System.currentTimeMillis() - existingCycle.startedAt)
+                        .coerceAtLeast(0L)
+
+                pendingSleepPostStopActions = true
+                pendingSleepWifi =
+                    helperSleepPending && existingCycle.wifiManaged
+                pendingSleepBluetooth =
+                    helperSleepPending && existingCycle.bluetoothManaged
+                pendingSleepSyncthing =
+                    waitForManagedStops && syncthingStopPending
+                pendingSleepBasicSync =
+                    waitForManagedStops && basicSyncStopPending
+
+                initializeSleepStopWait(elapsed)
+
+                if (pendingSleepBasicSync) {
+                    BasicSyncController.requestStateBroadcast(this)
                 }
 
+                if (waitForTailscale) {
+                    Log.i(
+                        TAG,
+                        "Recovered pending sleep transaction; resuming Tailscale verification before disruptive sleep actions"
+                    )
+                    scheduleTailscaleSleepVerification(resetAttempts = true)
+                } else {
+                    scheduleSleepRadioStopCheck(0L)
+                    Log.i(
+                        TAG,
+                        "Recovered pending sleep transaction; resuming post-STOP sleep actions"
+                    )
+                }
+                return
+            }
+
+            if (tailscaleVerificationPending) {
                 Log.i(TAG, "Recovered pending Tailscale disconnect verification")
                 scheduleTailscaleSleepVerification(resetAttempts = true)
                 return
             }
 
-            if (
-                existingCycle.active &&
-                existingCycle.helperExpected &&
-                !existingCycle.helperSleepRequested
-            ) {
-                val elapsed =
-                    (System.currentTimeMillis() - existingCycle.startedAt)
-                        .coerceAtLeast(0L)
-                pendingSleepWifi = existingCycle.wifiManaged
-                pendingSleepBluetooth = existingCycle.bluetoothManaged
-                pendingSleepSyncthing =
-                    SleepCycleStore.hasConnectorChange(
-                        this,
-                        SyncthingConnector.id
-                    )
-                pendingSleepBasicSync =
-                    SleepCycleStore.hasConnectorChange(
-                        this,
-                        BasicSyncConnector.id
-                    )
-
-                initializeSleepStopWait(elapsed)
-                scheduleSleepRadioStopCheck(0L)
-                Log.i(
-                    TAG,
-                    "Recovered pending sleep transaction; resuming sync STOP gate"
-                )
-            } else {
-                Log.i(TAG, "Screen OFF -> active sleep transaction already exists; skipping duplicate")
-            }
+            Log.i(
+                TAG,
+                "Screen OFF -> active sleep transaction already exists; skipping duplicate"
+            )
             return
         }
         if (sleepGracePending) {
@@ -1190,6 +1222,8 @@ class SleepManagerService : Service() {
         }
         val radiosManaged = wifi || bluetooth
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
+        val batterySaverWillEnable =
+            batterySaverWillEnableForSleep()
 
         val cycle = SleepCycleStore.begin(
             context = this,
@@ -1307,27 +1341,42 @@ class SleepManagerService : Service() {
                 basicSyncResult?.changed == true
             }
         val tailscaleVerificationPending = isTailscaleSleepVerificationPending()
-        val waitForSyncStopBeforeWifi =
-            wifi && (syncthingStopRequested || basicSyncStopRequested)
+        val waitForManagedStops =
+            SleepWakePolicy
+                .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
+                    wifiManaged = wifi,
+                    helperAvailable = helperAvailable,
+                    batterySaverWillEnable = batterySaverWillEnable,
+                    syncthingStopRequested = syncthingStopRequested,
+                    basicSyncStopRequested = basicSyncStopRequested
+                )
+        val waitForTailscale =
+            SleepWakePolicy
+                .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
+                    helperAvailable = helperAvailable,
+                    batterySaverWillEnable = batterySaverWillEnable,
+                    tailscaleVerificationPending =
+                        tailscaleVerificationPending
+                )
 
-        if (
-            helperAvailable &&
-            (waitForSyncStopBeforeWifi || tailscaleVerificationPending)
-        ) {
+        if (waitForManagedStops || waitForTailscale) {
+            pendingSleepPostStopActions = true
             pendingSleepWifi = wifi
             pendingSleepBluetooth = bluetooth
-            pendingSleepSyncthing = wifi && syncthingStopRequested
-            pendingSleepBasicSync = wifi && basicSyncStopRequested
+            pendingSleepSyncthing =
+                waitForManagedStops && syncthingStopRequested
+            pendingSleepBasicSync =
+                waitForManagedStops && basicSyncStopRequested
             initializeSleepStopWait()
 
             if (pendingSleepBasicSync) {
                 BasicSyncController.requestStateBroadcast(this)
             }
 
-            if (tailscaleVerificationPending) {
+            if (waitForTailscale) {
                 Log.i(
                     TAG,
-                    "Waiting for Tailscale disconnect verification before radio sleep"
+                    "Waiting for Tailscale disconnect verification before disruptive sleep actions"
                 )
                 scheduleTailscaleSleepVerification(resetAttempts = true)
             } else {
@@ -1359,6 +1408,12 @@ class SleepManagerService : Service() {
         AppPreferences.syncThenStopOnSleepWake(this) &&
             ManagedSyncProviders.completionReady(this)
 
+    private fun batterySaverWillEnableForSleep(): Boolean =
+        AppPreferences.manageBatterySaver(this) &&
+            DeviceControlController.supportsBatterySaverControl(this) &&
+            !DeviceControlStore.batterySaver(this).owned &&
+            !DeviceControlController.batterySaverEnabled(this)
+
     private fun initializeSleepStopWait(
         elapsedBeforeRecoveryMs: Long = 0L
     ) {
@@ -1377,7 +1432,7 @@ class SleepManagerService : Service() {
 
         Log.i(
             TAG,
-            "Waiting before Wi-Fi sleep: Syncthing=$pendingSleepSyncthing " +
+            "Waiting before disruptive sleep actions: Syncthing=$pendingSleepSyncthing " +
                 "BasicSync=$pendingSleepBasicSync timeout=${SYNC_STOP_TIMEOUT_MS}ms"
         )
     }
@@ -1393,7 +1448,7 @@ class SleepManagerService : Service() {
     }
 
     private fun continueSleepRadioAfterSyncStop() {
-        if (!pendingSleepWifi && !pendingSleepBluetooth) {
+        if (!pendingSleepPostStopActions) {
             releaseSleepTransitionWakeLock()
             return
         }
@@ -1476,14 +1531,14 @@ class SleepManagerService : Service() {
                                     syncthingStopConfirmed = true
                                     Log.i(
                                         TAG,
-                                        "Syncthing STOP confirmed before Wi-Fi sleep"
+                                        "Syncthing STOP confirmed before disruptive sleep actions"
                                     )
                                 }
 
                                 false -> {
                                     Log.i(
                                         TAG,
-                                        "Syncthing still running; keeping Wi-Fi on while STOP completes"
+                                        "Syncthing still running; delaying disruptive sleep actions while STOP completes"
                                     )
                                 }
 
@@ -1499,7 +1554,7 @@ class SleepManagerService : Service() {
                                         syncthingStopConfirmed = true
                                         Log.i(
                                             TAG,
-                                            "Syncthing STOP state unavailable; fallback grace elapsed before Wi-Fi sleep"
+                                            "Syncthing STOP state unavailable; fallback grace elapsed before disruptive sleep actions"
                                         )
                                     }
                                 }
@@ -1538,11 +1593,11 @@ class SleepManagerService : Service() {
         if (pendingSleepBasicSync && !basicSyncStopped) {
             Log.w(
                 TAG,
-                "BasicSync STOP not confirmed before Wi-Fi sleep timeout"
+                "BasicSync STOP not confirmed before disruptive sleep actions timeout"
             )
             AppPreferences.recordEvent(
                 this,
-                "Sleep → BasicSync STOP not confirmed before Wi-Fi off"
+                "Sleep → BasicSync STOP not confirmed before disruptive sleep actions"
             )
         }
 
@@ -1560,11 +1615,11 @@ class SleepManagerService : Service() {
             }
             Log.w(
                 TAG,
-                "Syncthing STOP not confirmed before Wi-Fi sleep timeout"
+                "Syncthing STOP not confirmed before disruptive sleep actions timeout"
             )
             AppPreferences.recordEvent(
                 this,
-                "Sleep → Syncthing STOP not confirmed before Wi-Fi off"
+                "Sleep → Syncthing STOP not confirmed before disruptive sleep actions"
             )
         }
 
@@ -1576,7 +1631,7 @@ class SleepManagerService : Service() {
 
         Log.i(
             TAG,
-            "Sync STOP gate complete -> applying radio sleep"
+            "Sync STOP gate complete -> applying sleep device controls and radios"
         )
         applySleepConnectivity(
             wifi = wifi,
@@ -1592,6 +1647,7 @@ class SleepManagerService : Service() {
         pendingSleepBluetooth = false
         pendingSleepSyncthing = false
         pendingSleepBasicSync = false
+        pendingSleepPostStopActions = false
         sleepStopWaitStartedAtElapsed = 0L
         lastBasicSyncStopStateRequestAtElapsed = 0L
         syncthingStopProbeInFlight = false
@@ -1924,6 +1980,8 @@ class SleepManagerService : Service() {
             pendingSleepWifi = false
             pendingSleepBluetooth = false
             pendingSleepSyncthing = false
+            pendingSleepBasicSync = false
+            pendingSleepPostStopActions = false
 
             val shouldRestoreNow =
                 tailscaleVerificationNeedsWakeRestore &&
@@ -1939,10 +1997,7 @@ class SleepManagerService : Service() {
             return
         }
 
-        val hasPendingRadioSleep =
-            pendingSleepWifi || pendingSleepBluetooth
-
-        if (hasPendingRadioSleep) {
+        if (pendingSleepPostStopActions) {
             scheduleSleepRadioStopCheck(0L)
         } else {
             SleepCycleStore.completeIfRestored(this)
