@@ -398,6 +398,27 @@ class MainActivity : ComponentActivity() {
         return dpm.isAdminActive(thorAdminComponent())
     }
 
+    private fun refreshBackgroundReliabilityAfterThorAdminRemoval(
+        attempt: Int = 0
+    ) {
+        val adminStillActive = isThorAdminActive()
+
+        if (!adminStillActive || attempt >= 5) {
+            refreshBackgroundReliabilityAsync()
+            activityRefreshToken++
+            return
+        }
+
+        statusRefreshHandler.postDelayed(
+            {
+                refreshBackgroundReliabilityAfterThorAdminRemoval(
+                    attempt = attempt + 1
+                )
+            },
+            250L
+        )
+    }
+
     private fun requestThorAdmin() {
         pendingThorAdminEnable = true
         val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
@@ -418,8 +439,10 @@ class MainActivity : ComponentActivity() {
             val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             if (dpm.isAdminActive(thorAdminComponent())) {
                 runCatching { dpm.removeActiveAdmin(thorAdminComponent()) }
+                refreshBackgroundReliabilityAfterThorAdminRemoval()
+            } else {
+                refreshBackgroundReliabilityAsync()
             }
-            refreshBackgroundReliabilityAsync()
             return
         }
 
