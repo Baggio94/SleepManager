@@ -870,10 +870,13 @@ class SleepManagerService : Service() {
                     )
 
             val postStopRecoveryNeeded =
-                waitForManagedStops ||
-                    waitForTailscale ||
-                    helperSleepPending ||
-                    batterySaverWillEnable
+                existingCycle.active &&
+                    (
+                        waitForManagedStops ||
+                            waitForTailscale ||
+                            helperSleepPending ||
+                            batterySaverWillEnable
+                    )
 
             if (postStopRecoveryNeeded) {
                 val elapsed =
