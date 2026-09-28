@@ -6,7 +6,6 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.PowerManager
 import com.med.sleepmanager.data.AppPreferences
-import com.med.sleepmanager.device.DeviceControlController
 import java.util.Calendar
 
 data class SleepConditionResult(
@@ -33,19 +32,15 @@ object SleepConditionEvaluator {
                 add("device is charging")
             }
 
-            if (
-                DeviceControlController.supportsBatterySaverControl(context)
-            ) {
-                when (AppPreferences.batterySaverMode(context)) {
-                    AppPreferences.BATTERY_SAVER_ON -> {
-                        if (!isBatterySaverOn(context)) {
-                            add("Battery Saver is OFF")
-                        }
+            when (AppPreferences.batterySaverMode(context)) {
+                AppPreferences.BATTERY_SAVER_ON -> {
+                    if (!isBatterySaverOn(context)) {
+                        add("Battery Saver is OFF")
                     }
-                    AppPreferences.BATTERY_SAVER_OFF -> {
-                        if (isBatterySaverOn(context)) {
-                            add("Battery Saver is ON")
-                        }
+                }
+                AppPreferences.BATTERY_SAVER_OFF -> {
+                    if (isBatterySaverOn(context)) {
+                        add("Battery Saver is ON")
                     }
                 }
             }
