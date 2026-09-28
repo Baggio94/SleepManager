@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.screens.AdvancedSettingsPage
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
@@ -120,8 +122,12 @@ class AdvancedSettingsComponentsTest {
         // remain available even without privileged Home action control.
         composeRule.onNodeWithTag("battery_saver_mode_on")
             .performScrollTo()
-            .performClick()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag("battery_saver_mode_on")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            batterySaverMode == AppPreferences.BATTERY_SAVER_ON
+        }
         assertEquals(AppPreferences.BATTERY_SAVER_ON, batterySaverMode)
         composeRule.onNodeWithTag("battery_saver_mode_off")
             .fetchSemanticsNode()
