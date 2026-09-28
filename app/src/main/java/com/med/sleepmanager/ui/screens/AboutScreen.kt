@@ -134,7 +134,7 @@ internal fun AboutPage(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Runs your chosen sleep actions when the screen turns off, then restores only what SleepManager changed.",
+                    "Android sleep/wake manager for handhelds — reduce standby battery drain by managing Wi-Fi, Bluetooth, Syncthing-Fork, BasicSync, Tailscale, JamesDSP, and more.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
