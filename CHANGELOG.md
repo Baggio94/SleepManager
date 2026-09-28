@@ -2,6 +2,46 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.6.1 — 2026-09-28
+
+### New
+
+- Added optional **Battery Saver during sleep** on supported devices with state-aware restoration on wake.
+- Added **Disable Charging Separation with lid closed** on compatible clamshell devices.
+- Added generic standard **SW_LID** detection while retaining the AYN Thor-specific lid path.
+- Added **About → Background Reliability** checks for Battery Optimization and Unused App Restrictions.
+- Added direct **Release Notes** access from the updater.
+
+### Improved
+
+- Closed-lid false wakes now preserve active sleep, sync and maintenance work instead of interrupting the cycle.
+- Managed sync clients are allowed to stop before disruptive sleep actions such as Battery Saver or radio changes.
+- BasicSync can finish an already-running sync before SleepManager stops it for sleep.
+- BasicSync 3.19 completion-aware Advanced Sync works independently when Syncthing-Fork is also enabled.
+- Foreground-service recovery and Main ↔ Helper restoration are more robust after Android process restarts.
+- Home controls are organized into **System Controls**, **Sleep Behavior**, **Clamshell Options** and **App Integrations**.
+- Diagnostics include more system-control, clamshell, restore and capability information.
+- Background Reliability correctly recognizes the Device Admin exemption from unused-app restrictions.
+- UI code was split into focused screen and component files without intentionally changing feature behavior.
+
+### Helper 1.1.1
+
+- Improved Wi-Fi and Bluetooth restore reliability.
+- Added cycle-aware, replay-safe restore handling.
+- Updated Bluetooth access for better compatibility with current Android handheld firmware.
+
+### Compatibility
+
+- Main app: **0.6.1 / versionCode 545**.
+- Helper: **1.1.1 / versionCode 1112**.
+- Android **9 / API 28 or newer**.
+- BasicSync **3.18+** for state-aware normal sleep/wake control.
+- BasicSync **3.19+** for completion-aware Advanced Sync.
+- Syncthing-Fork STOP/FOLLOW sleep/wake control remains supported.
+- **No root, Shizuku or ADB is required for normal use.**
+
+---
+
 ## 0.6.1-beta4 — 2026-09-27 — Preview
 
 ### UI code refactor
