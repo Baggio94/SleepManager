@@ -125,4 +125,73 @@ class SleepWakePolicyTest {
             )
         )
     }
+
+    @Test
+    fun thorFalseWake_isStillEffectivelySleeping() {
+        assertTrue(
+            SleepWakePolicy.isSuppressedThorFalseWake(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = false
+            )
+        )
+        assertTrue(
+            SleepWakePolicy.isEffectivelySleeping(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = false
+            )
+        )
+        assertFalse(
+            SleepWakePolicy.isRealWake(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = false
+            )
+        )
+    }
+
+    @Test
+    fun dockedClosedLidWake_isARealWake() {
+        assertFalse(
+            SleepWakePolicy.isSuppressedThorFalseWake(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = true
+            )
+        )
+        assertFalse(
+            SleepWakePolicy.isEffectivelySleeping(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = true
+            )
+        )
+        assertTrue(
+            SleepWakePolicy.isRealWake(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = true,
+                bypassClosedLidProtection = true
+            )
+        )
+    }
+
+    @Test
+    fun openLidInteractiveState_isARealWake() {
+        assertTrue(
+            SleepWakePolicy.isRealWake(
+                interactive = true,
+                thorProtectionEnabled = true,
+                lidClosed = false,
+                bypassClosedLidProtection = false
+            )
+        )
+    }
+
 }
