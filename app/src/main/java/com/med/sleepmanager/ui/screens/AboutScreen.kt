@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -593,55 +594,119 @@ internal fun AboutActionRow(
     onSecondaryClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        val hasSecondaryAction =
+            secondaryActionLabel != null && onSecondaryClick != null
+        val compact = hasSecondaryAction && maxWidth < 520.dp
 
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
-            if (textAction) {
-                TextButton(
-                    onClick = feedbackClick(onClick),
-                    enabled = enabled
+        if (compact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                AboutActionText(
+                    title = title,
+                    subtitle = subtitle
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Text(actionLabel)
-                }
-            } else {
-                OutlinedButton(
-                    onClick = feedbackClick(onClick),
-                    enabled = enabled
-                ) {
-                    Text(actionLabel)
+                    AboutActionButtons(
+                        actionLabel = actionLabel,
+                        enabled = enabled,
+                        textAction = textAction,
+                        secondaryActionLabel = secondaryActionLabel,
+                        onSecondaryClick = onSecondaryClick,
+                        onClick = onClick
+                    )
                 }
             }
-
-            if (
-                secondaryActionLabel != null &&
-                onSecondaryClick != null
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
-                    onClick = feedbackClick(onSecondaryClick),
-                    enabled = enabled
-                ) {
-                    Text(secondaryActionLabel)
+                Column(modifier = Modifier.weight(1f)) {
+                    AboutActionText(
+                        title = title,
+                        subtitle = subtitle
+                    )
                 }
+                AboutActionButtons(
+                    actionLabel = actionLabel,
+                    enabled = enabled,
+                    textAction = textAction,
+                    secondaryActionLabel = secondaryActionLabel,
+                    onSecondaryClick = onSecondaryClick,
+                    onClick = onClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutActionText(
+    title: String,
+    subtitle: String
+) {
+    Text(
+        title,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Medium
+    )
+    Text(
+        subtitle,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun AboutActionButtons(
+    actionLabel: String,
+    enabled: Boolean,
+    textAction: Boolean,
+    secondaryActionLabel: String?,
+    onSecondaryClick: (() -> Unit)?,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (
+            secondaryActionLabel != null &&
+            onSecondaryClick != null
+        ) {
+            TextButton(
+                onClick = feedbackClick(onSecondaryClick),
+                enabled = enabled
+            ) {
+                Text(secondaryActionLabel)
+            }
+        }
+
+        if (textAction) {
+            TextButton(
+                onClick = feedbackClick(onClick),
+                enabled = enabled
+            ) {
+                Text(actionLabel)
+            }
+        } else {
+            OutlinedButton(
+                onClick = feedbackClick(onClick),
+                enabled = enabled
+            ) {
+                Text(actionLabel)
             }
         }
     }
