@@ -497,15 +497,14 @@ class SleepManagerService : Service() {
     }
 
     private fun recoverOwnedDeviceControls() {
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
         val batterySaverOwned =
             DeviceControlStore.batterySaver(this)
 
         if (batterySaverOwned.owned) {
-            if (powerManager?.isInteractive == true) {
+            if (isRealWakeNow()) {
                 restoreOwnedBatterySaver("Recovery")
             } else if (
+                isEffectivelySleepingNow() &&
                 !batterySaverOwned.previous &&
                 AppPreferences.manageBatterySaver(this) &&
                 !DeviceControlController.batterySaverEnabled(this)
@@ -553,9 +552,7 @@ class SleepManagerService : Service() {
     }
 
     private fun recoverInterruptedSleepWifiMaintenance() {
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
-        if (powerManager?.isInteractive != false) return
+        if (!isEffectivelySleepingNow()) return
 
         val cycle = SleepCycleStore.current(this)
         if (
@@ -614,8 +611,7 @@ class SleepManagerService : Service() {
                 return START_NOT_STICKY
             }
 
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            if (powerManager?.isInteractive == false && !SleepCycleStore.isActive(this)) {
+            if (isEffectivelySleepingNow() && !SleepCycleStore.isActive(this)) {
                 Log.i(TAG, "Custom sleep delay elapsed -> evaluating advanced rules")
                 performFreshSleepActions()
             }
@@ -1006,10 +1002,8 @@ class SleepManagerService : Service() {
                         return@post
                     }
 
-                    val powerManager =
-                        getSystemService(Context.POWER_SERVICE) as? PowerManager
                     if (
-                        powerManager?.isInteractive != false ||
+                        !isEffectivelySleepingNow() ||
                         !AppPreferences.isEnabled(this) ||
                         !sleepActionsApplied
                     ) {
@@ -1064,10 +1058,8 @@ class SleepManagerService : Service() {
     private fun pollActiveBasicSyncBeforeSleep() {
         if (!waitingForActiveBasicSync) return
 
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
         if (
-            powerManager?.isInteractive == true ||
+            isRealWakeNow() ||
             !AppPreferences.isEnabled(this)
         ) {
             cancelActiveBasicSyncWait()
@@ -1174,9 +1166,7 @@ class SleepManagerService : Service() {
                         "Pre-sleep sync → ${snapshot.outcome}"
                     )
 
-                    val stillSleeping =
-                        (getSystemService(Context.POWER_SERVICE) as? PowerManager)
-                            ?.isInteractive == false
+                    val stillSleeping = isEffectivelySleepingNow()
 
                     if (
                         stillSleeping &&
@@ -1774,9 +1764,7 @@ class SleepManagerService : Service() {
         val owned = DeviceControlStore.batterySaver(this)
         if (!owned.owned || owned.previous) return
 
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
-        if (powerManager?.isInteractive == true) return
+        if (isRealWakeNow()) return
 
         if (!DeviceControlController.batterySaverEnabled(this)) {
             if (DeviceControlController.setBatterySaverEnabled(true)) {
@@ -1969,15 +1957,7 @@ class SleepManagerService : Service() {
         tailscaleSleepVerifyAttempts = 0
         releaseSleepTransitionWakeLock()
 
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
-        val realWake =
-            powerManager?.isInteractive == true &&
-                (
-                    !AppPreferences.manageThorProtection(this) ||
-                        !thorLidClosed ||
-                        shouldBypassThorProtectionForClosedLid()
-                )
+        val realWake = isRealWakeNow()
 
         if (realWake || tailscaleVerificationNeedsWakeRestore) {
             pendingSleepWifi = false
@@ -2169,11 +2149,7 @@ class SleepManagerService : Service() {
         val powerManager =
             getSystemService(Context.POWER_SERVICE) as? PowerManager
         val interactive = powerManager?.isInteractive == true
-        val thorClosedLidWakeSuppressed =
-            interactive &&
-                AppPreferences.manageThorProtection(this) &&
-                thorLidClosed &&
-                !shouldBypassThorProtectionForClosedLid()
+        val thorClosedLidWakeSuppressed = isThorFalseWakeNow()
 
         when (
             SyncMaintenancePolicy.periodicAlarmDeviceDecision(
@@ -2242,9 +2218,7 @@ class SleepManagerService : Service() {
                     reapplyBatterySaverAfterMaintenance()
                 }
 
-                val stillSleeping =
-                    (getSystemService(Context.POWER_SERVICE) as? PowerManager)
-                        ?.isInteractive == false
+                val stillSleeping = isEffectivelySleepingNow()
 
                 if (
                     stillSleeping &&
@@ -2363,23 +2337,19 @@ class SleepManagerService : Service() {
     }
 
     private fun onScreenOn() {
-        cancelNetworkReadyWait()
-        cancelActiveBasicSyncWait()
-
-        val closedLidProtectionApplies =
-            AppPreferences.manageThorProtection(this) &&
-                thorLidClosed &&
-                !shouldBypassThorProtectionForClosedLid()
-
+        val falseWake = isThorFalseWakeNow()
         val wakeDecision =
             SleepWakePolicy.onScreenOn(
-                thorProtectionEnabled = closedLidProtectionApplies,
-                lidClosed = closedLidProtectionApplies,
+                thorProtectionEnabled = falseWake,
+                lidClosed = falseWake,
                 sleepDelayPending = sleepGracePending
             )
 
         if (wakeDecision.suppressWake) {
-            Log.i(TAG, "Screen ON while lid is closed -> suppressing wake restore")
+            Log.i(
+                TAG,
+                "Screen ON while lid is closed -> false wake suppressed; sleep work preserved"
+            )
             handler.removeCallbacks(thorScreenOnRecheckRunnable)
             handler.postDelayed(
                 thorScreenOnRecheckRunnable,
@@ -2387,6 +2357,10 @@ class SleepManagerService : Service() {
             )
             return
         }
+
+        // Only a real wake may cancel sleep-side waits or restoration gates.
+        cancelNetworkReadyWait()
+        cancelActiveBasicSyncWait()
 
         restoreOwnedBatterySaver("Wake")
 
@@ -2529,9 +2503,7 @@ class SleepManagerService : Service() {
             return
         }
 
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
-        if (powerManager?.isInteractive != true) {
+        if (!isRealWakeNow()) {
             return
         }
 
@@ -2624,15 +2596,7 @@ class SleepManagerService : Service() {
         ) { result ->
             networkReadyGate = null
 
-            val powerManager =
-                getSystemService(Context.POWER_SERVICE) as? PowerManager
-            val realWake =
-                powerManager?.isInteractive == true &&
-                    (
-                        !AppPreferences.manageThorProtection(this) ||
-                            !thorLidClosed ||
-                            shouldBypassThorProtectionForClosedLid()
-                    )
+            val realWake = isRealWakeNow()
 
             if (!realWake) {
                 Log.i(
@@ -3052,6 +3016,45 @@ class SleepManagerService : Service() {
         return hasExternalDisplayConnected() || thorClosedAwakeOverride
     }
 
+    private fun isThorFalseWakeNow(): Boolean {
+        val interactive =
+            (getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                ?.isInteractive == true
+        return SleepWakePolicy.isSuppressedThorFalseWake(
+            interactive = interactive,
+            thorProtectionEnabled = AppPreferences.manageThorProtection(this),
+            lidClosed = thorLidClosed,
+            bypassClosedLidProtection =
+                shouldBypassThorProtectionForClosedLid()
+        )
+    }
+
+    private fun isEffectivelySleepingNow(): Boolean {
+        val interactive =
+            (getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                ?.isInteractive == true
+        return SleepWakePolicy.isEffectivelySleeping(
+            interactive = interactive,
+            thorProtectionEnabled = AppPreferences.manageThorProtection(this),
+            lidClosed = thorLidClosed,
+            bypassClosedLidProtection =
+                shouldBypassThorProtectionForClosedLid()
+        )
+    }
+
+    private fun isRealWakeNow(): Boolean {
+        val interactive =
+            (getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                ?.isInteractive == true
+        return SleepWakePolicy.isRealWake(
+            interactive = interactive,
+            thorProtectionEnabled = AppPreferences.manageThorProtection(this),
+            lidClosed = thorLidClosed,
+            bypassClosedLidProtection =
+                shouldBypassThorProtectionForClosedLid()
+        )
+    }
+
     private fun stopThorLidMonitor() {
         handler.removeCallbacks(thorCloseGuardRunnable)
         handler.removeCallbacks(thorScreenOnRecheckRunnable)
@@ -3285,9 +3288,7 @@ class SleepManagerService : Service() {
     override fun onDestroy() {
         pendingWakeTransitionSync = false
 
-        val powerManager =
-            getSystemService(Context.POWER_SERVICE) as? PowerManager
-        if (powerManager?.isInteractive == false) {
+        if (isEffectivelySleepingNow()) {
             HelperController.setTemporaryWifi(this, enabled = false)
         }
 
