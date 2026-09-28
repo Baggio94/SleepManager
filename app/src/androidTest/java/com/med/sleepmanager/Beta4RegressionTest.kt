@@ -362,6 +362,20 @@ class Beta4RegressionTest {
             "Choosing a Battery Saver condition must disable the sleep action",
             AppPreferences.manageBatterySaver(targetContext)
         )
+
+        openSection("Home", "SleepManager")
+        composeRule.onNodeWithTag("main_list")
+            .performScrollToNode(hasText("Battery Saver"))
+        composeRule.onNodeWithContentDescription("Battery Saver toggle")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.manageBatterySaver(targetContext)
+        }
+        assertTrue(
+            "Re-enabling the Home Battery Saver action must reset the Advanced condition",
+            AppPreferences.batterySaverMode(targetContext) ==
+                AppPreferences.BATTERY_SAVER_IGNORE
+        )
     }
 
     @Test
