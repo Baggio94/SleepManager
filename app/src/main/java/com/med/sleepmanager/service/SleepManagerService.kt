@@ -727,12 +727,13 @@ class SleepManagerService : Service() {
                 }
             DeviceControlStore.recordServiceRecovery(this, message)
             if (activeCycle) {
-                DiagnosticsCycleStore.captureSystemSnapshot(
-                    context = this,
-                    phase = DiagnosticsCycleStore.PHASE_SERVICE_RECOVERY,
-                    includeDetailedProcessMemory = true,
-                    includeLatestProcessExit = true
-                )
+                handler.post {
+                    DiagnosticsCycleStore.captureSystemSnapshot(
+                        context = this,
+                        phase = DiagnosticsCycleStore.PHASE_SERVICE_RECOVERY,
+                        includeDetailedProcessMemory = false
+                    )
+                }
             }
             DiagnosticsStateStore.recordEvent(
                 this,
@@ -995,11 +996,15 @@ class SleepManagerService : Service() {
         }
 
         DiagnosticsCycleStore.begin(this)
-        DiagnosticsCycleStore.captureSystemSnapshot(
-            context = this,
-            phase = DiagnosticsCycleStore.PHASE_SLEEP_START,
-            includeDetailedProcessMemory = true
-        )
+        // Diagnostics must never delay the sleep transition. Keep the automatic
+        // snapshot lightweight and run it after the current screen-off work.
+        handler.post {
+            DiagnosticsCycleStore.captureSystemSnapshot(
+                context = this,
+                phase = DiagnosticsCycleStore.PHASE_SLEEP_START,
+                includeDetailedProcessMemory = false
+            )
+        }
         BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
         helperNetworkRestoreHandoffState.clear()
@@ -2939,22 +2944,27 @@ class SleepManagerService : Service() {
                 closedLidScreenOnRecheckRunnable,
                 CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS
             )
-            // Start the re-sleep timer first. The diagnostic sample is lightweight
-            // and must never extend the false-wake protection path.
-            DiagnosticsCycleStore.captureSystemSnapshot(
-                context = this,
-                phase = DiagnosticsCycleStore.PHASE_FALSE_WAKE,
-                includeDetailedProcessMemory = false
-            )
+            // Start the re-sleep timer first, then defer the lightweight diagnostic
+            // sample so diagnostics never extend the false-wake protection path.
+            handler.post {
+                DiagnosticsCycleStore.captureSystemSnapshot(
+                    context = this,
+                    phase = DiagnosticsCycleStore.PHASE_FALSE_WAKE,
+                    includeDetailedProcessMemory = false
+                )
+            }
             return
         }
 
         // Only a real wake may cancel sleep-side waits or restoration gates.
-        DiagnosticsCycleStore.captureSystemSnapshot(
-            context = this,
-            phase = DiagnosticsCycleStore.PHASE_REAL_WAKE,
-            includeDetailedProcessMemory = true
-        )
+        // Defer diagnostics until after this callback has initiated restoration.
+        handler.post {
+            DiagnosticsCycleStore.captureSystemSnapshot(
+                context = this,
+                phase = DiagnosticsCycleStore.PHASE_REAL_WAKE,
+                includeDetailedProcessMemory = false
+            )
+        }
         sleepCycleRuntimeState.clearFalseWakeResleepPending()
         cancelNetworkReadyWait()
         cancelActiveBasicSyncWait()
