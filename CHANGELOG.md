@@ -2,53 +2,36 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## 0.7.0-dev1 — Unreleased
+## 0.7.0 — 2026-10-03
 
-> Development work in progress. These changes are not stable-release claims until the 0.7 validation gate passes.
+### Reliability and cleanup
 
-### Reliability
+- Refactored a large part of the sleep/wake engine into smaller, more focused components.
+- Improved closed-lid false-wake handling so the original sleep cycle and pending restores are preserved until a real wake.
+- Hardened Main ↔ Helper communication so delayed or stale responses cannot affect a newer sleep cycle.
+- Improved service-restart and restore handling across sleep/wake transitions.
 
-- Preserve the original sleep transaction across a suppressed closed-lid false wake and the forced re-sleep that follows it.
-- Correlate new Main ↔ Helper responses with a sleep `cycleId` so stale/delayed Helper results can be ignored safely.
-- Keep temporary compatibility with Helper 1.1.1 results that do not yet include a cycle ID.
-- Add explicit Helper cycle-mismatch reporting.
+### Battery Saver
 
-### Battery Saver / external power
+- Battery Saver is now aware of external power.
+- SleepManager no longer tries to enable Battery Saver unnecessarily when the device enters sleep while plugged in.
+- If external power is removed while the device remains asleep, Battery Saver can still be enabled and the previous state is restored on wake.
 
-- Skip Battery Saver activation when the device enters sleep while external power is connected.
-- Keep the configured Battery Saver action deferred for that sleep transaction instead of treating the firmware refusal as a normal toggle failure.
-- If external power is removed while the device is still effectively sleeping, enable Battery Saver then.
-- If power returns while SleepManager owns Battery Saver, restore the previous state and keep the deferred sleep behavior available if power is removed again.
-- Preserve/recover deferred Battery Saver state across service restart.
+### Bug fixes
 
-### Battery capacity / issue #29
+- Fixed **#29**: unrealistic battery-capacity values are now detected and a safer fallback is used for displayed stats.
+- Improved handling for **#30** on AYN Thor: when SELinux prevents access to the lid sensor, SleepManager now shows a clear warning instead of silently hiding the clamshell options.
 
-- Add sanity checking for implausibly high learned `charge_full` values compared with `charge_full_design`.
-- Fall back to design capacity for display/statistics when learned full capacity is clearly unrealistic.
-- Derive displayed current charge from battery percentage when the raw charge counter is also inconsistent.
-- Keep raw Android/sysfs battery values visible in diagnostics.
+### Diagnostics 2.0
 
-### Clamshell / diagnostics
+- Added more useful multi-cycle troubleshooting information.
+- Advanced diagnostics are opt-in and remain off by default so normal operation stays lightweight.
 
-- Show a Thor-specific lid-sensor unavailable explanation instead of silently hiding clamshell options when the expected sensor cannot be read, including the known Force SELinux case.
-- Record closed-lid false wakes in diagnostics.
-- Expand diagnostics with raw/interpreted battery values, capacity source, external-power state, device/build details, Helper versionCode and transaction information.
+### Helper 1.1.2
 
-### Development / release safety
-
-- Move active planning from the former 0.6.2 branch to `dev/0.7.0`.
-- Add a dedicated 0.7 validation plan and future integration backlog.
-- Update the Thor physical-test workflow to build Main + Helper candidates and fresh stable rollback APKs with versionCodes higher than the candidate under test.
-
-### Planned before stable 0.7
-
-- Complete emulator and real E2E regression.
-- Complete physical AYN Thor regression.
-- Finish Diagnostics 2.0.
-- Resolve or clearly document the Force SELinux clamshell limitation.
-- Validate battery issue #29 behavior on real hardware.
-- Validate Main 0.7 + Helper 1.1.1 upgrade compatibility and Main 0.7 + Helper 1.1.2 cycle correlation.
-- Return the physical Thor to stable 0.6.1 after testing.
+- More reliable Wi-Fi and Bluetooth restore.
+- Added cycle-aware communication with SleepManager.
+- Added protection against delayed or mismatched restore requests.
 
 ---
 
