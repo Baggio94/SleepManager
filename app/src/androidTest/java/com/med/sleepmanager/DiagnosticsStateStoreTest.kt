@@ -2,6 +2,7 @@ package com.med.sleepmanager
 
 import android.content.Context
 import androidx.test.platform.app.InstrumentationRegistry
+import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.EventHistoryStore
 import org.junit.After
@@ -89,6 +90,7 @@ class DiagnosticsStateStoreTest {
 
     @Test
     fun eventHistoryConcurrentWritesDoNotLoseEvents() {
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, true)
         val eventCount = 24
         val ready = CountDownLatch(eventCount)
         val start = CountDownLatch(1)
@@ -120,6 +122,22 @@ class DiagnosticsStateStoreTest {
     }
 
     @Test
+    fun standardDiagnosticsStayLightweightUntilAdvancedModeIsEnabled() {
+        assertFalse(AppPreferences.advancedDiagnosticsEnabled(context))
+
+        repeat(24) { index ->
+            EventHistoryStore.record(context, "Standard event $index")
+        }
+        assertEquals(20, EventHistoryStore.diagnosticHistory(context).size)
+
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, true)
+        repeat(24) { index ->
+            EventHistoryStore.record(context, "Advanced event $index")
+        }
+        assertTrue(EventHistoryStore.diagnosticHistory(context).size > 20)
+    }
+
+    @Test
     fun diagnosticsDefaultsRemainUnchangedWhenNoStateExists() {
         assertEquals("No activity yet", DiagnosticsStateStore.lastEvent(context))
         assertEquals(0L, DiagnosticsStateStore.lastEventTime(context))
@@ -133,6 +151,7 @@ class DiagnosticsStateStoreTest {
             context.getSharedPreferences("sleep_manager", Context.MODE_PRIVATE)
                 .edit()
         keys.forEach(editor::remove)
+        editor.remove("advanced_diagnostics")
         editor.commit()
         EventHistoryStore.clear(context)
     }

@@ -34,6 +34,7 @@ object AppPreferences {
     private const val KEY_SELECTED_SYNCTHING = "selected_syncthing"
     private const val KEY_AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
     private const val KEY_USE_SYSTEM_COLORS = "use_system_colors"
+    private const val KEY_ADVANCED_DIAGNOSTICS = "advanced_diagnostics"
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -242,5 +243,11 @@ object AppPreferences {
 
     fun setUseSystemColors(context: Context, value: Boolean) =
         prefs(context).edit().putBoolean(KEY_USE_SYSTEM_COLORS, value).apply()
+
+    fun advancedDiagnosticsEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_ADVANCED_DIAGNOSTICS, false)
+
+    fun setAdvancedDiagnosticsEnabled(context: Context, value: Boolean) =
+        prefs(context).edit().putBoolean(KEY_ADVANCED_DIAGNOSTICS, value).apply()
 
 }

@@ -53,6 +53,8 @@ object DiagnosticsTransitionStore {
         context: Context,
         event: String
     ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(context)) return
+
         val lower = event.lowercase()
 
         if ("battery saver" in lower) {
@@ -421,6 +423,8 @@ object DiagnosticsTransitionStore {
         success: Boolean,
         airplaneMode: Boolean
     ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(context)) return
+
         val sleepPhase = phase.equals("SLEEP", ignoreCase = true)
         val result =
             when {
@@ -458,6 +462,8 @@ object DiagnosticsTransitionStore {
         finalState: String? = null,
         note: String? = null
     ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(context)) return
+
         require(componentId in orderedComponents) {
             "Unknown diagnostics component: $componentId"
         }

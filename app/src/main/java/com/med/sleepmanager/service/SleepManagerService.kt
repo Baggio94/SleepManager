@@ -142,6 +142,7 @@ class SleepManagerService : Service() {
 
     private val sleepStopWaitState = SleepStopWaitState()
     private val syncStopProbeExecutor = Executors.newSingleThreadExecutor()
+    private val diagnosticsExecutor = Executors.newSingleThreadExecutor()
     private val sleepDelayState = SleepDelayState()
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
@@ -174,6 +175,29 @@ class SleepManagerService : Service() {
 
     private fun cancelSyncMaintenance(restoreSleepWifi: Boolean) {
         syncMaintenanceRunner?.cancel(restoreSleepWifi)
+    }
+
+    private fun captureAdvancedDiagnostics(
+        phase: String,
+        includeLatestProcessExit: Boolean = false,
+        trimMemoryLevel: Int? = null
+    ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(this)) return
+
+        val appContext = applicationContext
+        runCatching {
+            diagnosticsExecutor.execute {
+                DiagnosticsCycleStore.captureSystemSnapshot(
+                    context = appContext,
+                    phase = phase,
+                    includeDetailedProcessMemory = true,
+                    includeLatestProcessExit = includeLatestProcessExit,
+                    trimMemoryLevel = trimMemoryLevel
+                )
+            }
+        }.onFailure {
+            Log.w(TAG, "Advanced diagnostics capture skipped", it)
+        }
     }
 
     private fun refreshBasicSyncObserver() {
@@ -727,13 +751,10 @@ class SleepManagerService : Service() {
                 }
             DeviceControlStore.recordServiceRecovery(this, message)
             if (activeCycle) {
-                handler.post {
-                    DiagnosticsCycleStore.captureSystemSnapshot(
-                        context = this,
-                        phase = DiagnosticsCycleStore.PHASE_SERVICE_RECOVERY,
-                        includeDetailedProcessMemory = false
-                    )
-                }
+                captureAdvancedDiagnostics(
+                    phase = DiagnosticsCycleStore.PHASE_SERVICE_RECOVERY,
+                    includeLatestProcessExit = true
+                )
             }
             DiagnosticsStateStore.recordEvent(
                 this,
@@ -995,15 +1016,9 @@ class SleepManagerService : Service() {
             cancelSyncMaintenance(restoreSleepWifi = false)
         }
 
-        DiagnosticsCycleStore.begin(this)
-        // Diagnostics must never delay the sleep transition. Keep the automatic
-        // snapshot lightweight and run it after the current screen-off work.
-        handler.post {
-            DiagnosticsCycleStore.captureSystemSnapshot(
-                context = this,
-                phase = DiagnosticsCycleStore.PHASE_SLEEP_START,
-                includeDetailedProcessMemory = false
-            )
+        if (AppPreferences.advancedDiagnosticsEnabled(this)) {
+            DiagnosticsCycleStore.begin(this)
+            captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_SLEEP_START)
         }
         BatterySleepStore.beginSession(this)
         cancelNetworkReadyWait()
@@ -2944,20 +2959,13 @@ class SleepManagerService : Service() {
                 closedLidScreenOnRecheckRunnable,
                 CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS
             )
-            // False-wake diagnostics intentionally stop at the structured event/count.
-            // Do not sample system state here: re-sleep latency has priority.
+            captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_FALSE_WAKE)
             return
         }
 
         // Only a real wake may cancel sleep-side waits or restoration gates.
-        // Defer diagnostics until after this callback has initiated restoration.
-        handler.post {
-            DiagnosticsCycleStore.captureSystemSnapshot(
-                context = this,
-                phase = DiagnosticsCycleStore.PHASE_REAL_WAKE,
-                includeDetailedProcessMemory = false
-            )
-        }
+        // Advanced diagnostics run off the sleep/wake critical path.
+        captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_REAL_WAKE)
         sleepCycleRuntimeState.clearFalseWakeResleepPending()
         cancelNetworkReadyWait()
         cancelActiveBasicSyncWait()
@@ -3932,10 +3940,8 @@ class SleepManagerService : Service() {
                 this,
                 "Memory pressure → onTrimMemory level=$level"
             )
-            DiagnosticsCycleStore.captureSystemSnapshot(
-                context = this,
+            captureAdvancedDiagnostics(
                 phase = DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE,
-                includeDetailedProcessMemory = false,
                 trimMemoryLevel = level
             )
         }
@@ -3947,11 +3953,7 @@ class SleepManagerService : Service() {
             this,
             "Memory pressure → onLowMemory"
         )
-        DiagnosticsCycleStore.captureSystemSnapshot(
-            context = this,
-            phase = DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE,
-            includeDetailedProcessMemory = false
-        )
+        captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE)
     }
 
     override fun onDestroy() {
@@ -3985,6 +3987,7 @@ class SleepManagerService : Service() {
         disableRestoreState.clearTransientFlags()
         releaseSleepTransitionWakeLock()
         syncStopProbeExecutor.shutdownNow()
+        diagnosticsExecutor.shutdownNow()
         BasicSyncController.stopStateObserver()
         stopLidMonitor()
 

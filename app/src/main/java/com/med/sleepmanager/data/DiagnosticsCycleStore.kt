@@ -345,6 +345,8 @@ object DiagnosticsCycleStore {
         includeLatestProcessExit: Boolean = false,
         trimMemoryLevel: Int? = null
     ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(context)) return
+
         val snapshot =
             readSystemSnapshot(
                 context = context,
@@ -480,6 +482,8 @@ object DiagnosticsCycleStore {
         synchronous: Boolean,
         transform: (CycleRecord) -> CycleRecord
     ) {
+        if (!AppPreferences.advancedDiagnosticsEnabled(context)) return
+
         val p = prefs(context)
         val currentId = p.getLong(KEY_CURRENT_SESSION_ID, 0L)
         if (currentId <= 0L) return

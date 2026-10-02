@@ -91,12 +91,16 @@ object DiagnosticsBuilder {
         val batteryStats = BatterySleepStore.stats(context)
         val falseWakeCount = DiagnosticsStateStore.falseWakeCount(context)
         val lastFalseWakeTime = DiagnosticsStateStore.lastFalseWakeTime(context)
+        val advancedDiagnostics = AppPreferences.advancedDiagnosticsEnabled(context)
         val cycleHistory =
-            DiagnosticsCycleStore.diagnosticHistory(context)
+            if (advancedDiagnostics) DiagnosticsCycleStore.diagnosticHistory(context)
+            else emptyList()
         val storedCycleCount =
-            DiagnosticsCycleStore.storedCount(context)
+            if (advancedDiagnostics) DiagnosticsCycleStore.storedCount(context)
+            else 0
         val transitions =
-            DiagnosticsTransitionStore.all(context)
+            if (advancedDiagnostics) DiagnosticsTransitionStore.all(context)
+            else emptyList()
         val latestCycle = cycleHistory.firstOrNull()
         val currentRestoreProblem = SleepCycleStore.restoreProblem(context)
         val pendingRestores =
@@ -201,6 +205,10 @@ object DiagnosticsBuilder {
             appendLine("- Version: $versionName ($versionCode)")
             appendLine("- Enabled: ${AppPreferences.isEnabled(context)}")
             appendLine("- Service running: ${SleepManagerService.running}")
+            appendLine(
+                "- Advanced diagnostics: " +
+                    if (advancedDiagnostics) "ON" else "OFF · runtime snapshots disabled"
+            )
             appendLine("- Home grace: ${AppPreferences.sleepGraceMs(context)} ms")
             appendLine("- Custom delay enabled: ${AppPreferences.customDelayEnabled(context)}")
             appendLine("- Custom delay: ${AppPreferences.customDelayMs(context)} ms")
