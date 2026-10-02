@@ -26,6 +26,7 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.ui.components.SettingsCard
+import com.med.sleepmanager.ui.feedbackChange
 import com.med.sleepmanager.ui.feedbackClick
 import java.util.Date
 
@@ -118,7 +119,7 @@ internal fun ActivityLogPage(
 
                 Switch(
                     checked = advancedDiagnostics,
-                    onCheckedChange = { enabled ->
+                    onCheckedChange = feedbackChange { enabled ->
                         advancedDiagnostics = enabled
                         AppPreferences.setAdvancedDiagnosticsEnabled(context, enabled)
                     }
