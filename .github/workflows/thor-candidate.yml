@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$KEYSTORE_B64" ]             || [ -z "$SLEEPMANAGER_STORE_PASSWORD" ]             || [ -z "$SLEEPMANAGER_KEY_ALIAS" ]             || [ -z "$SLEEPMANAGER_KEY_PASSWORD" ]; then
-            echo "::error::Permanent signing secrets are not fully configured in SleepManager-Dev."
+            echo "::error::Permanent signing secrets are not fully configured in SleepManager."
             exit 1
           fi
 
