@@ -6,8 +6,6 @@ It can temporarily turn off Wi-Fi, Bluetooth and supported background services w
 
 **No root, Shizuku or ADB is required for normal use.**
 
-> **SleepManager-Dev status:** the public stable release is still **0.6.1**. Active development is **0.7.0** on `dev/0.7.0`. Internal roadmap, validation and deferred integration work live in [planning/README.md](planning/README.md). The user-facing documentation below continues to describe stable behavior unless a development change is explicitly marked as released.
-
 ## Main Features
 
 - Turn **Wi-Fi** and **Bluetooth** off during sleep and restore them safely on wake.
