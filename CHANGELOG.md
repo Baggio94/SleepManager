@@ -2,6 +2,39 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.7.0 — 2026-10-03
+
+### Reliability and cleanup
+
+- Refactored a large part of the sleep/wake engine into smaller, more focused components.
+- Improved closed-lid false-wake handling so the original sleep cycle and pending restores are preserved until a real wake.
+- Hardened Main ↔ Helper communication so delayed or stale responses cannot affect a newer sleep cycle.
+- Improved service-restart and restore handling across sleep/wake transitions.
+
+### Battery Saver
+
+- Battery Saver is now aware of external power.
+- SleepManager no longer tries to enable Battery Saver unnecessarily when the device enters sleep while plugged in.
+- If external power is removed while the device remains asleep, Battery Saver can still be enabled and the previous state is restored on wake.
+
+### Bug fixes
+
+- Fixed **#29**: unrealistic battery-capacity values are now detected and a safer fallback is used for displayed stats.
+- Improved handling for **#30** on AYN Thor: when SELinux prevents access to the lid sensor, SleepManager now shows a clear warning instead of silently hiding the clamshell options.
+
+### Diagnostics 2.0
+
+- Added more useful multi-cycle troubleshooting information.
+- Advanced diagnostics are opt-in and remain off by default so normal operation stays lightweight.
+
+### Helper 1.1.2
+
+- More reliable Wi-Fi and Bluetooth restore.
+- Added cycle-aware communication with SleepManager.
+- Added protection against delayed or mismatched restore requests.
+
+---
+
 ## 0.6.1 — 2026-09-28
 
 ### New
