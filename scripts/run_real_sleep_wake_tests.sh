@@ -292,15 +292,22 @@ restart_manager_service() {
   local output
   local status
 
+  # After `am force-stop`, Android marks the package stopped. Starting the
+  # foreground service through `run-as ... am start-foreground-service` is
+  # rejected on the emulator because the command crosses from the app UID back
+  # into the shell ActivityManager user context. A real app relaunch clears the
+  # stopped state and lets MainActivity restart the enabled foreground service,
+  # which is also the recovery path we want to exercise.
   set +e
-  output="$(adb_target shell run-as "$MAIN_PACKAGE" /system/bin/am start-foreground-service \
-    -n "$MAIN_PACKAGE/.service.SleepManagerService" 2>&1)"
+  output="$(adb_target shell am start -W --user 0 \
+    -n "$MAIN_PACKAGE/.MainActivity" 2>&1)"
   status=$?
   set -e
 
   printf '%s\n' "$output" > "$REPORT_DIR/recovery-service-start-last.txt"
 
   [ "$status" -eq 0 ] || return 1
+  printf '%s\n' "$output" | grep -q 'Status: ok' || return 1
   wait_main_process_state running 10
 }
 
