@@ -24,9 +24,46 @@
     "description": "Android sleep and wake manager for gaming handhelds, phones and tablets that helps reduce standby battery drain by managing radios and background integrations during sleep.",
     "url": "https://baggio94.github.io/SleepManager/",
     "downloadUrl": "https://github.com/Baggio94/SleepManager/releases/latest",
-    "softwareHelp": "https://github.com/Baggio94/SleepManager"
+    "softwareHelp": "https://github.com/Baggio94/SleepManager",
+    "sameAs": "https://github.com/Baggio94/SleepManager",
+    "softwareRequirements": "Android 9 or newer",
+    "isAccessibleForFree": true
   }
   </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does SleepManager require root, Shizuku or ADB?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Normal use does not require root, Shizuku or ADB. Some features use the optional signed SleepManager Helper or Android permissions exposed by the system."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which Android devices can use SleepManager?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "SleepManager supports Android 9 / API 28 or newer and is designed mainly for Android gaming handhelds, while also working on regular Android phones and tablets."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Will SleepManager always turn Wi-Fi or Bluetooth back on?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. SleepManager tracks whether it changed a state during the sleep cycle and restores only the state it owns."
+        }
+      }
+    ]
+  }
+  </script>
+
   <style>
     :root {
       color-scheme: dark;
@@ -88,11 +125,22 @@
     .quote-card p { color: var(--text); font-size: 1rem; }
     .quote-meta { display: block; margin-top: 14px; color: var(--muted); font-size: .9rem; }
     .feedback-note { color: var(--muted); font-size: .9rem; margin: 14px 0 0; }
+    .steps { counter-reset: step; display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; }
+    .step { background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:22px; }
+    .step::before { counter-increment:step; content:counter(step); display:inline-flex; width:32px; height:32px; align-items:center; justify-content:center; border-radius:50%; background:rgba(114,215,255,.14); color:var(--accent); font-weight:800; margin-bottom:14px; }
+    .step h3 { margin:0 0 8px; font-size:1.05rem; }
+    .step p { margin:0; color:var(--muted); }
+    .faq { display:grid; gap:12px; }
+    details { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:18px 20px; }
+    summary { cursor:pointer; font-weight:750; }
+    details p { color:var(--muted); margin:12px 0 0; }
+    .small-note { color:var(--muted); font-size:.92rem; }
     footer { color: var(--muted); border-top:1px solid var(--border); padding: 28px 0 44px; font-size:.93rem; }
     footer a { color: var(--text); }
     @media (max-width: 820px) {
       .hero { grid-template-columns: 1fr; padding-top: 46px; }
       .grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
       .device-card { max-width: 520px; }
     }
   </style>
@@ -104,7 +152,10 @@
         <div class="brand">SleepManager</div>
         <div class="navlinks">
           <a href="#features">Features</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#setup">Setup</a>
           <a href="#handhelds">Handhelds</a>
+          <a href="#faq">FAQ</a>
           <a href="https://github.com/Baggio94/SleepManager">GitHub</a>
         </div>
       </nav>
@@ -149,6 +200,37 @@
         </div>
       </section>
 
+
+      <section id="how-it-works">
+        <h2>How it works</h2>
+        <p class="section-lead">
+          SleepManager reacts to real sleep and wake transitions instead of forcing one permanent Android configuration.
+          It records what it changed during a sleep cycle so wake restoration stays conservative.
+        </p>
+        <div class="grid">
+          <div class="card"><h3>1. Screen turns off</h3><p>After your selected grace period or delay, SleepManager checks the enabled conditions before changing anything.</p></div>
+          <div class="card"><h3>2. Sleep actions run</h3><p>Selected radios and supported background integrations can be paused, stopped or disconnected to reduce unnecessary standby activity.</p></div>
+          <div class="card"><h3>3. Wake restores state</h3><p>SleepManager restores only the states it owns, helping avoid overwriting choices that were already made by you or another app.</p></div>
+        </div>
+      </section>
+
+      <section id="setup">
+        <h2>Quick setup</h2>
+        <p class="section-lead">
+          A basic installation takes only a few minutes. Advanced integrations and clamshell controls are optional.
+        </p>
+        <div class="steps">
+          <div class="step"><h3>Install SleepManager</h3><p>Download the latest signed APK from the official GitHub Releases page.</p></div>
+          <div class="step"><h3>Add the Helper if needed</h3><p>Install the optional Helper when you want SleepManager to control Wi-Fi or Bluetooth.</p></div>
+          <div class="step"><h3>Choose what to manage</h3><p>Enable only the radios, integrations, conditions and device-specific options you actually want.</p></div>
+          <div class="step"><h3>Finish setup</h3><p>Enable SleepManager, finish the Android permission checks, then verify the next sleep cycle in Activity.</p></div>
+        </div>
+        <div class="buttons">
+          <a class="btn primary" href="https://github.com/Baggio94/SleepManager/releases/latest">Download latest release</a>
+          <a class="btn secondary" href="https://github.com/Baggio94/SleepManager#quick-start">Read the full setup guide</a>
+        </div>
+      </section>
+
       <section id="handhelds">
         <div class="wide">
           <h2>Made with Android handhelds in mind</h2>
@@ -182,6 +264,33 @@
             <p class="feedback-note">Individual results vary by device, background services and configuration.</p>
           </div>
         </div>
+      </section>
+
+
+      <section id="faq">
+        <h2>Frequently asked questions</h2>
+        <p class="section-lead">
+          The short answers to the most common installation and compatibility questions.
+        </p>
+        <div class="faq">
+          <details>
+            <summary>Does SleepManager require root, Shizuku or ADB?</summary>
+            <p>No. Normal use does not require root, Shizuku or ADB. Some features use the optional signed SleepManager Helper or Android permissions exposed by the system.</p>
+          </details>
+          <details>
+            <summary>Which Android devices can use it?</summary>
+            <p>SleepManager supports Android 9 / API 28 or newer and is designed mainly for gaming handhelds from brands such as AYN, Retroid, ANBERNIC, AYANEO and KONKR. It can also run on regular Android phones and tablets.</p>
+          </details>
+          <details>
+            <summary>Will SleepManager always turn Wi-Fi or Bluetooth back on?</summary>
+            <p>No. It tracks whether it actually changed a state during the sleep cycle and restores only what it owns. If Wi-Fi was already off before sleep, SleepManager does not turn it on just because the device wakes.</p>
+          </details>
+          <details>
+            <summary>What can I check if standby drain is still high?</summary>
+            <p>Open Activity to review the latest sleep and wake actions, check Background Reliability under About, and use Copy log when reporting an issue. Battery drain can also come from firmware, other apps, radios or services that SleepManager is not configured to manage.</p>
+          </details>
+        </div>
+        <p class="small-note">Need more detail? The GitHub README contains the full feature, permissions, integration and troubleshooting documentation.</p>
       </section>
 
       <section>
