@@ -7,6 +7,7 @@ import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.DiagnosticsStateStore
+import com.med.sleepmanager.data.DiagnosticsTransitionStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.BasicSyncController
@@ -94,6 +95,22 @@ object DiagnosticsBuilder {
             DiagnosticsCycleStore.diagnosticHistory(context)
         val storedCycleCount =
             DiagnosticsCycleStore.storedCount(context)
+        val transitions =
+            DiagnosticsTransitionStore.all(context)
+        val latestCycle = cycleHistory.firstOrNull()
+        val currentRestoreProblem = SleepCycleStore.restoreProblem(context)
+        val pendingRestores =
+            buildList {
+                if (cycle.active && cycle.helperExpected && !cycle.helperRestored) {
+                    add("Helper")
+                }
+                if (syncthingPending) add("Syncthing-Fork")
+                if (tailscalePending != null) add("Tailscale")
+                if (jamesDspPending != null) add("JamesDSP")
+                if (basicSyncPending != null) add("BasicSync")
+                if (batterySaverOwned.owned) add("Battery Saver")
+                if (chargingSeparationOwned.owned) add("Charging Separation")
+            }
         val memoryInfo =
             (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)
                 ?.let { manager ->
@@ -105,6 +122,79 @@ object DiagnosticsBuilder {
         return buildString {
             appendLine("SleepManager diagnostics")
             appendLine("Generated: ${formatter.format(Date())}")
+            appendLine()
+            appendLine("Quick summary")
+            val summaryProblem =
+                currentRestoreProblem ?: latestCycle?.restoreProblem
+            val overall =
+                when {
+                    summaryProblem != null ->
+                        "ATTENTION · restore problem"
+                    pendingRestores.isNotEmpty() ->
+                        "ATTENTION · restore pending"
+                    memoryInfo?.lowMemory == true ->
+                        "ATTENTION · Android reports low memory"
+                    AppPreferences.isEnabled(context) && !SleepManagerService.running ->
+                        "ATTENTION · manager enabled but foreground service is not running"
+                    else ->
+                        "OK"
+                }
+            appendLine("- Overall: $overall")
+            appendLine(
+                "- Current transaction: " +
+                    if (cycle.active) {
+                        "ACTIVE · cycle=${cycle.cycleId}"
+                    } else {
+                        "idle"
+                    }
+            )
+            appendLine(
+                "- Pending restores: " +
+                    (pendingRestores.takeIf { it.isNotEmpty() }?.joinToString() ?: "none")
+            )
+            appendLine("- Restore problem: ${summaryProblem ?: "none"}")
+            appendLine(
+                "- Latest diagnostics cycle: " +
+                    if (latestCycle == null) {
+                        "none"
+                    } else {
+                        "${latestCycle.status} · falseWakes=${latestCycle.falseWakeCount}" +
+                            (latestCycle.restoreProblem?.let { " · restoreProblem=$it" } ?: "")
+                    }
+            )
+            batteryStats.lastSession?.let { session ->
+                appendLine(
+                    "- Last sleep: " +
+                        "${formatDurationMs(session.durationMs)} · " +
+                        "drain=${session.drainPerHour?.let { "%.3f%%/h".format(Locale.US, it) } ?: "unknown"} · " +
+                        "deepSleep=${session.deepSleepPercent?.let { "%.1f%%".format(Locale.US, it) } ?: "unknown"} · " +
+                        "falseWakes=${session.falseWakeCount}"
+                )
+            } ?: appendLine("- Last sleep: none")
+            appendLine(
+                "- Battery now: " +
+                    "${batterySnapshot.percent?.let { "$it%" } ?: "unknown"} · " +
+                    "capacity=${batterySelection.selectedFullUah?.let { "%.0f mAh".format(Locale.US, it / 1000.0) } ?: "unknown"} · " +
+                    "source=${batteryCapacitySource(batterySelection)}" +
+                    if (batterySelection.learnedFullSuspect) " · learnedFull=SUSPECT" else ""
+            )
+            appendLine(
+                "- Memory now: " +
+                    if (memoryInfo == null) {
+                        "unavailable"
+                    } else {
+                        "${formatBytesAsMiB(memoryInfo.availMem)} available / " +
+                            "${formatBytesAsMiB(memoryInfo.totalMem)} · lowMemory=${memoryInfo.lowMemory}"
+                    }
+            )
+            appendLine(
+                "- Lid: " +
+                    if (lidSupported) {
+                        "available · $lidDetection"
+                    } else {
+                        "unavailable · $lidDetection"
+                    }
+            )
             appendLine()
             appendLine("App")
             appendLine("- Version: $versionName ($versionCode)")
@@ -161,6 +251,10 @@ object DiagnosticsBuilder {
             appendLine(
                 "- External app exit reasons (Quickstep/Cocoon/etc.): " +
                     "not directly readable by a normal Android app without DUMP permission"
+            )
+            appendLine(
+                "- ADB evidence: optional troubleshooting fallback only; " +
+                    "not required for normal SleepManager operation"
             )
             appendLine()
             appendLine("Memory")
@@ -422,6 +516,33 @@ object DiagnosticsBuilder {
                 "- BasicSync transaction: " +
                     (basicSyncPending?.restoreToken ?: "none")
             )
+
+            appendLine()
+            appendLine("Structured transitions")
+            if (transitions.isEmpty()) {
+                appendLine("- none")
+            } else {
+                transitions.forEach { transition ->
+                    appendLine(
+                        "- ${DiagnosticsTransitionStore.label(transition.componentId)} · " +
+                            formatter.format(Date(transition.updatedAt))
+                    )
+                    appendLine(
+                        "  initial=${transition.initialState ?: "unknown"} -> " +
+                            "request=${transition.sleepRequest ?: "none"} -> " +
+                            "sleepResult=${transition.sleepResult ?: "unknown"} -> " +
+                            "sleepState=${transition.sleepState ?: "unknown"}"
+                    )
+                    appendLine(
+                        "  restoreTarget=${transition.restoreTarget ?: "none"} -> " +
+                            "restoreResult=${transition.restoreResult ?: "not run"} -> " +
+                            "final=${transition.finalState ?: "unknown"}"
+                    )
+                    transition.note?.let {
+                        appendLine("  note=$it")
+                    }
+                }
+            }
 
             appendLine()
             appendLine(

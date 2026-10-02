@@ -19,4 +19,5 @@ cp "$ROOT_DIR/scripts/run_real_sleep_wake_tests.sh" \
 chmod +x "$STAGE_DIR/run-real-e2e.sh"
 
 E2E_REINSTALL_APP=1 \
+E2E_SKIP_CUSTOM=1 \
   "$STAGE_DIR/run-real-e2e.sh" "$SERIAL"

@@ -844,20 +844,23 @@ fi
 
 if should_run custom; then
   printf '\n%s\n' '--- Custom delay ---'
-prepare_scenario custom60
-adb_target logcat -c
-sleep_screen
-sleep 2
-cycle_active && fail "Custom delay: actions ran before the 60 s delay expired"
-wifi_is_on || fail "Custom delay: Wi-Fi changed before expiry"
-pass "60 s Custom delay is really pending"
+  if [ "${E2E_SKIP_CUSTOM:-0}" = "1" ]; then
+    warn "Custom delay skipped in emulator CI; validate the real 60 s alarm on physical Thor"
+  else
+    prepare_scenario custom60
+    adb_target logcat -c
+    sleep_screen
+    sleep 2
+    cycle_active && fail "Custom delay: actions ran before the 60 s delay expired"
+    wifi_is_on || fail "Custom delay: Wi-Fi changed before expiry"
+    pass "60 s Custom delay is really pending"
 
-fire_custom_delay_now || fail "Unable to trigger Custom delay expiry"
-wait_cycle_active 12 || fail "Custom delay: triggered expiry did not start sleep actions"
-wait_wifi_state off 15 || fail "Custom delay: Wi-Fi did not turn OFF after triggered expiry"
-pass "Custom delay expiry trigger applies actions without restarting Main"
-restore_after_allowed_cycle
-
+    fire_custom_delay_now || fail "Unable to trigger Custom delay expiry"
+    wait_cycle_active 12 || fail "Custom delay: triggered expiry did not start sleep actions"
+    wait_wifi_state off 15 || fail "Custom delay: Wi-Fi did not turn OFF after triggered expiry"
+    pass "Custom delay expiry trigger applies actions without restarting Main"
+    restore_after_allowed_cycle
+  fi
 fi
 
 if should_run conditions; then

@@ -43,6 +43,7 @@ object DiagnosticsStateStore {
             .apply()
         DiagnosticsCycleStore.recordEvent(context, event, now)
         EventHistoryStore.record(context, event, now)
+        DiagnosticsTransitionStore.recordEvent(context, event)
     }
 
     fun lastEvent(context: Context): String =
@@ -68,6 +69,14 @@ object DiagnosticsStateStore {
             .putBoolean(KEY_LAST_WIFI_DIAGNOSTIC_AIRPLANE, airplaneMode)
             .putLong(KEY_LAST_WIFI_DIAGNOSTIC_TIME, System.currentTimeMillis())
             .apply()
+        DiagnosticsTransitionStore.recordWifiToggle(
+            context = context,
+            phase = phase,
+            action = action,
+            attempted = attempted,
+            success = success,
+            airplaneMode = airplaneMode
+        )
     }
 
     fun recordFalseWake(context: Context) {
