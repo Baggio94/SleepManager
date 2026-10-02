@@ -2944,15 +2944,8 @@ class SleepManagerService : Service() {
                 closedLidScreenOnRecheckRunnable,
                 CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS
             )
-            // Start the re-sleep timer first, then defer the lightweight diagnostic
-            // sample so diagnostics never extend the false-wake protection path.
-            handler.post {
-                DiagnosticsCycleStore.captureSystemSnapshot(
-                    context = this,
-                    phase = DiagnosticsCycleStore.PHASE_FALSE_WAKE,
-                    includeDetailedProcessMemory = false
-                )
-            }
+            // False-wake diagnostics intentionally stop at the structured event/count.
+            // Do not sample system state here: re-sleep latency has priority.
             return
         }
 
