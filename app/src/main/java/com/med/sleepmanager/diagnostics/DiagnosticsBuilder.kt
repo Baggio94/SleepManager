@@ -1,8 +1,12 @@
 package com.med.sleepmanager.diagnostics
 
+import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import com.med.sleepmanager.data.AppPreferences
+import com.med.sleepmanager.data.BatterySleepStore
+import com.med.sleepmanager.data.DiagnosticsCycleStore
+import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.integration.BasicSyncController
@@ -16,7 +20,10 @@ import com.med.sleepmanager.integration.connector.BasicSyncConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
-import com.med.sleepmanager.protection.ThorLidMonitor
+import com.med.sleepmanager.protection.LidMonitor
+import com.med.sleepmanager.rules.BatteryCapacitySelection
+import com.med.sleepmanager.rules.BatteryCapacitySource
+import com.med.sleepmanager.rules.BatteryCurrentSource
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.sync.ManagedSyncProviders
 import java.text.SimpleDateFormat
@@ -41,11 +48,20 @@ object DiagnosticsBuilder {
             packageInfo.versionCode.toLong()
         }
 
-        val helperVersion = runCatching {
+        val helperPackageInfo = runCatching {
             context.packageManager
                 .getPackageInfo(HelperController.PACKAGE, 0)
-                .versionName
         }.getOrNull()
+        val helperVersion = helperPackageInfo?.versionName
+        val helperVersionCode =
+            helperPackageInfo?.let {
+                if (Build.VERSION.SDK_INT >= 28) {
+                    it.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    it.versionCode.toLong()
+                }
+            }
 
         val syncthing = SyncthingController.selectedTarget(context)
         val cycle = SleepCycleStore.current(context)
@@ -61,12 +77,28 @@ object DiagnosticsBuilder {
         val basicSyncState = BasicSyncController.lastObservedState()
         val basicSyncPending =
             SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
-        val wifiDiagnostic = AppPreferences.lastWifiToggleDiagnostic(context)
+        val wifiDiagnostic = DiagnosticsStateStore.lastWifiToggleDiagnostic(context)
         val processExitHistory = ProcessExitHistoryReader.read(context)
         val deviceCapabilities = DeviceControlController.capabilities(context)
         val batterySaverOwned = DeviceControlStore.batterySaver(context)
         val chargingSeparationOwned =
             DeviceControlStore.chargingSeparation(context)
+        val lidSupported = LidMonitor.isSupported()
+        val lidDetection = LidMonitor.detectionDescription()
+        val batterySnapshot = BatterySleepStore.currentSnapshot(context)
+        val batterySelection = batterySnapshot.capacitySelection
+        val batteryStats = BatterySleepStore.stats(context)
+        val falseWakeCount = DiagnosticsStateStore.falseWakeCount(context)
+        val lastFalseWakeTime = DiagnosticsStateStore.lastFalseWakeTime(context)
+        val cycleHistory =
+            DiagnosticsCycleStore.diagnosticHistory(context)
+        val storedCycleCount =
+            DiagnosticsCycleStore.storedCount(context)
+        val memoryInfo =
+            (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)
+                ?.let { manager ->
+                    ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+                }
 
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
 
@@ -83,7 +115,7 @@ object DiagnosticsBuilder {
             appendLine("- Custom delay: ${AppPreferences.customDelayMs(context)} ms")
             appendLine("- Effective sleep delay: ${AppPreferences.effectiveSleepDelayMs(context)} ms")
             appendLine()
-            appendLine("Process exit history")
+            appendLine("SleepManager process exit history")
             if (processExitHistory == null) {
                 appendLine(
                     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
@@ -126,12 +158,89 @@ object DiagnosticsBuilder {
                     }
                 }
             }
+            appendLine(
+                "- External app exit reasons (Quickstep/Cocoon/etc.): " +
+                    "not directly readable by a normal Android app without DUMP permission"
+            )
+            appendLine()
+            appendLine("Memory")
+            if (memoryInfo == null) {
+                appendLine("- unavailable")
+            } else {
+                appendLine("- Total RAM: ${formatBytesAsMiB(memoryInfo.totalMem)}")
+                appendLine("- Available RAM: ${formatBytesAsMiB(memoryInfo.availMem)}")
+                appendLine("- Low memory: ${memoryInfo.lowMemory}")
+                appendLine("- Low-memory threshold: ${formatBytesAsMiB(memoryInfo.threshold)}")
+            }
+            appendLine()
+            appendLine("Battery raw / interpreted diagnostics")
+            appendLine("- Percent: ${batterySnapshot.percent?.let { "$it%" } ?: "unknown"}")
+            appendLine("- Charging/powered: ${batterySnapshot.charging}")
+            appendLine("- External power connected: ${batterySnapshot.externalPowerConnected}")
+            appendLine("- Raw charge_counter: ${batterySnapshot.chargeCounterUah?.let { "$it uAh" } ?: "unavailable"}")
+            appendLine("- Raw charge_full: ${batterySnapshot.fullChargeUah?.let { "$it uAh" } ?: "unavailable"}")
+            appendLine("- Raw charge_full_design: ${batterySnapshot.designChargeUah?.let { "$it uAh" } ?: "unavailable"}")
+            appendLine(
+                "- Selected full capacity: " +
+                    (
+                        batterySelection.selectedFullUah
+                            ?.let { "%.1f mAh".format(Locale.US, it / 1000.0) }
+                            ?: "unavailable"
+                    )
+            )
+            appendLine(
+                "- Displayed current charge: " +
+                    (
+                        batterySelection.displayedCurrentUah
+                            ?.let { "%.1f mAh".format(Locale.US, it / 1000.0) }
+                            ?: "unavailable"
+                    )
+            )
+            appendLine("- Capacity source: ${batteryCapacitySource(batterySelection)}")
+            appendLine("- Current-charge source: ${batteryCurrentSource(batterySelection)}")
+            appendLine("- Learned full capacity suspect: ${batterySelection.learnedFullSuspect}")
+            if (batterySelection.learnedFullSuspect) {
+                appendLine(
+                    "- Capacity fallback: raw charge_full is implausibly high " +
+                        "relative to charge_full_design; display uses the sane fallback"
+                )
+            }
+            appendLine("- Estimated/display capacity: ${batteryStats.estimatedCapacityMah?.let { "%.1f mAh".format(Locale.US, it) } ?: "unavailable"}")
+            batteryStats.lastSession?.let { session ->
+                appendLine("- Last sleep started: ${formatter.format(Date(session.startedAt))}")
+                appendLine("- Last sleep ended: ${formatter.format(Date(session.endedAt))}")
+                appendLine(
+                    "- Last sleep duration: " +
+                        "${formatDurationMs(session.durationMs)} (${session.durationMs} ms)"
+                )
+                appendLine("- Last sleep drain: ${session.drainPerHour?.let { "%.3f%%/h".format(Locale.US, it) } ?: "unavailable"}")
+                appendLine("- Last sleep false wakes: ${session.falseWakeCount}")
+                appendLine(
+                    "- Last deep sleep duration: " +
+                        (
+                            session.deepSleepMs
+                                ?.let { "${formatDurationMs(it)} (${it} ms)" }
+                                ?: "unavailable"
+                        )
+                )
+                appendLine("- Last deep sleep percentage: ${session.deepSleepPercent?.let { "%.1f%%".format(Locale.US, it) } ?: "unavailable"}")
+            } ?: appendLine("- Last sleep session: none")
+            appendLine("- Average deep sleep: ${batteryStats.averageDeepSleepPercent?.let { "%.1f%%".format(Locale.US, it) } ?: "unavailable"}")
             appendLine()
             appendLine("Device")
             appendLine("- Model: ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("- Device/product: ${Build.DEVICE} / ${Build.PRODUCT}")
             appendLine("- Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-            appendLine("- Lid support: ${ThorLidMonitor.isSupported()}")
-            appendLine("- Lid detection: ${ThorLidMonitor.detectionDescription()}")
+            appendLine("- Build: ${Build.ID}")
+            appendLine("- Fingerprint: ${Build.FINGERPRINT}")
+            appendLine("- Lid support: $lidSupported")
+            appendLine("- Lid detection: $lidDetection")
+            if (!lidSupported) {
+                appendLine(
+                    "- Lid access note: sensor is not readable; on AYN Thor, " +
+                        "Force SELinux can block the required input-device access"
+                )
+            }
             appendLine("- PServer: ${if (deviceCapabilities.pServerAvailable) "available" else "unavailable"}")
             appendLine("- Battery Saver control: ${deviceCapabilities.batterySaverControl}")
             appendLine("- Charging Separation control: ${deviceCapabilities.chargingSeparationControl}")
@@ -145,9 +254,9 @@ object DiagnosticsBuilder {
             appendLine("- Tailscale: ${AppPreferences.manageTailscale(context)}")
             appendLine("- JamesDSP: ${AppPreferences.manageJamesDsp(context)}")
             appendLine("- BasicSync: ${AppPreferences.manageBasicSync(context)}")
-            appendLine("- Closed-lid protection: ${AppPreferences.manageThorProtection(context)}")
-            appendLine("- Sleep when external display disconnects: ${AppPreferences.thorDockDisconnectSleeps(context)}")
-            appendLine("- Power button sleeps with lid closed: ${AppPreferences.thorClosedPowerSleeps(context)}")
+            appendLine("- Closed-lid protection: ${AppPreferences.manageClosedLidProtection(context)}")
+            appendLine("- Sleep when external display disconnects: ${AppPreferences.dockDisconnectSleeps(context)}")
+            appendLine("- Power button sleeps with lid closed: ${AppPreferences.closedLidPowerSleeps(context)}")
             appendLine()
             appendLine("Advanced sync conditions")
             appendLine("- Periodic sync while sleeping: ${AppPreferences.periodicSyncWhileSleeping(context)}")
@@ -177,7 +286,15 @@ object DiagnosticsBuilder {
                         null -> "unavailable"
                     }
             )
-            appendLine("- Helper: ${if (helperVersion != null) "installed • $helperVersion" else "not installed"}")
+            appendLine(
+                "- Helper: " +
+                    if (helperVersion != null) {
+                        "installed • $helperVersion" +
+                            (helperVersionCode?.let { " ($it)" } ?: "")
+                    } else {
+                        "not installed"
+                    }
+            )
             appendLine(
                 "- Syncthing target: " +
                     if (syncthing != null) "${syncthing.displayName} • ${syncthing.packageName}"
@@ -270,6 +387,15 @@ object DiagnosticsBuilder {
             appendLine()
             appendLine("Transaction")
             appendLine("- Active: ${cycle.active}")
+            appendLine("- Closed-lid false wakes recorded: $falseWakeCount")
+            appendLine(
+                "- Last false wake: " +
+                    if (lastFalseWakeTime > 0L) {
+                        formatter.format(Date(lastFalseWakeTime))
+                    } else {
+                        "none"
+                    }
+            )
             appendLine("- Cycle id: ${cycle.cycleId}")
             appendLine("- Helper expected: ${cycle.helperExpected}")
             appendLine("- Helper sleep requested: ${cycle.helperSleepRequested}")
@@ -277,6 +403,10 @@ object DiagnosticsBuilder {
             appendLine("- Wi-Fi managed: ${cycle.wifiManaged}")
             appendLine("- Bluetooth managed: ${cycle.bluetoothManaged}")
             appendLine("- Battery Saver restore owned: ${batterySaverOwned.owned} · previous=${batterySaverOwned.previous}")
+            appendLine(
+                "- Battery Saver deferred for external power: " +
+                    DeviceControlStore.batterySaverDeferredForExternalPower(context)
+            )
             appendLine("- Charging Separation restore owned: ${chargingSeparationOwned.owned} · previous=${chargingSeparationOwned.previous}")
             appendLine("- Last service recovery: ${DeviceControlStore.lastServiceRecovery(context) ?: "none"}")
             appendLine("- Syncthing restore pending: $syncthingPending")
@@ -293,9 +423,192 @@ object DiagnosticsBuilder {
                     (basicSyncPending?.restoreToken ?: "none")
             )
 
-            val events = EventHistoryStore.recent(context)
             appendLine()
-            appendLine("Recent activity (${events.size})")
+            appendLine(
+                "Cycle history (showing ${cycleHistory.size} of $storedCycleCount stored)"
+            )
+            if (cycleHistory.isEmpty()) {
+                appendLine("- none")
+            } else {
+                cycleHistory.forEachIndexed { index, record ->
+                    appendLine()
+                    appendLine(
+                        "[Cycle ${index + 1}] session=${record.sessionId} · status=${record.status}"
+                    )
+                    appendLine(
+                        "- Sleep started: ${formatter.format(Date(record.startedAt))}"
+                    )
+                    appendLine(
+                        "- Real wake: " +
+                            if (record.wakeAt > 0L) {
+                                formatter.format(Date(record.wakeAt))
+                            } else {
+                                "not recorded"
+                            }
+                    )
+                    appendLine(
+                        "- Diagnostics cycle completed: " +
+                            if (record.completedAt > 0L) {
+                                formatter.format(Date(record.completedAt))
+                            } else {
+                                "pending"
+                            }
+                    )
+                    appendLine(
+                        "- Transaction cycle id: " +
+                            record.transactionCycleId.takeIf { it > 0L }
+                                ?.toString()
+                                .orEmpty()
+                                .ifBlank { "none" }
+                    )
+                    appendLine(
+                        "- Managed settings: " +
+                            "Wi-Fi=${record.settings.wifi} · " +
+                            "Bluetooth=${record.settings.bluetooth} · " +
+                            "BatterySaver=${record.settings.batterySaver} · " +
+                            "ChargingSeparation=${record.settings.chargingSeparation} · " +
+                            "Syncthing=${record.settings.syncthing} · " +
+                            "Tailscale=${record.settings.tailscale} · " +
+                            "JamesDSP=${record.settings.jamesDsp} · " +
+                            "BasicSync=${record.settings.basicSync} · " +
+                            "ClosedLid=${record.settings.closedLidProtection}"
+                    )
+                    appendLine(
+                        "- Helper: expected=${record.helperExpected} · " +
+                            "sleepRequested=${record.helperSleepRequested} · " +
+                            "restored=${record.helperRestored} · " +
+                            "wifiManaged=${record.wifiManaged} · " +
+                            "bluetoothManaged=${record.bluetoothManaged}"
+                    )
+                    appendLine("- False wakes: ${record.falseWakeCount}")
+                    appendLine(
+                        "- Restore problem: ${record.restoreProblem ?: "none"}"
+                    )
+
+                    val battery = record.battery
+                    if (battery == null) {
+                        appendLine("- Battery session: unavailable/pending")
+                    } else {
+                        appendLine(
+                            "- Battery session: " +
+                                "${battery.startPercent}% → ${battery.endPercent}% · " +
+                                "duration=${formatDurationMs(battery.durationMs)} · " +
+                                "deepSleep=" +
+                                (
+                                    battery.deepSleepMs
+                                        ?.let { formatDurationMs(it) }
+                                        ?: "unavailable"
+                                ) +
+                                " · falseWakes=${battery.falseWakeCount} · " +
+                                "charged=${battery.chargedDuringSleep}"
+                        )
+                        appendLine(
+                            "- Battery drain: " +
+                                "${battery.preciseDrainPercent?.let { "%.3f%%".format(Locale.US, it) } ?: "${battery.drainPercent}%"}" +
+                                (
+                                    battery.drainMah
+                                        ?.let { " · %.1f mAh".format(Locale.US, it) }
+                                        ?: ""
+                                )
+                        )
+                    }
+
+                    if (record.connectors.isEmpty()) {
+                        appendLine("- Connector ownership: none")
+                    } else {
+                        appendLine("- Connector ownership:")
+                        record.connectors.forEach { connector ->
+                            appendLine(
+                                "  • ${connector.connectorId}: " +
+                                    if (connector.pending) {
+                                        "pending"
+                                    } else {
+                                        "cleared"
+                                    } +
+                                    " · restoreTokenPresent=${connector.restoreTokenPresent}"
+                            )
+                        }
+                    }
+
+                    appendLine(
+                        "- System snapshots: ${record.systemSnapshots.size}"
+                    )
+                    record.systemSnapshots.forEach { snapshot ->
+                        appendLine(
+                            "  • ${formatter.format(Date(snapshot.timestamp))} · ${snapshot.phase}" +
+                                (snapshot.trimMemoryLevel?.let { " · trimLevel=$it" } ?: "")
+                        )
+                        appendLine(
+                            "    RAM: " +
+                                "avail=${snapshot.availableRamBytes?.let(::formatBytesAsMiB) ?: "unknown"} / " +
+                                "total=${snapshot.totalRamBytes?.let(::formatBytesAsMiB) ?: "unknown"} · " +
+                                "lowMemory=${snapshot.lowMemory ?: "unknown"} · " +
+                                "threshold=${snapshot.lowMemoryThresholdBytes?.let(::formatBytesAsMiB) ?: "unknown"} · " +
+                                "lowRamDevice=${snapshot.lowRamDevice ?: "unknown"}"
+                        )
+                        appendLine(
+                            "    App memory: " +
+                                "PSS=${snapshot.processPssKb?.let { "$it kB" } ?: "not sampled"} · " +
+                                "privateDirty=${snapshot.processPrivateDirtyKb?.let { "$it kB" } ?: "not sampled"} · " +
+                                "heap=${formatBytesAsMiB(snapshot.heapUsedBytes)}/${formatBytesAsMiB(snapshot.heapMaxBytes)} · " +
+                                "nativeHeap=${formatBytesAsMiB(snapshot.nativeHeapAllocatedBytes)} · " +
+                                "importance=${snapshot.processImportance?.let(ProcessExitReasonFormatter::importanceLabel) ?: "unknown"} · " +
+                                "processCpu=${snapshot.processCpuTimeMs} ms · " +
+                                "capture=${snapshot.captureDurationMs} ms"
+                        )
+                        appendLine(
+                            "    Power: " +
+                                "interactive=${snapshot.interactive ?: "unknown"} · " +
+                                "batterySaver=${snapshot.powerSaveMode ?: "unknown"} · " +
+                                "idle=${snapshot.deviceIdleMode ?: "unknown"} · " +
+                                "batteryOptimizationsIgnored=${snapshot.ignoringBatteryOptimizations ?: "unknown"} · " +
+                                "backgroundRestricted=${snapshot.backgroundRestricted ?: "unknown"} · " +
+                                "thermal=${snapshot.thermalStatus?.toString() ?: "unknown"}"
+                        )
+                        appendLine(
+                            "    Battery/network: " +
+                                "battery=${snapshot.batteryPercent?.let { "$it%" } ?: "unknown"} · " +
+                                "status=${snapshot.batteryStatus ?: "unknown"} · " +
+                                "health=${snapshot.batteryHealth ?: "unknown"} · " +
+                                "temp=${snapshot.batteryTemperatureTenthsC?.let { "%.1f°C".format(Locale.US, it / 10.0) } ?: "unknown"} · " +
+                                "plugged=${snapshot.pluggedType ?: "unknown"} · " +
+                                "networkActive=${snapshot.activeNetwork ?: "unknown"} · " +
+                                "validated=${snapshot.networkValidated ?: "unknown"} · " +
+                                "internet=${snapshot.networkInternet ?: "unknown"} · " +
+                                "wifi=${snapshot.networkWifi ?: "unknown"} · " +
+                                "cellular=${snapshot.networkCellular ?: "unknown"}"
+                        )
+                        snapshot.latestProcessExit?.let { exit ->
+                            appendLine(
+                                "    Previous SleepManager exit: " +
+                                    "${formatter.format(Date(exit.timestamp))} · " +
+                                    ProcessExitReasonFormatter.reasonLabel(exit.reason) +
+                                    " · status=${exit.status} · importance=" +
+                                    ProcessExitReasonFormatter.importanceLabel(exit.importance) +
+                                    " · PSS=${exit.pssKb} kB · RSS=${exit.rssKb} kB"
+                            )
+                            exit.description?.let {
+                                appendLine("      Description: $it")
+                            }
+                        }
+                    }
+
+                    appendLine("- Cycle events (${record.events.size}):")
+                    if (record.events.isEmpty()) {
+                        appendLine("  • none")
+                    } else {
+                        record.events.forEach { event ->
+                            appendLine(
+                                "  • ${formatter.format(Date(event.timestamp))} · ${event.message}"
+                            )
+                        }
+                    }
+                }
+            }
+
+            val events = EventHistoryStore.diagnosticHistory(context)
+            appendLine()
+            appendLine("Extended activity history (${events.size})")
             if (events.isEmpty()) {
                 appendLine("- none")
             } else {
@@ -318,4 +631,33 @@ object DiagnosticsBuilder {
         false -> "OFF"
         null -> "unknown"
     }
+
+    private fun formatBytesAsMiB(bytes: Long): String =
+        "%.1f MiB".format(Locale.US, bytes.toDouble() / (1024.0 * 1024.0))
+
+    private fun formatDurationMs(durationMs: Long): String {
+        val totalMinutes = durationMs.coerceAtLeast(0L) / 60_000L
+        val hours = totalMinutes / 60L
+        val minutes = totalMinutes % 60L
+        return "${hours}h ${minutes}m"
+    }
+
+    private fun batteryCapacitySource(
+        selection: BatteryCapacitySelection
+    ): String =
+        when (selection.capacitySource) {
+            BatteryCapacitySource.LEARNED_FULL -> "charge_full"
+            BatteryCapacitySource.DESIGN_FULL -> "charge_full_design"
+            BatteryCapacitySource.COUNTER_DERIVED -> "charge_counter / percent estimate"
+            BatteryCapacitySource.UNAVAILABLE -> "unavailable"
+        }
+
+    private fun batteryCurrentSource(
+        selection: BatteryCapacitySelection
+    ): String =
+        when (selection.currentSource) {
+            BatteryCurrentSource.RAW_COUNTER -> "charge_counter"
+            BatteryCurrentSource.PERCENT_DERIVED -> "percent × selected full capacity"
+            BatteryCurrentSource.UNAVAILABLE -> "unavailable"
+        }
 }

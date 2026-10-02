@@ -13,8 +13,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.med.sleepmanager.R
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.feedbackClick
@@ -39,14 +41,14 @@ internal fun ActivityLogPage(
             horizontalArrangement = Arrangement.End
         ) {
             OutlinedButton(onClick = feedbackClick(onCopyLog)) {
-                Text("Copy log")
+                Text(stringResource(R.string.activity_copy_log))
             }
         }
 
         if (events.isEmpty()) {
             InfoCard(
-                title = "Activity log",
-                text = "No recent activity"
+                title = stringResource(R.string.nav_activity_log),
+                text = stringResource(R.string.activity_no_recent_activity)
             )
         } else {
             SettingsCard {

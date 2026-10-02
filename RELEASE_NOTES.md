@@ -1,5 +1,7 @@
 # SleepManager 0.6.1
 
+> **Development note:** these remain the current stable release notes. SleepManager 0.7 is still under development and validation in SleepManager-Dev; unreleased work is tracked in `planning/0.7.0.md` and `CHANGELOG.md`.
+
 SleepManager 0.6.1 focuses on **smarter sleep controls, broader clamshell support and improved reliability**.
 
 ## What's New

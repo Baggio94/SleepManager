@@ -1,12 +1,12 @@
 # SleepManager
 
-**Website:** https://baggio94.github.io/SleepManager/
-
 SleepManager helps Android handhelds, phones and tablets use less battery while they sleep.
 
 It can temporarily turn off Wi-Fi, Bluetooth and supported background services when the screen turns off, then restore only what it changed when the device wakes. It also includes sleep battery statistics, sync automation and extra features for compatible Android clamshell devices.
 
 **No root, Shizuku or ADB is required for normal use.**
+
+> **SleepManager-Dev status:** the public stable release is still **0.6.1**. Active development is **0.7.0** on `dev/0.7.0`. Internal roadmap, validation and deferred integration work live in [planning/README.md](planning/README.md). The user-facing documentation below continues to describe stable behavior unless a development change is explicitly marked as released.
 
 ## Main Features
 
