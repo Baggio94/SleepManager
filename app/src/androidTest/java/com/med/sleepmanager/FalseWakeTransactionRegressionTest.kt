@@ -3,6 +3,7 @@ package com.med.sleepmanager
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.device.DeviceControlStore
@@ -42,6 +43,7 @@ class FalseWakeTransactionRegressionTest {
     fun resetState() {
         SleepCycleStore.clear(context)
         DiagnosticsCycleStore.clear(context)
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, true)
         clearDeviceControlState()
     }
 
@@ -49,6 +51,7 @@ class FalseWakeTransactionRegressionTest {
     fun cleanup() {
         SleepCycleStore.clear(context)
         DiagnosticsCycleStore.clear(context)
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, false)
         clearDeviceControlState()
     }
 

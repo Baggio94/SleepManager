@@ -3,6 +3,7 @@ package com.med.sleepmanager
 import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.SleepCycleStore
@@ -23,11 +24,13 @@ class DiagnosticsCycleStoreTest {
     @Before
     fun resetStore() {
         DiagnosticsCycleStore.clear(context)
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, true)
     }
 
     @After
     fun cleanup() {
         DiagnosticsCycleStore.clear(context)
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, false)
     }
 
     @Test
