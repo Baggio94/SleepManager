@@ -341,7 +341,7 @@ object DiagnosticsCycleStore {
     fun captureSystemSnapshot(
         context: Context,
         phase: String,
-        includeDetailedProcessMemory: Boolean = true,
+        includeDetailedProcessMemory: Boolean = false,
         includeLatestProcessExit: Boolean = false,
         trimMemoryLevel: Int? = null
     ) {
