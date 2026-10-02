@@ -54,17 +54,40 @@ object DiagnosticsTransitionStore {
         event: String
     ) {
         val lower = event.lowercase()
-        val batterySaverCurrent =
-            DeviceControlController.batterySaverEnabled(context)
-        val batterySaverOwned =
-            DeviceControlStore.batterySaver(context)
-        val chargingSeparationCurrent =
-            DeviceControlController.chargingSeparationState(context)
-        val chargingSeparationOwned =
-            DeviceControlStore.chargingSeparation(context)
 
         if ("battery saver" in lower) {
+            val batterySaverCurrent =
+                DeviceControlController.batterySaverEnabled(context)
+            val batterySaverOwned =
+                DeviceControlStore.batterySaver(context)
             when {
+                "restore retries exhausted" in lower -> record(
+                    context,
+                    COMPONENT_BATTERY_SAVER,
+                    restoreResult = event,
+                    finalState = onOff(batterySaverCurrent),
+                    note = event
+                )
+                "restore failed" in lower -> record(
+                    context,
+                    COMPONENT_BATTERY_SAVER,
+                    restoreResult = event,
+                    finalState = onOff(batterySaverCurrent),
+                    note = event
+                )
+                "enable failed" in lower -> record(
+                    context,
+                    COMPONENT_BATTERY_SAVER,
+                    reset = true,
+                    initialState = onOff(batterySaverCurrent),
+                    sleepRequest = "ENABLE_FOR_SLEEP",
+                    sleepResult = event,
+                    sleepState = onOff(batterySaverCurrent),
+                    restoreTarget = "none",
+                    restoreResult = "NOT_OWNED",
+                    finalState = onOff(batterySaverCurrent),
+                    note = event
+                )
                 "deferred" in lower -> record(
                     context,
                     COMPONENT_BATTERY_SAVER,
@@ -131,7 +154,51 @@ object DiagnosticsTransitionStore {
         }
 
         if ("charging separation" in lower) {
+            val chargingSeparationCurrent =
+                DeviceControlController.chargingSeparationState(context)
+            val chargingSeparationOwned =
+                DeviceControlStore.chargingSeparation(context)
             when {
+                "restore retries exhausted" in lower -> record(
+                    context,
+                    COMPONENT_CHARGING_SEPARATION,
+                    restoreResult = event,
+                    finalState = onOff(chargingSeparationCurrent),
+                    note = event
+                )
+                "dock" in lower && "unchanged" in lower -> record(
+                    context,
+                    COMPONENT_CHARGING_SEPARATION,
+                    reset = true,
+                    initialState = onOff(chargingSeparationCurrent),
+                    sleepRequest = "DOCK_BYPASS",
+                    sleepResult = event,
+                    sleepState = onOff(chargingSeparationCurrent),
+                    restoreTarget = "none",
+                    restoreResult = "NOT_REQUIRED",
+                    finalState = onOff(chargingSeparationCurrent),
+                    note = event
+                )
+                "restore failed" in lower -> record(
+                    context,
+                    COMPONENT_CHARGING_SEPARATION,
+                    restoreResult = event,
+                    finalState = onOff(chargingSeparationCurrent),
+                    note = event
+                )
+                "disable failed" in lower -> record(
+                    context,
+                    COMPONENT_CHARGING_SEPARATION,
+                    reset = true,
+                    initialState = onOff(chargingSeparationCurrent),
+                    sleepRequest = "DISABLE_LID_CLOSED",
+                    sleepResult = event,
+                    sleepState = onOff(chargingSeparationCurrent),
+                    restoreTarget = "none",
+                    restoreResult = "NOT_OWNED",
+                    finalState = onOff(chargingSeparationCurrent),
+                    note = event
+                )
                 "disabled" in lower -> record(
                     context,
                     COMPONENT_CHARGING_SEPARATION,
@@ -207,6 +274,13 @@ object DiagnosticsTransitionStore {
 
         if ("basicsync" in lower || "pre-sleep sync" in lower || "wake sync" in lower) {
             when {
+                "restore retries exhausted" in lower -> record(
+                    context,
+                    COMPONENT_BASIC_SYNC,
+                    restoreResult = event,
+                    finalState = "RESTORE_PENDING",
+                    note = event
+                )
                 event.startsWith("Wake") || event.startsWith("Disable") || "wake sync" in lower -> record(
                     context,
                     COMPONENT_BASIC_SYNC,
@@ -274,6 +348,21 @@ object DiagnosticsTransitionStore {
 
         if ("jamesdsp" in lower) {
             when {
+                event.startsWith("Sleep") -> record(
+                    context,
+                    COMPONENT_JAMES_DSP,
+                    reset = true,
+                    initialState = "UNKNOWN · no public state API",
+                    sleepRequest =
+                        if ("off sent" in lower) "POWER_OFF" else "none",
+                    sleepResult = event,
+                    sleepState =
+                        if ("off sent" in lower) "OFF_REQUESTED"
+                        else "UNCHANGED_OR_UNKNOWN",
+                    restoreTarget =
+                        if ("off sent" in lower) "POWER_ON" else "none",
+                    note = event
+                )
                 event.startsWith("Wake") || event.startsWith("Disable") -> record(
                     context,
                     COMPONENT_JAMES_DSP,

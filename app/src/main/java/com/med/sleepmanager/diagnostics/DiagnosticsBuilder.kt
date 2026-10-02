@@ -121,6 +121,7 @@ object DiagnosticsBuilder {
 
         return buildString {
             appendLine("SleepManager diagnostics")
+            appendLine("Diagnostics format: 2")
             appendLine("Generated: ${formatter.format(Date())}")
             appendLine()
             appendLine("Quick summary")

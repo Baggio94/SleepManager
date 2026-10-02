@@ -230,6 +230,10 @@ class SleepManagerService : Service() {
                     TAG,
                     "BasicSync original state restore remains pending"
                 )
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "BasicSync → original state restore retries exhausted"
+                )
                 if (disableRestoreState.isRequested) {
                     DiagnosticsStateStore.recordEvent(
                         this,
@@ -838,6 +842,18 @@ class SleepManagerService : Service() {
                     this,
                     "A system setting changed by SleepManager could not be restored."
                 )
+                if (DeviceControlStore.batterySaver(this).owned) {
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        "Disable → Battery Saver restore retries exhausted"
+                    )
+                }
+                if (DeviceControlStore.chargingSeparation(this).owned) {
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        "Disable → Charging Separation restore retries exhausted"
+                    )
+                }
                 DiagnosticsStateStore.recordEvent(
                     this,
                     "Disable → system setting restore pending"
@@ -1544,6 +1560,21 @@ class SleepManagerService : Service() {
             null
         }
 
+        if (jamesDsp) {
+            DiagnosticsStateStore.recordEvent(
+                this,
+                when {
+                    jamesDspResult?.changed == true ->
+                        "Sleep → JamesDSP OFF sent · previous state unknown"
+                    jamesDspResult?.attempted == true ->
+                        "Sleep → JamesDSP OFF not confirmed"
+                    else ->
+                        "Sleep → JamesDSP unchanged · " +
+                            (jamesDspResult?.detail ?: "no action")
+                }
+            )
+        }
+
         if (jamesDspResult?.changed == true) {
             SleepCycleStore.recordConnectorChange(
                 this,
@@ -2041,6 +2072,10 @@ class SleepManagerService : Service() {
         } else {
             DeviceControlStore.clearBatterySaverOwnership(this)
             Log.w(TAG, "Unable to enable Battery Saver for sleep")
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Sleep → Battery Saver enable failed"
+            )
         }
     }
 
@@ -2107,6 +2142,10 @@ class SleepManagerService : Service() {
                         TAG,
                         "Unable to enable Battery Saver after external power disconnect"
                     )
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        "Sleep power disconnected → Battery Saver enable failed"
+                    )
                 }
             }
 
@@ -2170,6 +2209,10 @@ class SleepManagerService : Service() {
             SleepCycleStore.markRestoreProblem(
                 this,
                 "Battery Saver restore is still pending."
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "$reason → Battery Saver restore failed"
             )
         }
         return restored
@@ -2249,12 +2292,31 @@ class SleepManagerService : Service() {
     }
 
     private fun applyClosedLidChargingSeparation(reason: String) {
+        val manageChargingSeparation =
+            AppPreferences.manageChargingSeparationWithLid(this)
+        val lidSupported = LidMonitor.isSupported()
+        val chargingControlSupported =
+            DeviceControlController.supportsChargingSeparationControl(this)
+        val dockBypass =
+            manageChargingSeparation &&
+                lidSupported &&
+                chargingControlSupported &&
+                clamshellLidState.isClosed &&
+                hasExternalDisplayConnected()
+
+        if (dockBypass) {
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Lid closed dock → Charging Separation unchanged"
+            )
+        }
+
         if (
-            !AppPreferences.manageChargingSeparationWithLid(this) ||
-            !LidMonitor.isSupported() ||
-            !DeviceControlController.supportsChargingSeparationControl(this) ||
+            !manageChargingSeparation ||
+            !lidSupported ||
+            !chargingControlSupported ||
             !clamshellLidState.isClosed ||
-            hasExternalDisplayConnected()
+            dockBypass
         ) {
             restoreOwnedChargingSeparation(reason)
             return
@@ -2328,6 +2390,10 @@ class SleepManagerService : Service() {
         } else {
             DeviceControlStore.clearChargingSeparationOwnership(this)
             Log.w(TAG, "Unable to disable Charging Separation")
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Lid closed → Charging Separation disable failed"
+            )
         }
     }
 
@@ -2368,6 +2434,10 @@ class SleepManagerService : Service() {
             )
         } else {
             Log.w(TAG, "Charging Separation restore failed ($reason)")
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "$reason → Charging Separation restore failed"
+            )
         }
         return restored
     }
@@ -2628,9 +2698,9 @@ class SleepManagerService : Service() {
         DiagnosticsStateStore.recordEvent(
             this,
             if (disableRestoreState.isRequested) {
-                "Disable → Tailscale restore pending"
+                "Disable → Tailscale restore pending · retries exhausted"
             } else {
-                "Wake → Tailscale restore pending"
+                "Wake → Tailscale restore pending · retries exhausted"
             }
         )
         finishDisableRestoreIfRequested(forceStop = disableRestoreState.isRequested)
