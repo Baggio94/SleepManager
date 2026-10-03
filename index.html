@@ -14,7 +14,18 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://baggio94.github.io/SleepManager/">
   <meta name="twitter:card" content="summary">
-  <meta name="theme-color" content="#0b0d10">
+  <meta id="theme-color" name="theme-color" content="#FAF8FF">
+
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("sleepmanager-theme");
+        var theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      } catch (_) {}
+    })();
+  </script>
 
   <script type="application/ld+json">
   {
@@ -69,22 +80,55 @@
 
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #0b0d10;
-      --surface: #11151a;
-      --surface-2: #151a20;
-      --text: #f2f4f6;
-      --muted: #9ca6b1;
-      --accent: #74bfff;
-      --accent-soft: rgba(116, 191, 255, .10);
-      --border: #242b33;
+      --bg: #FAF8FF;
+      --surface: #FAF8FF;
+      --surface-low: #F4F3FA;
+      --surface-container: #EEEDF4;
+      --surface-high: #EAE9F0;
+      --surface-highest: #E2E2E9;
+      --text: #1A1B20;
+      --muted: #40434B;
+      --primary: #2A4174;
+      --on-primary: #FFFFFF;
+      --primary-container: #5E73A9;
+      --on-primary-container: #FFFFFF;
+      --secondary: #596078;
+      --tertiary: #4C5F88;
+      --outline: #797A83;
+      --border: rgba(93, 95, 103, .24);
+      --header: rgba(250, 248, 255, .90);
+      --quote: #2F3036;
       --max: 1080px;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
+    :root[data-theme="dark"] {
+      --bg: #121318;
+      --surface: #121318;
+      --surface-low: #1A1B20;
+      --surface-container: #1E1F24;
+      --surface-high: #28292F;
+      --surface-highest: #33343A;
+      --text: #E4E1E9;
+      --muted: #C9CAD4;
+      --primary: #B7CAFF;
+      --on-primary: #223961;
+      --primary-container: #7A90C8;
+      --on-primary-container: #10182D;
+      --secondary: #C6CAE0;
+      --tertiary: #B8CAF7;
+      --outline: #8A90A5;
+      --border: rgba(138, 144, 165, .28);
+      --header: rgba(18, 19, 24, .90);
+      --quote: #E4E1E9;
+    }
+
     * { box-sizing: border-box; }
 
-    html { scroll-behavior: smooth; }
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
 
     body {
       margin: 0;
@@ -92,6 +136,7 @@
       color: var(--text);
       line-height: 1.65;
       -webkit-font-smoothing: antialiased;
+      transition: background-color .18s ease, color .18s ease;
     }
 
     a { color: inherit; }
@@ -103,33 +148,41 @@
 
     header {
       border-bottom: 1px solid var(--border);
-      background: rgba(11, 13, 16, .92);
-      backdrop-filter: blur(12px);
+      background: var(--header);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       position: sticky;
       top: 0;
       z-index: 10;
     }
 
     nav {
-      min-height: 64px;
+      min-height: 66px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 24px;
+      gap: 22px;
     }
 
     .brand {
-      font-weight: 750;
-      letter-spacing: -.02em;
+      font-weight: 760;
+      letter-spacing: -.025em;
       text-decoration: none;
+      color: var(--primary);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
     }
 
     .navlinks {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 18px;
       color: var(--muted);
-      font-size: .92rem;
+      font-size: .91rem;
     }
 
     .navlinks a {
@@ -138,7 +191,35 @@
 
     .navlinks a:hover,
     .text-link:hover {
-      color: var(--text);
+      color: var(--primary);
+    }
+
+    .theme-switch {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-container);
+    }
+
+    .theme-switch button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .82rem;
+      font-weight: 650;
+      line-height: 1;
+      padding: 8px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .theme-switch button[aria-pressed="true"] {
+      background: var(--primary);
+      color: var(--on-primary);
     }
 
     main section {
@@ -147,19 +228,22 @@
     }
 
     .hero {
-      padding: 100px 0 88px;
-      max-width: 900px;
+      padding: 96px 0 86px;
+      max-width: 910px;
     }
 
     .release-chip {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      color: var(--accent);
-      font-size: .88rem;
-      font-weight: 650;
+      padding: 7px 11px;
+      color: var(--primary);
+      background: var(--surface-container);
+      border-radius: 999px;
+      font-size: .86rem;
+      font-weight: 680;
       text-decoration: none;
-      margin-bottom: 18px;
+      margin-bottom: 22px;
     }
 
     .release-chip::before {
@@ -167,7 +251,7 @@
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      background: var(--accent);
+      background: var(--primary);
     }
 
     h1,
@@ -178,13 +262,13 @@
     }
 
     h1 {
-      font-size: clamp(3rem, 8vw, 6rem);
+      font-size: clamp(3rem, 8vw, 5.7rem);
       margin: 0 0 28px;
       max-width: 900px;
     }
 
     h2 {
-      font-size: clamp(2rem, 4vw, 3rem);
+      font-size: clamp(2rem, 4vw, 2.9rem);
       margin: 0 0 14px;
     }
 
@@ -196,13 +280,13 @@
     p { margin-top: 0; }
 
     .lead {
-      max-width: 790px;
-      color: #c3c9d0;
-      font-size: clamp(1.08rem, 2vw, 1.28rem);
+      max-width: 800px;
+      color: var(--muted);
+      font-size: clamp(1.08rem, 2vw, 1.27rem);
     }
 
     .origin {
-      max-width: 760px;
+      max-width: 770px;
       color: var(--muted);
       margin: 22px 0 0;
     }
@@ -219,22 +303,23 @@
       align-items: center;
       justify-content: center;
       min-height: 44px;
-      padding: 0 17px;
+      padding: 0 18px;
       border: 1px solid var(--border);
-      border-radius: 9px;
+      border-radius: 11px;
       text-decoration: none;
-      font-weight: 650;
-      font-size: .95rem;
+      font-weight: 680;
+      font-size: .94rem;
+      transition: transform .12s ease, background-color .18s ease, color .18s ease;
     }
 
     .btn.primary {
-      background: var(--text);
-      color: var(--bg);
-      border-color: var(--text);
+      background: var(--primary);
+      color: var(--on-primary);
+      border-color: var(--primary);
     }
 
     .btn.secondary {
-      background: transparent;
+      background: var(--surface-low);
       color: var(--text);
     }
 
@@ -253,12 +338,13 @@
 
     .facts span::before {
       content: "✓";
-      color: var(--accent);
+      color: var(--primary);
       margin-right: 7px;
+      font-weight: 750;
     }
 
     .section-head {
-      max-width: 760px;
+      max-width: 770px;
       margin-bottom: 34px;
     }
 
@@ -276,6 +362,10 @@
     .feature {
       padding: 22px 0;
       border-top: 1px solid var(--border);
+    }
+
+    .feature h3 {
+      color: var(--primary);
     }
 
     .feature p {
@@ -298,16 +388,16 @@
       align-items: start;
       padding: 34px;
       border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--surface);
+      border-radius: 22px;
+      background: var(--surface-low);
     }
 
     .release-version {
-      color: var(--accent);
-      font-size: .88rem;
-      font-weight: 700;
+      color: var(--primary);
+      font-size: .86rem;
+      font-weight: 720;
       text-transform: uppercase;
-      letter-spacing: .06em;
+      letter-spacing: .055em;
     }
 
     .release-panel h2 {
@@ -349,9 +439,9 @@
 
     .video-card {
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 18px;
       overflow: hidden;
-      background: var(--surface);
+      background: var(--surface-low);
     }
 
     .video-frame {
@@ -387,22 +477,24 @@
     .steps {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 26px;
+      gap: 22px;
       counter-reset: setup;
     }
 
     .step {
-      border-top: 1px solid var(--border);
-      padding-top: 20px;
+      background: var(--surface-low);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
     }
 
     .step::before {
       counter-increment: setup;
       content: "0" counter(setup);
       display: block;
-      color: var(--accent);
+      color: var(--primary);
       font-size: .82rem;
-      font-weight: 700;
+      font-weight: 720;
       margin-bottom: 12px;
     }
 
@@ -414,20 +506,42 @@
     .quotes {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 28px;
+      gap: 18px;
     }
 
     blockquote {
       margin: 0;
-      padding: 2px 0 2px 20px;
-      border-left: 2px solid var(--border);
-      color: #d9dde2;
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--surface-low);
+      color: var(--quote);
+    }
+
+    blockquote p {
+      margin: 0;
     }
 
     blockquote footer {
-      margin-top: 12px;
+      margin-top: 15px;
       color: var(--muted);
-      font-size: .9rem;
+      font-size: .88rem;
+    }
+
+    blockquote footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .device {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 5px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: var(--surface-container);
+      color: var(--muted);
+      font-size: .78rem;
     }
 
     .note {
@@ -472,9 +586,9 @@
     }
 
     .text-link {
-      color: var(--accent);
+      color: var(--primary);
       text-decoration: none;
-      font-weight: 650;
+      font-weight: 680;
     }
 
     body > footer {
@@ -491,13 +605,16 @@
     }
 
     body > footer a {
-      color: var(--text);
+      color: var(--primary);
       text-decoration: none;
+    }
+
+    @media (max-width: 920px) {
+      .navlinks a:not(:last-child) { display: none; }
     }
 
     @media (max-width: 860px) {
       header { position: static; }
-      .navlinks a:not(:last-child) { display: none; }
       .hero { padding: 72px 0 66px; }
       main section { padding: 58px 0; }
       .feature-grid,
@@ -513,8 +630,14 @@
       .final .actions { margin-top: 26px; }
     }
 
-    @media (max-width: 520px) {
+    @media (max-width: 600px) {
       .wrap { width: min(var(--max), calc(100% - 28px)); }
+      .nav-right { gap: 9px; }
+      .navlinks { display: none; }
+      .theme-switch button {
+        padding: 8px 9px;
+        font-size: .78rem;
+      }
       h1 { font-size: clamp(2.75rem, 15vw, 4rem); }
       .actions .btn { width: 100%; }
       .facts { display: grid; gap: 8px; }
@@ -527,12 +650,19 @@
     <div class="wrap">
       <nav>
         <a class="brand" href="#">SleepManager</a>
-        <div class="navlinks">
-          <a href="#features">Features</a>
-          <a href="#release">0.7.0</a>
-          <a href="#videos">Videos</a>
-          <a href="#setup">Setup</a>
-          <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+        <div class="nav-right">
+          <div class="navlinks">
+            <a href="#features">Features</a>
+            <a href="#release">0.7.0</a>
+            <a href="#videos">Videos</a>
+            <a href="#community">Community</a>
+            <a href="#setup">Setup</a>
+            <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+          </div>
+          <div class="theme-switch" role="group" aria-label="Color theme">
+            <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+            <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+          </div>
         </div>
       </nav>
     </div>
@@ -707,6 +837,52 @@
         </div>
       </section>
 
+      <section id="community">
+        <div class="section-head">
+          <h2>What people are seeing</h2>
+          <p>
+            A few reports shared by users on Reddit. These are individual results rather than promised battery figures,
+            but they are useful examples of how much standby behavior can vary between devices and setups.
+          </p>
+        </div>
+
+        <div class="quotes">
+          <blockquote>
+            <p>“It works amazingly. I didn’t use my Thor for 24h and the drain was of 0%. Thanks so much it works so well ! :)”</p>
+            <footer>
+              — <a href="https://www.reddit.com/r/AynThor/comments/1wp4abl/" target="_blank" rel="noopener noreferrer">r/AynThor user ↗</a>
+              <span class="device">AYN Thor</span>
+            </footer>
+          </blockquote>
+
+          <blockquote>
+            <p>“Your app reduced my overnight battery drain over 60% and there are 12-18hr stretches where the battery doesn't move at all”</p>
+            <footer>
+              — <a href="https://www.reddit.com/r/AynThor/comments/1wp4abl/" target="_blank" rel="noopener noreferrer">r/AynThor user ↗</a>
+              <span class="device">AYN Thor</span>
+            </footer>
+          </blockquote>
+
+          <blockquote>
+            <p>“My Nova will generally die from full battery in a few days, but with SleepManager it now estimates it could last 26 days from 100% before dying in the best case scenario.”</p>
+            <footer>
+              — <a href="https://www.reddit.com/r/SBCGaming/comments/1wp53lb/" target="_blank" rel="noopener noreferrer">r/SBCGaming user ↗</a>
+              <span class="device">Retroid Pocket Nova</span>
+            </footer>
+          </blockquote>
+
+          <blockquote>
+            <p>“So after about a day, it already seems to be making a huge impact. I lost about 2% battery at idle over a span of ~24 hours.”</p>
+            <footer>
+              — <a href="https://www.reddit.com/r/retroid/comments/1wniar1/comment/pbpa8qo/" target="_blank" rel="noopener noreferrer">u/43686f6b6f ↗</a>
+              <span class="device">Retroid</span>
+            </footer>
+          </blockquote>
+        </div>
+
+        <p class="note">Battery drain depends on firmware, radios, running apps, sync clients and device configuration. Your results may be different.</p>
+      </section>
+
       <section id="setup">
         <div class="section-head">
           <h2>Setup</h2>
@@ -734,27 +910,6 @@
           <a class="btn primary" href="https://github.com/Baggio94/SleepManager/releases/latest">Download latest release</a>
           <a class="btn secondary" href="https://github.com/Baggio94/SleepManager#quick-start" target="_blank" rel="noopener noreferrer">Full setup guide</a>
         </div>
-      </section>
-
-      <section>
-        <div class="section-head">
-          <h2>A few reports from users</h2>
-          <p>Standby results vary by device, firmware, background services and configuration.</p>
-        </div>
-
-        <div class="quotes">
-          <blockquote>
-            “Been using this on my RG Rotate since I saw your original post a couple days ago, the battery drain went from about 5–10% overnight to 1–2%.”
-            <footer>— u/Porra1to · RG Rotate</footer>
-          </blockquote>
-
-          <blockquote>
-            “So after about a day, it already seems to be making a huge impact. I lost about 2% battery at idle over a span of ~24 hours.”
-            <footer>— <a href="https://www.reddit.com/r/retroid/comments/1wniar1/comment/pbpa8qo/" target="_blank" rel="noopener noreferrer">u/43686f6b6f · r/retroid</a></footer>
-          </blockquote>
-        </div>
-
-        <p class="note">These are individual user reports, not guaranteed battery figures.</p>
       </section>
 
       <section id="faq">
@@ -810,5 +965,49 @@
       <span><a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://github.com/Baggio94/SleepManager/releases/latest">Releases</a></span>
     </div>
   </footer>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var buttons = document.querySelectorAll("[data-theme-choice]");
+      var themeColor = document.getElementById("theme-color");
+
+      function applyTheme(theme, persist) {
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+
+        buttons.forEach(function (button) {
+          button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme));
+        });
+
+        if (themeColor) {
+          themeColor.setAttribute("content", theme === "dark" ? "#121318" : "#FAF8FF");
+        }
+
+        if (persist) {
+          try {
+            localStorage.setItem("sleepmanager-theme", theme);
+          } catch (_) {}
+        }
+      }
+
+      buttons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          applyTheme(button.dataset.themeChoice, true);
+        });
+      });
+
+      var current = root.dataset.theme || "light";
+      applyTheme(current, false);
+
+      try {
+        if (!localStorage.getItem("sleepmanager-theme")) {
+          window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (event) {
+            applyTheme(event.matches ? "dark" : "light", false);
+          });
+        }
+      } catch (_) {}
+    })();
+  </script>
 </body>
 </html>
