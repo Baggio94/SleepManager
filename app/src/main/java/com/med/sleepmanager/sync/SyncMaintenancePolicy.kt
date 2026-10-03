@@ -61,15 +61,6 @@ object SyncMaintenancePolicy {
             else -> PeriodicAlarmDeviceDecision.CANCEL_AWAKE
         }
 
-    fun shouldSkipPeriodicForOfflineSleep(
-        cycleActive: Boolean,
-        wifiManaged: Boolean,
-        networkAvailableBeforeSleep: Boolean
-    ): Boolean =
-        cycleActive &&
-            wifiManaged &&
-            !networkAvailableBeforeSleep
-
     fun periodicCompletionFollowUp(
         stillSleeping: Boolean,
         periodicEnabled: Boolean

@@ -15,7 +15,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
-import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -33,7 +32,6 @@ import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.ClamshellStateStore
 import com.med.sleepmanager.data.SleepCycleStore
-import com.med.sleepmanager.data.SleepNetworkStateStore
 import com.med.sleepmanager.data.RaOfflineProxySleepStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
@@ -1032,7 +1030,6 @@ class SleepManagerService : Service() {
         cancelNetworkReadyWait()
 
         SyncMaintenanceScheduler.cancel(this)
-        SleepNetworkStateStore.clear(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
         cancelSleepDelay()
         clearPendingSleepStopWait()
@@ -1366,26 +1363,12 @@ class SleepManagerService : Service() {
                         return@post
                     }
 
-                    val completion =
-                        basicSyncCompletionState(state)
                     if (
-                        completion == SyncCompletionState.SYNCING &&
-                        hasConnectedNetworkNow()
+                        basicSyncCompletionState(state) ==
+                        SyncCompletionState.SYNCING
                     ) {
                         startActiveBasicSyncWait()
                     } else {
-                        if (
-                            completion == SyncCompletionState.SYNCING
-                        ) {
-                            Log.i(
-                                TAG,
-                                "BasicSync active sync wait skipped: device is offline"
-                            )
-                            DiagnosticsStateStore.recordEvent(
-                                this,
-                                "Sleep → BasicSync active sync wait skipped · offline"
-                            )
-                        }
                         releaseSleepTransitionWakeLock()
                         continueFreshSleepActions(
                             transitionSyncRequested = false
@@ -1433,22 +1416,6 @@ class SleepManagerService : Service() {
             !AppPreferences.isEnabled(this)
         ) {
             cancelActiveBasicSyncWait()
-            return
-        }
-
-        if (!hasConnectedNetworkNow()) {
-            cancelActiveBasicSyncWait()
-            Log.i(
-                TAG,
-                "BasicSync active sync wait ended early: network became unavailable"
-            )
-            DiagnosticsStateStore.recordEvent(
-                this,
-                "Sleep → BasicSync active sync wait ended · offline"
-            )
-            continueFreshSleepActions(
-                transitionSyncRequested = false
-            )
             return
         }
 
@@ -1537,21 +1504,6 @@ class SleepManagerService : Service() {
             SyncTransitionStore.armWakeSync(this)
         } else {
             SyncTransitionStore.clear(this)
-        }
-
-        if (transitionSyncAvailable && !hasConnectedNetworkNow()) {
-            Log.i(
-                TAG,
-                "Pre-sleep sync skipped: no connected network"
-            )
-            DiagnosticsStateStore.recordEvent(
-                this,
-                "Pre-sleep sync skipped → offline"
-            )
-            prepareSyncthingAndApplyFreshSleepActions(
-                keepBasicSyncStopped = true
-            )
-            return
         }
 
         if (transitionSyncAvailable) {
@@ -1702,8 +1654,6 @@ class SleepManagerService : Service() {
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
         val batterySaverWillEnable =
             batterySaverWillEnableForSleep()
-        val networkAvailableBeforeSleep =
-            hasConnectedNetworkNow()
 
         val cycle = SleepCycleStore.begin(
             context = this,
@@ -1711,17 +1661,11 @@ class SleepManagerService : Service() {
             wifiManaged = wifi,
             bluetoothManaged = bluetooth
         )
-        SleepNetworkStateStore.record(
-            context = this,
-            cycleId = cycle.cycleId,
-            networkAvailableBeforeSleep = networkAvailableBeforeSleep
-        )
         Log.i(
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
-                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped " +
-                "networkBeforeSleep=$networkAvailableBeforeSleep"
+                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped"
         )
 
         // Syncthing always keeps its normal STOP/FOLLOW ownership. Advanced
@@ -2999,21 +2943,6 @@ class SleepManagerService : Service() {
         finishDisableRestoreIfRequested(forceStop = disableRestoreState.isRequested)
     }
 
-    private fun hasConnectedNetworkNow(): Boolean {
-        val connectivityManager =
-            getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                ?: return true
-
-        return runCatching {
-            connectivityManager.activeNetwork != null
-        }.getOrElse { error ->
-            // Fail open: a network-query problem must never make SleepManager
-            // skip user-requested sync work.
-            Log.w(TAG, "Unable to query connected network state", error)
-            true
-        }
-    }
-
     private fun handlePeriodicSyncAlarm() {
         val powerManager =
             getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -3060,32 +2989,6 @@ class SleepManagerService : Service() {
             Log.i(
                 TAG,
                 "Periodic sync skipped by Advanced sleep conditions -> $reason"
-            )
-            SyncMaintenanceScheduler.scheduleNext(this)
-            return
-        }
-
-        val sleepCycle = SleepCycleStore.current(this)
-        val networkAvailableBeforeSleep =
-            SleepNetworkStateStore.networkAvailableBeforeSleep(
-                context = this,
-                cycleId = sleepCycle.cycleId
-            ) ?: true
-        if (
-            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
-                cycleActive = sleepCycle.active,
-                wifiManaged = sleepCycle.wifiManaged,
-                networkAvailableBeforeSleep =
-                    networkAvailableBeforeSleep
-            )
-        ) {
-            Log.i(
-                TAG,
-                "Periodic sync skipped: no network was connected before sleep"
-            )
-            DiagnosticsStateStore.recordEvent(
-                this,
-                "Periodic sync skipped → offline before sleep"
             )
             SyncMaintenanceScheduler.scheduleNext(this)
             return
@@ -3295,7 +3198,6 @@ class SleepManagerService : Service() {
         restoreOwnedBatterySaver("Wake")
 
         SyncMaintenanceScheduler.cancel(this)
-        SleepNetworkStateStore.clear(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
 
         val wakeSyncWasArmed =
