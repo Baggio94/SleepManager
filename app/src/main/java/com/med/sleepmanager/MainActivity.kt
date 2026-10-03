@@ -277,6 +277,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    internal var raOfflineProxyStatusProbeComplete: Boolean
+        get() = uiState.raOfflineProxyStatusProbeComplete
+        set(value) {
+            uiViewModel.update {
+                it.copy(raOfflineProxyStatusProbeComplete = value)
+            }
+        }
+
     internal var currentBackgroundReliability: BackgroundReliability.Snapshot?
         get() = uiState.currentBackgroundReliability
         set(value) {
@@ -382,6 +390,7 @@ class MainActivity : ComponentActivity() {
 
         if (!RaOfflineProxyController.isInstalled(this)) {
             currentRaOfflineProxyStatus = null
+            raOfflineProxyStatusProbeComplete = true
         } else if (!raOfflineProxyStateProbeRunning) {
             raOfflineProxyStateProbeRunning = true
             val appContext = applicationContext
@@ -397,6 +406,7 @@ class MainActivity : ComponentActivity() {
                     }
                 runOnUiThread {
                     currentRaOfflineProxyStatus = status
+                    raOfflineProxyStatusProbeComplete = true
                     raOfflineProxyStateProbeRunning = false
                 }
             }.apply {

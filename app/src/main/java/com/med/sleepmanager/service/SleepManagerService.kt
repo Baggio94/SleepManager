@@ -617,6 +617,7 @@ class SleepManagerService : Service() {
         registerHelperResultReceiver()
         refreshBasicSyncObserver()
         maybeRestoreOwnedBasicSyncState()
+        maybeRestoreDisabledRaOfflineProxyState()
         refreshLidMonitor()
         recoverOwnedDeviceControls()
         recoverInterruptedSleepWifiMaintenance()
@@ -873,6 +874,29 @@ class SleepManagerService : Service() {
         }
 
         return START_STICKY
+    }
+
+    private fun maybeRestoreDisabledRaOfflineProxyState() {
+        if (AppPreferences.manageRaOfflineProxy(this)) return
+        if (!isRealWakeNow()) return
+
+        val change =
+            SleepCycleStore.connectorChange(
+                this,
+                RaOfflineProxyConnector.id
+            )
+        if (
+            change?.restoreToken !=
+            RaOfflineProxyConnector.TOKEN_RESTART
+        ) {
+            return
+        }
+
+        Log.i(
+            TAG,
+            "RAOfflineProxy integration disabled -> restoring owned state"
+        )
+        waitForNetworkAndRestorePendingConnectors()
     }
 
     private fun startOwnedDeviceControlRestoreForDisable() {

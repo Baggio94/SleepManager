@@ -40,6 +40,7 @@ internal data class SleepManagerUiState(
     val currentTailscaleConnected: Boolean? = null,
     val currentBasicSyncState: BasicSyncController.RemoteState? = null,
     val currentRaOfflineProxyStatus: RaOfflineProxyStatus? = null,
+    val raOfflineProxyStatusProbeComplete: Boolean = false,
     val currentBackgroundReliability: BackgroundReliability.Snapshot? = null,
     val currentDeviceControlCapabilities: DeviceControlController.ControlCapabilities? = null,
     val currentBatterySaverState: Boolean = false,

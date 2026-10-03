@@ -10,7 +10,7 @@ It can temporarily turn off Wi-Fi, Bluetooth and supported background services w
 
 - Turn **Wi-Fi** and **Bluetooth** off during sleep and restore them safely on wake.
 - Enable **Android Battery Saver** during sleep on supported devices and restore its previous state on wake.
-- Manage **Syncthing-Fork, BasicSync, Tailscale and JamesDSP** during sleep and wake.
+- Manage **Syncthing-Fork, BasicSync, RAOfflineProxy, Tailscale and JamesDSP** during sleep and wake.
 - Run optional syncs **before sleep, after wake or periodically while sleeping** with supported providers.
 - Track sleep battery drain, measured mAh use, deep sleep, drain rate and standby estimates.
 - Protect compatible **clamshell handhelds** from closed-lid false wakes.
@@ -92,6 +92,22 @@ In BasicSync, enable:
 - **BasicSync 3.19+** also supports completion-aware advanced sync features.
 
 See [Advanced Sync Behavior](#advanced-sync-behavior) for the additional sync modes.
+
+### RAOfflineProxy
+
+SleepManager integrates with RAOfflineProxy through its official Android **Automation API v1**.
+
+When the RAOfflineProxy cache queue is empty (or blocked), SleepManager can stop the proxy before managed Wi-Fi is turned off and restore it on a real wake only when SleepManager performed that stop.
+
+If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state. This wait is event-driven and does not use permanent polling.
+
+On Android 12+, set:
+
+**RAOfflineProxy → App info → Battery → Unrestricted**
+
+This is required for Android to allow SleepManager to restart RAOfflineProxy from the background.
+
+The integration requires RAOfflineProxy **Automation API v1**, first shipped in **v2.0.0-alpha1**.
 
 ### Tailscale
 
@@ -219,6 +235,14 @@ Then confirm **Syncthing-Fork** is enabled in SleepManager.
 Make sure **Allow remote control** is enabled in BasicSync.
 
 For state-aware sleep/wake control, use **BasicSync 3.18+**. Advanced completion-aware sync features require **BasicSync 3.19+**.
+
+### RAOfflineProxy Does Not Start on Wake
+
+Confirm that RAOfflineProxy is installed with **Automation API v1** support and that its Android battery usage is set to **Unrestricted**.
+
+If SleepManager shows **Control permission missing**, install/update RAOfflineProxy first and then reinstall/update SleepManager so Android can grant RAOfflineProxy's control permission.
+
+Use **Activity → Copy log** to check the proxy state, queue state, pending ownership and any background-start error.
 
 ### Tailscale Does Not Reconnect
 

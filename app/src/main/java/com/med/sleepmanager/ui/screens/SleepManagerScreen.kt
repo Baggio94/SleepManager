@@ -308,6 +308,8 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
             }
         val raOfflineProxyStatus =
             uiState.currentRaOfflineProxyStatus
+        val raOfflineProxyStatusProbeComplete =
+            uiState.raOfflineProxyStatusProbeComplete
         val raOfflineProxyApiCompatible =
             raOfflineProxyStatus?.version ==
                 RaOfflineProxyController.SUPPORTED_API_VERSION
@@ -1189,7 +1191,13 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
                                         R.string.raofflineproxy_needs_unrestricted
                                     )
                                 raOfflineProxyStatus == null ->
-                                    stringResource(R.string.checking)
+                                    stringResource(
+                                        if (raOfflineProxyStatusProbeComplete) {
+                                            R.string.raofflineproxy_api_unavailable
+                                        } else {
+                                            R.string.checking
+                                        }
+                                    )
                                 !raOfflineProxyApiCompatible ->
                                     stringResource(
                                         R.string.raofflineproxy_api_unsupported,

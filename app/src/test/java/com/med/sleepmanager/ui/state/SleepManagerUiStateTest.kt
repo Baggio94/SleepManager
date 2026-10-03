@@ -43,6 +43,7 @@ class SleepManagerUiStateTest {
         assertNull(state.currentTailscaleConnected)
         assertNull(state.currentBasicSyncState)
         assertNull(state.currentRaOfflineProxyStatus)
+        assertFalse(state.raOfflineProxyStatusProbeComplete)
         assertNull(state.currentBackgroundReliability)
         assertNull(state.currentDeviceControlCapabilities)
         assertFalse(state.currentBatterySaverState)

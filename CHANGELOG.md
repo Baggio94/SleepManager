@@ -2,6 +2,28 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.7.1 — In development
+
+### RAOfflineProxy integration
+
+- Added optional **RAOfflineProxy** sleep/wake management using its official Automation API v1.
+- SleepManager checks the proxy's real state before changing it and restores it only when SleepManager performed the stop.
+- When RAOfflineProxy is **caching** or **waiting** for its next cache window, SleepManager leaves the proxy and Wi-Fi available while the device can remain asleep.
+- Once the queue reaches a safe state, SleepManager stops the proxy, confirms that it is no longer running, and only then allows managed Wi-Fi to turn off.
+- Queue waiting is event-driven through RAOfflineProxy's ContentProvider notifications; there is no permanent polling or long wake lock.
+- Real wake restores network first and then restarts RAOfflineProxy only when SleepManager owns that restore. Closed-lid false wakes never restart it.
+- Process/service recovery preserves the pending queue/stop transaction and restore ownership.
+- Android 12+ background restoration requires RAOfflineProxy battery usage to be set to **Unrestricted**; SleepManager checks and surfaces this prerequisite before enabling the integration.
+- Added RAOfflineProxy status, queue, ownership and failure information to Diagnostics 2.0.
+
+### Compatibility
+
+- Main app: **0.7.1 / versionCode 551**.
+- Helper remains **1.1.2 / versionCode 1115**.
+- RAOfflineProxy automation requires a build exposing **Automation API v1** (first released in **v2.0.0-alpha1**).
+
+---
+
 ## 0.7.0 — 2026-10-03
 
 ### Reliability and cleanup
