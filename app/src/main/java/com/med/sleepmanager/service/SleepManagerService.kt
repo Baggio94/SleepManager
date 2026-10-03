@@ -33,6 +33,7 @@ import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.ClamshellStateStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.data.SleepNetworkStateStore
 import com.med.sleepmanager.data.RaOfflineProxySleepStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
@@ -1031,6 +1032,7 @@ class SleepManagerService : Service() {
         cancelNetworkReadyWait()
 
         SyncMaintenanceScheduler.cancel(this)
+        SleepNetworkStateStore.clear(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
         cancelSleepDelay()
         clearPendingSleepStopWait()
@@ -1707,7 +1709,11 @@ class SleepManagerService : Service() {
             context = this,
             helperExpected = helperAvailable,
             wifiManaged = wifi,
-            bluetoothManaged = bluetooth,
+            bluetoothManaged = bluetooth
+        )
+        SleepNetworkStateStore.record(
+            context = this,
+            cycleId = cycle.cycleId,
             networkAvailableBeforeSleep = networkAvailableBeforeSleep
         )
         Log.i(
@@ -3060,12 +3066,17 @@ class SleepManagerService : Service() {
         }
 
         val sleepCycle = SleepCycleStore.current(this)
+        val networkAvailableBeforeSleep =
+            SleepNetworkStateStore.networkAvailableBeforeSleep(
+                context = this,
+                cycleId = sleepCycle.cycleId
+            ) ?: true
         if (
             SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
                 cycleActive = sleepCycle.active,
                 wifiManaged = sleepCycle.wifiManaged,
                 networkAvailableBeforeSleep =
-                    sleepCycle.networkAvailableBeforeSleep
+                    networkAvailableBeforeSleep
             )
         ) {
             Log.i(
@@ -3284,6 +3295,7 @@ class SleepManagerService : Service() {
         restoreOwnedBatterySaver("Wake")
 
         SyncMaintenanceScheduler.cancel(this)
+        SleepNetworkStateStore.clear(this)
         cancelSyncMaintenance(restoreSleepWifi = false)
 
         val wakeSyncWasArmed =
