@@ -42,9 +42,18 @@ object RaOfflineProxyPolicy {
             RaOfflineProxyQueueState.BLOCKED ->
                 RaOfflineProxyPreSleepDecision.STOP_NOW
 
-            RaOfflineProxyQueueState.CACHING,
-            RaOfflineProxyQueueState.WAITING ->
+            RaOfflineProxyQueueState.CACHING ->
                 RaOfflineProxyPreSleepDecision.WAIT_FOR_QUEUE
+
+            RaOfflineProxyQueueState.WAITING ->
+                if (status.online) {
+                    RaOfflineProxyPreSleepDecision.WAIT_FOR_QUEUE
+                } else {
+                    // Nothing in the cache queue can progress while RA itself
+                    // reports offline. Persisted queue work is safe to resume
+                    // after the next START, so do not keep Wi-Fi alive in sleep.
+                    RaOfflineProxyPreSleepDecision.STOP_NOW
+                }
 
             RaOfflineProxyQueueState.UNKNOWN ->
                 RaOfflineProxyPreSleepDecision.WAIT_FOR_SAFE_STATUS

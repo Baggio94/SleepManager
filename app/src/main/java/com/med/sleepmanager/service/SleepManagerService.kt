@@ -15,6 +15,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
+import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -147,6 +148,7 @@ class SleepManagerService : Service() {
     private val syncStopProbeExecutor = Executors.newSingleThreadExecutor()
     private val diagnosticsExecutor = Executors.newSingleThreadExecutor()
     private var raOfflineProxyCoordinator: RaOfflineProxyCoordinator? = null
+    private var raOfflineProxyRestoreInFlight = false
     private val sleepDelayState = SleepDelayState()
     private var sleepTransitionWakeLock: PowerManager.WakeLock? = null
     private var networkReadyGate: NetworkReadyGate? = null
@@ -878,7 +880,12 @@ class SleepManagerService : Service() {
 
     private fun maybeRestoreDisabledRaOfflineProxyState() {
         if (AppPreferences.manageRaOfflineProxy(this)) return
-        if (!isRealWakeNow()) return
+        restorePendingRaOfflineProxyImmediately()
+    }
+
+    private fun restorePendingRaOfflineProxyImmediately() {
+        if (raOfflineProxyRestoreInFlight) return
+        if (!disableRestoreState.isRequested && !isRealWakeNow()) return
 
         val change =
             SleepCycleStore.connectorChange(
@@ -892,11 +899,45 @@ class SleepManagerService : Service() {
             return
         }
 
+        raOfflineProxyRestoreInFlight = true
         Log.i(
             TAG,
-            "RAOfflineProxy integration disabled -> restoring owned state"
+            "RAOfflineProxy restore starting immediately; network is not required"
         )
-        waitForNetworkAndRestorePendingConnectors()
+
+        raOfflineProxyCoordinator().restoreOwned { success, detail ->
+            raOfflineProxyRestoreInFlight = false
+
+            if (success) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    if (disableRestoreState.isRequested) {
+                        "Disable → RAOfflineProxy restored"
+                    } else {
+                        "Wake → RAOfflineProxy restored"
+                    }
+                )
+            } else {
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "RAOfflineProxy restore is still pending: $detail."
+                )
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    if (disableRestoreState.isRequested) {
+                        "Disable → RAOfflineProxy restore pending · $detail"
+                    } else {
+                        "Wake → RAOfflineProxy restore pending · $detail"
+                    }
+                )
+            }
+
+            SleepCycleStore.completeIfRestored(this)
+            finishDisableRestoreIfRequested(
+                forceStop =
+                    disableRestoreState.isRequested && !success
+            )
+        }
     }
 
     private fun startOwnedDeviceControlRestoreForDisable() {
@@ -1001,6 +1042,7 @@ class SleepManagerService : Service() {
         prepareTailscaleVerificationForWake()
         restorePendingJamesDsp()
         restorePendingBasicSync()
+        restorePendingRaOfflineProxyImmediately()
 
         var cycle = SleepCycleStore.current(this)
         if (
@@ -1322,12 +1364,26 @@ class SleepManagerService : Service() {
                         return@post
                     }
 
+                    val completion =
+                        basicSyncCompletionState(state)
                     if (
-                        basicSyncCompletionState(state) ==
-                        SyncCompletionState.SYNCING
+                        completion == SyncCompletionState.SYNCING &&
+                        hasConnectedNetworkNow()
                     ) {
                         startActiveBasicSyncWait()
                     } else {
+                        if (
+                            completion == SyncCompletionState.SYNCING
+                        ) {
+                            Log.i(
+                                TAG,
+                                "BasicSync active sync wait skipped: device is offline"
+                            )
+                            DiagnosticsStateStore.recordEvent(
+                                this,
+                                "Sleep → BasicSync active sync wait skipped · offline"
+                            )
+                        }
                         releaseSleepTransitionWakeLock()
                         continueFreshSleepActions(
                             transitionSyncRequested = false
@@ -1375,6 +1431,22 @@ class SleepManagerService : Service() {
             !AppPreferences.isEnabled(this)
         ) {
             cancelActiveBasicSyncWait()
+            return
+        }
+
+        if (!hasConnectedNetworkNow()) {
+            cancelActiveBasicSyncWait()
+            Log.i(
+                TAG,
+                "BasicSync active sync wait ended early: network became unavailable"
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Sleep → BasicSync active sync wait ended · offline"
+            )
+            continueFreshSleepActions(
+                transitionSyncRequested = false
+            )
             return
         }
 
@@ -1463,6 +1535,21 @@ class SleepManagerService : Service() {
             SyncTransitionStore.armWakeSync(this)
         } else {
             SyncTransitionStore.clear(this)
+        }
+
+        if (transitionSyncAvailable && !hasConnectedNetworkNow()) {
+            Log.i(
+                TAG,
+                "Pre-sleep sync skipped: no connected network"
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Pre-sleep sync skipped → offline"
+            )
+            prepareSyncthingAndApplyFreshSleepActions(
+                keepBasicSyncStopped = true
+            )
+            return
         }
 
         if (transitionSyncAvailable) {
@@ -1613,18 +1700,22 @@ class SleepManagerService : Service() {
         val helperAvailable = radiosManaged && HelperController.isInstalled(this)
         val batterySaverWillEnable =
             batterySaverWillEnableForSleep()
+        val networkAvailableBeforeSleep =
+            hasConnectedNetworkNow()
 
         val cycle = SleepCycleStore.begin(
             context = this,
             helperExpected = helperAvailable,
             wifiManaged = wifi,
-            bluetoothManaged = bluetooth
+            bluetoothManaged = bluetooth,
+            networkAvailableBeforeSleep = networkAvailableBeforeSleep
         )
         Log.i(
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
-                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped"
+                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped " +
+                "networkBeforeSleep=$networkAvailableBeforeSleep"
         )
 
         // Syncthing always keeps its normal STOP/FOLLOW ownership. Advanced
@@ -2818,18 +2909,16 @@ class SleepManagerService : Service() {
 
     private fun hasPendingNetworkConnectorRestore(): Boolean {
         val syncthingPending =
-            SleepCycleStore.hasConnectorChange(this, SyncthingConnector.id)
+            SleepCycleStore.hasConnectorChange(
+                this,
+                SyncthingConnector.id
+            )
         val tailscalePending =
-            SleepCycleStore.connectorChange(this, TailscaleConnector.id)
-                ?.restoreToken == TailscaleConnector.TOKEN_RESTORE
-        val raOfflineProxyPending =
             SleepCycleStore.connectorChange(
                 this,
-                RaOfflineProxyConnector.id
-            )?.restoreToken == RaOfflineProxyConnector.TOKEN_RESTART
-        return syncthingPending ||
-            tailscalePending ||
-            raOfflineProxyPending
+                TailscaleConnector.id
+            )?.restoreToken == TailscaleConnector.TOKEN_RESTORE
+        return syncthingPending || tailscalePending
     }
 
     private fun scheduleTailscaleWakeVerification() {
@@ -2904,6 +2993,21 @@ class SleepManagerService : Service() {
         finishDisableRestoreIfRequested(forceStop = disableRestoreState.isRequested)
     }
 
+    private fun hasConnectedNetworkNow(): Boolean {
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return true
+
+        return runCatching {
+            connectivityManager.activeNetwork != null
+        }.getOrElse { error ->
+            // Fail open: a network-query problem must never make SleepManager
+            // skip user-requested sync work.
+            Log.w(TAG, "Unable to query connected network state", error)
+            true
+        }
+    }
+
     private fun handlePeriodicSyncAlarm() {
         val powerManager =
             getSystemService(Context.POWER_SERVICE) as? PowerManager
@@ -2950,6 +3054,27 @@ class SleepManagerService : Service() {
             Log.i(
                 TAG,
                 "Periodic sync skipped by Advanced sleep conditions -> $reason"
+            )
+            SyncMaintenanceScheduler.scheduleNext(this)
+            return
+        }
+
+        val sleepCycle = SleepCycleStore.current(this)
+        if (
+            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
+                cycleActive = sleepCycle.active,
+                wifiManaged = sleepCycle.wifiManaged,
+                networkAvailableBeforeSleep =
+                    sleepCycle.networkAvailableBeforeSleep
+            )
+        ) {
+            Log.i(
+                TAG,
+                "Periodic sync skipped: no network was connected before sleep"
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Periodic sync skipped → offline before sleep"
             )
             SyncMaintenanceScheduler.scheduleNext(this)
             return
@@ -3195,6 +3320,7 @@ class SleepManagerService : Service() {
         }
 
         restorePendingJamesDsp()
+        restorePendingRaOfflineProxyImmediately()
 
         if (wakeTransitionSyncState.isPending) {
             SleepCycleStore.clearConnectorChange(
@@ -3411,7 +3537,6 @@ class SleepManagerService : Service() {
 
                 var restoreFailed = false
                 var tailscaleVerificationScheduled = false
-                var raOfflineProxyRestoreScheduled = false
 
                 val syncthingChange =
                     SleepCycleStore.connectorChange(
@@ -3510,56 +3635,7 @@ class SleepManagerService : Service() {
                     }
                 }
 
-                val raOfflineProxyChange =
-                    SleepCycleStore.connectorChange(
-                        this,
-                        RaOfflineProxyConnector.id
-                    )
-                if (
-                    raOfflineProxyChange?.restoreToken ==
-                    RaOfflineProxyConnector.TOKEN_RESTART
-                ) {
-                    raOfflineProxyRestoreScheduled = true
-                    raOfflineProxyCoordinator().restoreOwned { success, detail ->
-                        if (success) {
-                            DiagnosticsStateStore.recordEvent(
-                                this,
-                                if (disableRestoreState.isRequested) {
-                                    "Disable → RAOfflineProxy restored"
-                                } else {
-                                    "Wake → RAOfflineProxy restored"
-                                }
-                            )
-                        } else {
-                            SleepCycleStore.markRestoreProblem(
-                                this,
-                                "RAOfflineProxy restore is still pending: " +
-                                    detail + "."
-                            )
-                            DiagnosticsStateStore.recordEvent(
-                                this,
-                                if (disableRestoreState.isRequested) {
-                                    "Disable → RAOfflineProxy restore pending · " +
-                                        detail
-                                } else {
-                                    "Wake → RAOfflineProxy restore pending · " +
-                                        detail
-                                }
-                            )
-                        }
-
-                        SleepCycleStore.completeIfRestored(this)
-                        finishDisableRestoreIfRequested(
-                            forceStop =
-                                disableRestoreState.isRequested && !success
-                        )
-                    }
-                }
-
-                if (
-                    !tailscaleVerificationScheduled &&
-                    !raOfflineProxyRestoreScheduled
-                ) {
+                if (!tailscaleVerificationScheduled) {
                     SleepCycleStore.completeIfRestored(this)
                     finishDisableRestoreIfRequested(
                         forceStop =

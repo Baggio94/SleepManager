@@ -109,6 +109,38 @@ class SyncMaintenancePolicyTest {
     }
 
     @Test
+    fun periodicOfflineSleepSkipsOnlyWhenSleepManagerOwnsWifi() {
+        assertTrue(
+            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
+                cycleActive = true,
+                wifiManaged = true,
+                networkAvailableBeforeSleep = false
+            )
+        )
+        assertFalse(
+            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
+                cycleActive = true,
+                wifiManaged = true,
+                networkAvailableBeforeSleep = true
+            )
+        )
+        assertFalse(
+            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
+                cycleActive = true,
+                wifiManaged = false,
+                networkAvailableBeforeSleep = false
+            )
+        )
+        assertFalse(
+            SyncMaintenancePolicy.shouldSkipPeriodicForOfflineSleep(
+                cycleActive = false,
+                wifiManaged = true,
+                networkAvailableBeforeSleep = false
+            )
+        )
+    }
+
+    @Test
     fun periodicCompletionSchedulesNextOnlyWhileStillSleepingAndEnabled() {
         assertEquals(
             PeriodicMaintenanceFollowUp.SCHEDULE_NEXT,

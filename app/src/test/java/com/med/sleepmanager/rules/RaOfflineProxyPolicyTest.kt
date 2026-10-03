@@ -42,7 +42,7 @@ class RaOfflineProxyPolicyTest {
     }
 
     @Test
-    fun cachingAndWaitingKeepProxyAndNetworkAvailable() {
+    fun cachingAndOnlineWaitingKeepProxyAndNetworkAvailable() {
         for (
             queue in listOf(
                 RaOfflineProxyQueueState.CACHING,
@@ -52,10 +52,23 @@ class RaOfflineProxyPolicyTest {
             assertEquals(
                 RaOfflineProxyPreSleepDecision.WAIT_FOR_QUEUE,
                 RaOfflineProxyPolicy.preSleepDecision(
-                    status(queue = queue)
+                    status(queue = queue, online = true)
                 )
             )
         }
+    }
+
+    @Test
+    fun offlineWaitingQueueIsSafeToStopAndResumeLater() {
+        assertEquals(
+            RaOfflineProxyPreSleepDecision.STOP_NOW,
+            RaOfflineProxyPolicy.preSleepDecision(
+                status(
+                    queue = RaOfflineProxyQueueState.WAITING,
+                    online = false
+                )
+            )
+        )
     }
 
     @Test
@@ -164,6 +177,7 @@ class RaOfflineProxyPolicyTest {
         version: Int = 1,
         running: Boolean = true,
         shouldBeRunning: Boolean = true,
+        online: Boolean = running,
         queue: RaOfflineProxyQueueState =
             RaOfflineProxyQueueState.IDLE
     ) =
@@ -171,7 +185,7 @@ class RaOfflineProxyPolicyTest {
             version = version,
             running = running,
             shouldBeRunning = shouldBeRunning,
-            online = running,
+            online = online,
             queue =
                 RaOfflineProxyQueueStatus(
                     count =

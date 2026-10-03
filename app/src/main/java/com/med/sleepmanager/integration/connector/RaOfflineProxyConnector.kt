@@ -14,7 +14,9 @@ import com.med.sleepmanager.rules.RaOfflineProxyPreSleepDecision
  */
 object RaOfflineProxyConnector : AppConnector {
     override val id: String = "raofflineproxy"
-    override val wakeRequiresNetwork: Boolean = true
+    // The proxy must be available for offline RetroAchievements play too.
+    // Internet is only needed by RAOfflineProxy for upstream queue work.
+    override val wakeRequiresNetwork: Boolean = false
 
     const val TOKEN_RESTART = "restart"
 

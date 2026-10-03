@@ -13,6 +13,8 @@ object SleepCycleStore {
     private const val KEY_HELPER_RESTORED = "helper_restored"
     private const val KEY_WIFI_MANAGED = "wifi_managed"
     private const val KEY_BLUETOOTH_MANAGED = "bluetooth_managed"
+    private const val KEY_NETWORK_AVAILABLE_BEFORE_SLEEP =
+        "network_available_before_sleep"
     private const val KEY_RESTORE_PROBLEM = "restore_problem"
     private const val CONNECTOR_PREFIX = "connector."
     private const val CONNECTOR_CHANGED_SUFFIX = ".changed"
@@ -30,7 +32,9 @@ object SleepCycleStore {
         val helperSleepRequested: Boolean,
         val helperRestored: Boolean,
         val wifiManaged: Boolean,
-        val bluetoothManaged: Boolean
+        val bluetoothManaged: Boolean,
+        // Defaults preserve legacy/test snapshots created before this field.
+        val networkAvailableBeforeSleep: Boolean = true
     )
 
     private fun prefs(context: Context) =
@@ -40,7 +44,8 @@ object SleepCycleStore {
         context: Context,
         helperExpected: Boolean,
         wifiManaged: Boolean,
-        bluetoothManaged: Boolean
+        bluetoothManaged: Boolean,
+        networkAvailableBeforeSleep: Boolean = true
     ): Snapshot {
         val now = System.currentTimeMillis()
         prefs(context).edit()
@@ -53,6 +58,10 @@ object SleepCycleStore {
             .putBoolean(KEY_HELPER_RESTORED, !helperExpected)
             .putBoolean(KEY_WIFI_MANAGED, wifiManaged)
             .putBoolean(KEY_BLUETOOTH_MANAGED, bluetoothManaged)
+            .putBoolean(
+                KEY_NETWORK_AVAILABLE_BEFORE_SLEEP,
+                networkAvailableBeforeSleep
+            )
             .commit()
 
         val snapshot = current(context)
@@ -70,7 +79,11 @@ object SleepCycleStore {
             helperSleepRequested = p.getBoolean(KEY_HELPER_SLEEP_REQUESTED, false),
             helperRestored = p.getBoolean(KEY_HELPER_RESTORED, true),
             wifiManaged = p.getBoolean(KEY_WIFI_MANAGED, false),
-            bluetoothManaged = p.getBoolean(KEY_BLUETOOTH_MANAGED, false)
+            bluetoothManaged = p.getBoolean(KEY_BLUETOOTH_MANAGED, false),
+            // Fail open for transactions created by older builds: keep the
+            // previous periodic-sync behavior rather than silently skipping it.
+            networkAvailableBeforeSleep =
+                p.getBoolean(KEY_NETWORK_AVAILABLE_BEFORE_SLEEP, true)
         )
     }
 
