@@ -199,6 +199,9 @@ class SleepManagerService : Service() {
                             wifi = wifi,
                             bluetooth = bluetooth
                         )
+                        // Safe no-op while Helper or connector ownership is
+                        // still pending. Clears an otherwise empty transaction.
+                        SleepCycleStore.completeIfRestored(this)
                     } else {
                         Log.i(
                             TAG,
@@ -958,6 +961,7 @@ class SleepManagerService : Service() {
         raOfflineProxyCoordinator?.cancelSleepGate(
             clearPersistedState = true
         )
+        RaOfflineProxySleepStore.clear(this)
 
         cancelNetworkReadyWait()
 
@@ -3122,6 +3126,7 @@ class SleepManagerService : Service() {
         raOfflineProxyCoordinator?.cancelSleepGate(
             clearPersistedState = true
         )
+        RaOfflineProxySleepStore.clear(this)
 
         DeviceControlStore.setBatterySaverDeferredForExternalPower(
             this,

@@ -20,6 +20,7 @@ class SleepManagerUiStateTest {
         assertFalse(state.manageTailscaleEnabled)
         assertFalse(state.manageJamesDspEnabled)
         assertFalse(state.manageBasicSyncEnabled)
+        assertFalse(state.manageRaOfflineProxyEnabled)
         assertFalse(state.closedLidProtectionEnabled)
         assertFalse(state.dockDisconnectSleeps)
         assertFalse(state.closedLidPowerSleeps)
@@ -62,6 +63,7 @@ class SleepManagerUiStateTest {
                     manageTailscaleEnabled = true,
                     manageJamesDspEnabled = true,
                     manageBasicSyncEnabled = true,
+                    manageRaOfflineProxyEnabled = true,
                     closedLidProtectionEnabled = true,
                     dockDisconnectSleeps = true,
                     closedLidPowerSleeps = true,

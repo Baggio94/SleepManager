@@ -66,6 +66,15 @@ internal class RaOfflineProxyCoordinator(
     ) {
         val token = generation.incrementAndGet()
         stopConfirmStartedAt = 0L
+        // Persist immediately so a process death before the worker executes
+        // cannot let service recovery cut Wi-Fi ahead of the proxy gate.
+        RaOfflineProxySleepStore.set(
+            appContext,
+            RaOfflineProxySleepStore.Phase.WAITING_FOR_SAFE_STATUS,
+            cycleId,
+            wifi,
+            bluetooth
+        )
         ensureObserver()
         evaluateSleepGateAsync(
             token = token,

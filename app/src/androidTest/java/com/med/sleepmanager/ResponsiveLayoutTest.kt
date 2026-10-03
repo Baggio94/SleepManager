@@ -205,6 +205,7 @@ class ResponsiveLayoutTest {
         assertTextIsNotCrushed("integration_title_Syncthing‑Fork")
         assertTextIsNotCrushed("integration_title_Tailscale")
         assertTextIsNotCrushed("integration_title_JamesDSP")
+        assertTextIsNotCrushed("integration_title_RAOfflineProxy")
     }
 
     private fun assertTextIsNotCrushed(tag: String) {

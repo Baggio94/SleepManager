@@ -65,6 +65,8 @@ import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.integration.BasicSyncController
+import com.med.sleepmanager.integration.RaOfflineProxyController
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
@@ -124,6 +126,7 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
         onManageTailscaleChange: (Boolean) -> Unit,
         onManageJamesDspChange: (Boolean) -> Unit,
         onManageBasicSyncChange: (Boolean) -> Unit,
+        onManageRaOfflineProxyChange: (Boolean) -> Unit,
         onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
         onSyncThenStopOnSleepWakeChange: (Boolean) -> Unit,
         onSleepGraceChange: (Long) -> Unit,
@@ -147,6 +150,7 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
         onOpenExternalUrlRequested: (String) -> Unit,
         onOpenAppInfoRequested: () -> Unit,
         onOpenBatteryOptimizationRequested: () -> Unit,
+        onOpenRaOfflineProxySettingsRequested: () -> Unit,
         onOpenUnusedAppRestrictionsRequested: () -> Unit,
         onRequestUpdateNotificationPermissionRequested: () -> Unit,
         onInstallVerifiedUpdateRequested: (String) -> Unit,
@@ -230,6 +234,8 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
         val tailscaleEnabled = uiState.manageTailscaleEnabled
         val jamesDspEnabled = uiState.manageJamesDspEnabled
         val basicSyncEnabled = uiState.manageBasicSyncEnabled
+        val raOfflineProxyEnabled =
+            uiState.manageRaOfflineProxyEnabled
         val periodicSyncWhileSleeping = uiState.periodicSyncWhileSleeping
         val syncThenStopOnSleepWake = uiState.syncThenStopOnSleepWake
         val closedLidProtectionEnabled = uiState.closedLidProtectionEnabled
@@ -282,6 +288,35 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
         val basicSyncVersion = remember(refreshToken) {
             BasicSyncController.versionName(context)
         }
+        val raOfflineProxyInstalled = remember(refreshToken) {
+            RaOfflineProxyController.isInstalled(context)
+        }
+        val raOfflineProxyVersion = remember(refreshToken) {
+            RaOfflineProxyController.versionName(context)
+        }
+        val raOfflineProxyProviderAvailable =
+            remember(refreshToken) {
+                RaOfflineProxyController.providerAvailable(context)
+            }
+        val raOfflineProxyControlPermission =
+            remember(refreshToken) {
+                RaOfflineProxyController.hasControlPermission(context)
+            }
+        val raOfflineProxyBatteryUnrestricted =
+            remember(refreshToken) {
+                RaOfflineProxyController.isBatteryUnrestricted(context)
+            }
+        val raOfflineProxyStatus =
+            uiState.currentRaOfflineProxyStatus
+        val raOfflineProxyApiCompatible =
+            raOfflineProxyStatus?.version ==
+                RaOfflineProxyController.SUPPORTED_API_VERSION
+        val raOfflineProxyReady =
+            raOfflineProxyInstalled &&
+                raOfflineProxyProviderAvailable &&
+                raOfflineProxyControlPermission &&
+                raOfflineProxyBatteryUnrestricted &&
+                raOfflineProxyApiCompatible
         val closedLidProtectionSupported = remember(refreshToken) {
             LidMonitor.isSupported()
         }
@@ -1130,6 +1165,147 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
                                 null
                             }
                         )
+
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 64.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        val raOfflineProxyStatusText =
+                            when {
+                                !raOfflineProxyInstalled ->
+                                    null
+                                !raOfflineProxyProviderAvailable ->
+                                    stringResource(
+                                        R.string.raofflineproxy_api_unavailable
+                                    )
+                                !raOfflineProxyControlPermission ->
+                                    stringResource(
+                                        R.string.raofflineproxy_permission_missing
+                                    )
+                                !raOfflineProxyBatteryUnrestricted ->
+                                    stringResource(
+                                        R.string.raofflineproxy_needs_unrestricted
+                                    )
+                                raOfflineProxyStatus == null ->
+                                    stringResource(R.string.checking)
+                                !raOfflineProxyApiCompatible ->
+                                    stringResource(
+                                        R.string.raofflineproxy_api_unsupported,
+                                        raOfflineProxyStatus.version
+                                    )
+                                else -> {
+                                    val runtime =
+                                        stringResource(
+                                            if (
+                                                raOfflineProxyStatus.running ||
+                                                raOfflineProxyStatus
+                                                    .shouldBeRunning
+                                            ) {
+                                                R.string.running
+                                            } else {
+                                                R.string.stopped
+                                            }
+                                        )
+                                    when (
+                                        raOfflineProxyStatus.queue.state
+                                    ) {
+                                        RaOfflineProxyQueueState.CACHING ->
+                                            runtime + " · " +
+                                                stringResource(
+                                                    R.string
+                                                        .raofflineproxy_queue_caching,
+                                                    raOfflineProxyStatus
+                                                        .queue.count
+                                                )
+                                        RaOfflineProxyQueueState.WAITING ->
+                                            runtime + " · " +
+                                                stringResource(
+                                                    R.string
+                                                        .raofflineproxy_queue_waiting,
+                                                    raOfflineProxyStatus
+                                                        .queue.count
+                                                )
+                                        RaOfflineProxyQueueState.BLOCKED ->
+                                            runtime + " · " +
+                                                stringResource(
+                                                    R.string
+                                                        .raofflineproxy_queue_blocked
+                                                )
+                                        RaOfflineProxyQueueState.IDLE ->
+                                            runtime
+                                        RaOfflineProxyQueueState.UNKNOWN ->
+                                            runtime + " · " +
+                                                stringResource(R.string.unknown)
+                                    }
+                                }
+                            }
+
+                        CompactIntegrationRow(
+                            icon = R.drawable.ic_shield,
+                            title =
+                                stringResource(
+                                    R.string.integration_raofflineproxy
+                                ),
+                            version =
+                                if (raOfflineProxyInstalled) {
+                                    raOfflineProxyVersion
+                                        ?: stringResource(R.string.installed)
+                                } else {
+                                    stringResource(R.string.not_detected)
+                                },
+                            status = raOfflineProxyStatusText,
+                            checked =
+                                raOfflineProxyEnabled &&
+                                    raOfflineProxyReady,
+                            enabled = raOfflineProxyReady,
+                            onCheckedChange = {
+                                onManageRaOfflineProxyChange(it)
+                                if (it && managerEnabled) {
+                                    onServiceRefreshRequested()
+                                }
+                            },
+                            onOpen =
+                                if (raOfflineProxyInstalled) {
+                                    {
+                                        RaOfflineProxyController
+                                            .open(context)
+                                    }
+                                } else {
+                                    null
+                                },
+                            secondaryActionLabel =
+                                if (
+                                    raOfflineProxyInstalled &&
+                                    !raOfflineProxyBatteryUnrestricted
+                                ) {
+                                    stringResource(
+                                        R.string.raofflineproxy_app_settings
+                                    )
+                                } else {
+                                    null
+                                },
+                            onSecondaryAction =
+                                if (
+                                    raOfflineProxyInstalled &&
+                                    !raOfflineProxyBatteryUnrestricted
+                                ) {
+                                    {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                R.string
+                                                    .raofflineproxy_unrestricted_hint
+                                            ),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        onOpenRaOfflineProxySettingsRequested()
+                                    }
+                                } else {
+                                    null
+                                }
+                        )
                     }
                 }
                 item {
@@ -1160,6 +1336,9 @@ import com.med.sleepmanager.ui.state.SleepManagerUiState
                         tailscale = tailscaleEnabled && tailscaleInstalled,
                         jamesDsp = jamesDspEnabled && jamesDspTarget != null,
                         basicSync = basicSyncEnabled && basicSyncInstalled,
+                        raOfflineProxy =
+                            raOfflineProxyEnabled &&
+                                raOfflineProxyReady,
                         closedLidProtection = closedLidProtectionEnabled && closedLidAdminActive,
                         chargingSeparationWithLid =
                             chargingSeparationWithLidEnabled && chargingSeparationSupported,

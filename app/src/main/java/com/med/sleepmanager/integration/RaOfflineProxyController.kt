@@ -1,11 +1,13 @@
 package com.med.sleepmanager.integration
 
 import android.content.Context
+import android.content.Intent
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyCommandResult
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
@@ -53,6 +55,29 @@ object RaOfflineProxyController {
             @Suppress("DEPRECATION")
             context.packageManager.getPackageInfo(PACKAGE, 0).versionName
         }.getOrNull()
+
+    fun open(context: Context): Boolean {
+        val launchIntent =
+            context.packageManager.getLaunchIntentForPackage(PACKAGE)
+                ?: return false
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching {
+            context.startActivity(launchIntent)
+            true
+        }.getOrDefault(false)
+    }
+
+    fun openAppSettings(context: Context): Boolean {
+        val intent =
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:" + PACKAGE)
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching {
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
+    }
 
     fun providerAvailable(context: Context): Boolean =
         runCatching {
