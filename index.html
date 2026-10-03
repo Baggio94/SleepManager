@@ -8,22 +8,28 @@
   <meta name="robots" content="index,follow">
   <meta name="google-site-verification" content="XWT77QndFUCbfAJYH2Z4tnSmATT-w7YuAhkd6e2AIQg">
   <link rel="canonical" href="https://baggio94.github.io/SleepManager/">
+  <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/sleepmanager.png">
+  <link rel="apple-touch-icon" href="assets/sleepmanager.png">
 
   <meta property="og:title" content="SleepManager — Better standby for Android handhelds">
   <meta property="og:description" content="An open-source Android sleep and wake manager built for gaming handhelds.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://baggio94.github.io/SleepManager/">
+  <meta property="og:image" content="https://baggio94.github.io/SleepManager/assets/sleepmanager.png">
+  <meta property="og:image:alt" content="SleepManager app icon: a crescent moon above a switch">
   <meta name="twitter:card" content="summary">
   <meta id="theme-color" name="theme-color" content="#FAF8FF">
 
   <script>
     (function () {
-      try {
-        var saved = localStorage.getItem("sleepmanager-theme");
-        var theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.style.colorScheme = theme;
-      } catch (_) {}
+      var saved;
+      try { saved = localStorage.getItem("sleepmanager-theme"); } catch (_) {}
+      var theme = saved === "light" || saved === "dark" ? saved :
+        (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+      document.getElementById("theme-color").content = theme === "dark" ? "#121318" : "#FAF8FF";
     })();
   </script>
 
@@ -98,6 +104,9 @@
       --border: rgba(93, 95, 103, .24);
       --header: rgba(250, 248, 255, .90);
       --quote: #2F3036;
+      --brand-surface: #E9EDFA;
+      --brand-border: #C8D2EC;
+      --icon-surface: #DCE4FF;
       --max: 1080px;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -121,6 +130,9 @@
       --border: rgba(138, 144, 165, .28);
       --header: rgba(18, 19, 24, .90);
       --quote: #E4E1E9;
+      --brand-surface: #1C2538;
+      --brand-border: #354B74;
+      --icon-surface: #354B74;
     }
 
     * { box-sizing: border-box; }
@@ -140,6 +152,24 @@
     }
 
     a { color: inherit; }
+
+    :focus-visible {
+      outline: 3px solid var(--primary);
+      outline-offset: 4px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 20px;
+      top: -100px;
+      z-index: 20;
+      padding: 10px 16px;
+      background: var(--primary);
+      color: var(--on-primary);
+      border-radius: 12px;
+    }
+
+    .skip-link:focus { top: 12px; }
 
     .wrap {
       width: min(var(--max), calc(100% - 40px));
@@ -165,10 +195,19 @@
     }
 
     .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
       font-weight: 760;
       letter-spacing: -.025em;
       text-decoration: none;
       color: var(--primary);
+    }
+
+    .brand img {
+      display: block;
+      border-radius: 9px;
     }
 
     .nav-right {
@@ -213,6 +252,7 @@
       font-weight: 650;
       line-height: 1;
       padding: 8px 10px;
+      min-height: 38px;
       border-radius: 999px;
       cursor: pointer;
     }
@@ -225,11 +265,37 @@
     main section {
       padding: 72px 0;
       border-bottom: 1px solid var(--border);
+      scroll-margin-top: 88px;
     }
 
     .hero {
-      padding: 96px 0 86px;
-      max-width: 910px;
+      padding: 64px 0 72px;
+      max-width: 960px;
+    }
+
+    .hero-identity {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      margin-bottom: 30px;
+    }
+
+    .hero-logo {
+      display: block;
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      box-shadow: 0 5px 16px rgba(34, 57, 97, .13);
+    }
+
+    .hero-accent { color: var(--primary); }
+
+    .hero-name {
+      display: block;
+      margin-bottom: 9px;
+      font-size: 1.3rem;
+      font-weight: 720;
+      letter-spacing: -.025em;
     }
 
     .release-chip {
@@ -238,12 +304,12 @@
       gap: 8px;
       padding: 7px 11px;
       color: var(--primary);
-      background: var(--surface-container);
+      background: var(--brand-surface);
       border-radius: 999px;
       font-size: .86rem;
       font-weight: 680;
       text-decoration: none;
-      margin-bottom: 22px;
+      margin-bottom: 0;
     }
 
     .release-chip::before {
@@ -262,7 +328,7 @@
     }
 
     h1 {
-      font-size: clamp(3rem, 8vw, 5.7rem);
+      font-size: clamp(2.6rem, 5.6vw, 4.5rem);
       margin: 0 0 28px;
       max-width: 900px;
     }
@@ -365,8 +431,26 @@
     }
 
     .feature h3 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
       color: var(--primary);
     }
+
+    .feature-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 40px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--icon-surface);
+      color: var(--primary);
+    }
+
+    .feature-icon svg { width: 22px; height: 22px; }
 
     .feature p {
       color: var(--muted);
@@ -387,9 +471,9 @@
       gap: 44px;
       align-items: start;
       padding: 34px;
-      border: 1px solid var(--border);
+      border: 1px solid var(--brand-border);
       border-radius: 22px;
-      background: var(--surface-low);
+      background: var(--brand-surface);
     }
 
     .release-version {
@@ -513,6 +597,7 @@
       margin: 0;
       padding: 22px;
       border: 1px solid var(--border);
+      border-left: 3px solid var(--brand-border);
       border-radius: 18px;
       background: var(--surface-low);
       color: var(--quote);
@@ -539,8 +624,8 @@
       margin-left: 5px;
       padding: 2px 7px;
       border-radius: 999px;
-      background: var(--surface-container);
-      color: var(--muted);
+      background: var(--brand-surface);
+      color: var(--primary);
       font-size: .78rem;
     }
 
@@ -599,10 +684,21 @@
 
     body > footer .footer-row {
       display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 24px;
       flex-wrap: wrap;
     }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-brand img { display: block; border-radius: 9px; }
+    .footer-brand strong { display: block; color: var(--text); }
+    .footer-brand small { font-size: .85rem; }
 
     body > footer a {
       color: var(--primary);
@@ -615,7 +711,7 @@
 
     @media (max-width: 860px) {
       header { position: static; }
-      .hero { padding: 72px 0 66px; }
+      .hero { padding: 48px 0 58px; }
       main section { padding: 58px 0; }
       .feature-grid,
       .release-panel,
@@ -633,23 +729,38 @@
     @media (max-width: 600px) {
       .wrap { width: min(var(--max), calc(100% - 28px)); }
       .nav-right { gap: 9px; }
+      nav { gap: 12px; }
+      .brand { gap: 8px; font-size: .95rem; }
+      .brand img { width: 30px; height: 30px; }
       .navlinks { display: none; }
       .theme-switch button {
         padding: 8px 9px;
         font-size: .78rem;
+        min-height: 40px;
       }
-      h1 { font-size: clamp(2.75rem, 15vw, 4rem); }
+      h1 { font-size: clamp(2.2rem, 9vw, 3.5rem); }
+      .hero-identity { gap: 16px; margin-bottom: 26px; }
+      .hero-logo { width: 72px; height: 72px; border-radius: 18px; }
+      .hero-name { font-size: 1.15rem; }
+      .release-chip { font-size: .8rem; }
       .actions .btn { width: 100%; }
       .facts { display: grid; gap: 8px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      body, .btn { transition: none; }
+      .btn:hover { transform: none; }
     }
   </style>
 </head>
 
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header>
     <div class="wrap">
-      <nav>
-        <a class="brand" href="#">SleepManager</a>
+      <nav aria-label="Main navigation">
+        <a class="brand" href="#"><img src="assets/sleepmanager.png" width="32" height="32" alt="">SleepManager</a>
         <div class="nav-right">
           <div class="navlinks">
             <a href="#features">Features</a>
@@ -668,14 +779,18 @@
     </div>
   </header>
 
-  <main>
+  <main id="main">
     <div class="wrap">
       <section class="hero">
-        <a class="release-chip" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.0" target="_blank" rel="noopener noreferrer">
-          SleepManager 0.7.0 is out
-        </a>
+        <div class="hero-identity">
+          <img class="hero-logo" src="assets/sleepmanager.png" width="88" height="88" alt="SleepManager app icon: a crescent moon above a switch">
+          <div>
+            <span class="hero-name">SleepManager</span>
+            <a class="release-chip" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.0" target="_blank" rel="noopener noreferrer">Version 0.7.0 is out</a>
+          </div>
+        </div>
 
-        <h1>Better standby for Android handhelds.</h1>
+        <h1><span class="hero-accent">Better standby</span><br>for Android handhelds.</h1>
 
         <p class="lead">
           SleepManager is a free, open-source Android utility that manages what happens when your handheld goes to sleep.
@@ -712,32 +827,32 @@
 
         <div class="feature-grid">
           <article class="feature">
-            <h3>Radios and Battery Saver</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M1,9l2,2c5,-5 13,-5 18,0l2,-2C17,3 7,3 1,9zM5,13l2,2c3,-3 7,-3 10,0l2,-2C15,9 9,9 5,13zM9,17l3,3 3,-3c-1.7,-1.7 -4.3,-1.7 -6,0z" fill="currentColor"/></svg></span>Radios and Battery Saver</h3>
             <p>Turn Wi-Fi or Bluetooth off while sleeping, and enable Battery Saver when appropriate. Previous states are restored only when SleepManager changed them.</p>
           </article>
 
           <article class="feature">
-            <h3>Save-sync automation</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12,4V1L8,5l4,4V6c3.31,0 6,2.69 6,6 0,1.01 -0.25,1.96 -0.69,2.79l1.46,1.46C19.54,15.03 20,13.57 20,12c0,-4.42 -3.58,-8 -8,-8zM6.69,9.21L5.23,7.75C4.46,8.97 4,10.43 4,12c0,4.42 3.58,8 8,8v3l4,-4 -4,-4v3c-3.31,0 -6,-2.69 -6,-6 0,-1.01 0.25,-1.96 0.69,-2.79z" fill="currentColor"/></svg></span>Save-sync automation</h3>
             <p>Run supported sync clients before sleep, after wake, or periodically during long sleep sessions. Completion-aware sync is available with BasicSync 3.19+.</p>
           </article>
 
           <article class="feature">
-            <h3>Clamshell protection</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5.2,4.5 H18.8 C19.46,4.5 20,5.04 20,5.7 V13.7 H4 V5.7 C4,5.04 4.54,4.5 5.2,4.5 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3,16 H21 L19.8,18.6 H4.2 Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.3,9.1 V8.2 C10.3,7.26 11.06,6.5 12,6.5 C12.94,6.5 13.7,7.26 13.7,8.2 V9.1 H14.2 C14.64,9.1 15,9.46 15,9.9 V12.1 C15,12.54 14.64,12.9 14.2,12.9 H9.8 C9.36,12.9 9,12.54 9,12.1 V9.9 C9,9.46 9.36,9.1 9.8,9.1 Z M11.2,9.1 H12.8 V8.2 C12.8,7.76 12.44,7.4 12,7.4 C11.56,7.4 11.2,7.76 11.2,8.2 Z" fill="currentColor"/></svg></span>Clamshell protection</h3>
             <p>Handle closed-lid false wakes and optional dock, power-button and Charging Separation behavior on compatible handhelds such as the AYN Thor.</p>
           </article>
 
           <article class="feature">
-            <h3>Battery stats</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M16,4h-1V2h-6v2H8c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V6c0,-1.1 -0.9,-2 -2,-2zM16,20H8V6h8v14zM9,15h6v4H9z" fill="currentColor"/></svg></span>Battery stats</h3>
             <p>Track sleep duration, drain rate, measured mAh when available, deep-sleep percentage, recent sessions and estimated standby time.</p>
           </article>
 
           <article class="feature">
-            <h3>Conditions and delays</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4,7h8v2H4zM16,7h4v2h-4zM12,5h4v6h-4zM4,15h4v2H4zM12,15h8v2h-8zM8,13h4v6H8z" fill="currentColor"/></svg></span>Conditions and delays</h3>
             <p>Use grace periods, longer custom delays, battery level, charging state, Battery Saver state and time windows to decide when sleep actions should run.</p>
           </article>
 
           <article class="feature">
-            <h3>Activity and diagnostics</h3>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13,3a9,9 0,1 0,8.45 5.9l-1.9,0.62A7,7 0,1 1,13 5a6.96,6.96 0,0 1,4.95 2.05L15,10h7V3l-2.63,2.63A8.95,8.95 0,0 0,13 3z" fill="currentColor"/><path d="M12,7h2v5.17l3.24,1.87 -1,1.73L12,13.32z" fill="currentColor"/></svg></span>Activity and diagnostics</h3>
             <p>See what SleepManager did during recent cycles and generate detailed diagnostics when something needs troubleshooting.</p>
           </article>
         </div>
@@ -961,7 +1076,10 @@
 
   <footer>
     <div class="wrap footer-row">
-      <span>SleepManager by Baggio94</span>
+      <div class="footer-brand">
+        <img src="assets/sleepmanager.png" width="32" height="32" loading="lazy" alt="">
+        <div><strong>SleepManager</strong><small>Built by Baggio94</small></div>
+      </div>
       <span><a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://github.com/Baggio94/SleepManager/releases/latest">Releases</a></span>
     </div>
   </footer>
@@ -971,6 +1089,11 @@
       var root = document.documentElement;
       var buttons = document.querySelectorAll("[data-theme-choice]");
       var themeColor = document.getElementById("theme-color");
+      var hasChosenTheme = false;
+      try {
+        var saved = localStorage.getItem("sleepmanager-theme");
+        hasChosenTheme = saved === "light" || saved === "dark";
+      } catch (_) {}
 
       function applyTheme(theme, persist) {
         root.dataset.theme = theme;
@@ -985,6 +1108,7 @@
         }
 
         if (persist) {
+          hasChosenTheme = true;
           try {
             localStorage.setItem("sleepmanager-theme", theme);
           } catch (_) {}
@@ -1000,13 +1124,9 @@
       var current = root.dataset.theme || "light";
       applyTheme(current, false);
 
-      try {
-        if (!localStorage.getItem("sleepmanager-theme")) {
-          window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (event) {
-            applyTheme(event.matches ? "dark" : "light", false);
-          });
-        }
-      } catch (_) {}
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (event) {
+        if (!hasChosenTheme) applyTheme(event.matches ? "dark" : "light", false);
+      });
     })();
   </script>
 </body>
