@@ -14,6 +14,7 @@ object RaOfflineProxySleepStore {
         NONE,
         WAITING_FOR_QUEUE,
         WAITING_FOR_SAFE_STATUS,
+        STOP_REQUESTED,
         WAITING_FOR_STOP_CONFIRMATION,
         STOP_CONFIRMATION_TIMEOUT
     }

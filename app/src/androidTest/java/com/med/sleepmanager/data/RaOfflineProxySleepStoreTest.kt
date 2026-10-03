@@ -20,6 +20,26 @@ class RaOfflineProxySleepStoreTest {
     }
 
     @Test
+    fun stopRequestedIsPersistedAsPending() {
+        RaOfflineProxySleepStore.set(
+            context,
+            RaOfflineProxySleepStore.Phase.STOP_REQUESTED,
+            cycleId = 77L,
+            wifi = true,
+            bluetooth = true
+        )
+
+        val restored = RaOfflineProxySleepStore.current(context)
+        assertTrue(restored.pending)
+        assertTrue(
+            RaOfflineProxySleepStore.isPendingForCycle(
+                context,
+                77L
+            )
+        )
+    }
+
+    @Test
     fun pendingGateSurvivesStoreReload() {
         RaOfflineProxySleepStore.set(
             context,

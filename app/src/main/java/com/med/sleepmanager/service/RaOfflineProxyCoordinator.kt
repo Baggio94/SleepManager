@@ -214,6 +214,8 @@ internal class RaOfflineProxyCoordinator(
                 currentState.cycleId == cycleId &&
                 (
                     currentState.phase ==
+                        RaOfflineProxySleepStore.Phase.STOP_REQUESTED ||
+                    currentState.phase ==
                         RaOfflineProxySleepStore.Phase
                             .WAITING_FOR_STOP_CONFIRMATION ||
                     currentState.phase ==
@@ -231,7 +233,18 @@ internal class RaOfflineProxyCoordinator(
                         bluetooth,
                         "STOP confirmed"
                     )
-                } else {
+                } else if (
+                    currentState.phase !=
+                    RaOfflineProxySleepStore.Phase
+                        .STOP_CONFIRMATION_TIMEOUT
+                ) {
+                    if (
+                        stopConfirmStartedAt == 0L &&
+                        currentState.updatedAt > 0L
+                    ) {
+                        stopConfirmStartedAt =
+                            currentState.updatedAt
+                    }
                     waitForStopConfirmation(
                         token,
                         cycleId,
@@ -239,6 +252,9 @@ internal class RaOfflineProxyCoordinator(
                         bluetooth
                     )
                 }
+                // After a confirmed timeout, remain observer-only. A later
+                // notifyChange can still complete the gate without restarting
+                // a periodic retry loop.
                 return@execute
             }
 
@@ -262,8 +278,37 @@ internal class RaOfflineProxyCoordinator(
                     }
 
                     val initial = status
+
+                    // Transaction log first: if our process dies after the
+                    // provider changes RAOfflineProxy but before call() returns,
+                    // the next real wake still knows that START is owed.
+                    SleepCycleStore.recordConnectorChange(
+                        appContext,
+                        RaOfflineProxyConnector.id,
+                        RaOfflineProxyConnector.TOKEN_RESTART
+                    )
+                    RaOfflineProxySleepStore.set(
+                        appContext,
+                        RaOfflineProxySleepStore.Phase.STOP_REQUESTED,
+                        cycleId,
+                        wifi,
+                        bluetooth
+                    )
+
                     val result =
                         RaOfflineProxyController.stop(appContext)
+
+                    // A real wake/disable can happen while the blocking provider
+                    // call is in flight. Keep provisional ownership in that
+                    // case: the wake path will restore it after STOP releases
+                    // the upstream control lock.
+                    if (
+                        token != generation.get() ||
+                        !canContinueSleepGate(cycleId)
+                    ) {
+                        return@execute
+                    }
+
                     val owned =
                         RaOfflineProxyPolicy.shouldTakeStopOwnership(
                             initialStatus = initial,
@@ -271,6 +316,10 @@ internal class RaOfflineProxyCoordinator(
                         )
 
                     if (!owned) {
+                        SleepCycleStore.clearConnectorChange(
+                            appContext,
+                            RaOfflineProxyConnector.id
+                        )
                         persistAndHold(
                             phase =
                                 RaOfflineProxySleepStore.Phase
@@ -285,11 +334,6 @@ internal class RaOfflineProxyCoordinator(
                         return@execute
                     }
 
-                    SleepCycleStore.recordConnectorChange(
-                        appContext,
-                        RaOfflineProxyConnector.id,
-                        RaOfflineProxyConnector.TOKEN_RESTART
-                    )
                     DiagnosticsStateStore.recordEvent(
                         appContext,
                         "Sleep → RAOfflineProxy STOP accepted · restore owned"
@@ -298,6 +342,13 @@ internal class RaOfflineProxyCoordinator(
                     val afterStop =
                         result.status
                             ?: RaOfflineProxyController.status(appContext)
+
+                    if (
+                        token != generation.get() ||
+                        !canContinueSleepGate(cycleId)
+                    ) {
+                        return@execute
+                    }
 
                     if (
                         RaOfflineProxyPolicy.stopConfirmed(afterStop)
@@ -380,7 +431,12 @@ internal class RaOfflineProxyCoordinator(
         bluetooth: Boolean
     ) {
         if (stopConfirmStartedAt == 0L) {
-            stopConfirmStartedAt = System.currentTimeMillis()
+            val persisted =
+                RaOfflineProxySleepStore.current(appContext)
+                    .updatedAt
+                    .takeIf { it > 0L }
+            stopConfirmStartedAt =
+                persisted ?: System.currentTimeMillis()
         }
 
         val elapsed =
@@ -505,6 +561,11 @@ internal class RaOfflineProxyCoordinator(
     ) {
         if (token != generation.get()) return
 
+        // Invalidate any already-queued observer/fallback evaluation before
+        // exposing completion to the service. This keeps Helper/device actions
+        // exactly-once for this gate.
+        val completedGeneration = generation.incrementAndGet()
+
         RaOfflineProxySleepStore.clear(appContext)
         stopConfirmStartedAt = 0L
         if (!restorePending) {
@@ -518,7 +579,7 @@ internal class RaOfflineProxyCoordinator(
 
         handler.post {
             if (
-                token == generation.get() &&
+                completedGeneration == generation.get() &&
                 canContinueSleepGate(cycleId)
             ) {
                 onSleepGateReady(
@@ -554,6 +615,12 @@ internal class RaOfflineProxyCoordinator(
         if (observer != null) return
         handler.post {
             if (observer != null) return@post
+            if (
+                !restorePending &&
+                !RaOfflineProxySleepStore.current(appContext).pending
+            ) {
+                return@post
+            }
             observer =
                 RaOfflineProxyController.registerStatusObserver(
                     appContext,
