@@ -212,18 +212,21 @@ class LocalE2EControlTest {
             calendar.get(Calendar.HOUR_OF_DAY) * 60 +
                 calendar.get(Calendar.MINUTE)
 
+        // Keep CI schedule windows comfortably away from the current minute.
+        // A +/- 1 minute window can expire while the emulator is still launching
+        // MainActivity or finishing the previous scenario.
         val start =
             if (inside) {
-                (now + 1439) % 1440
+                (now + 1430) % 1440
             } else {
-                (now + 2) % 1440
+                (now + 20) % 1440
             }
 
         val end =
             if (inside) {
-                (now + 1) % 1440
+                (now + 10) % 1440
             } else {
-                (now + 3) % 1440
+                (now + 30) % 1440
             }
 
         AppPreferences.setScheduleStartMinutes(context, start)
