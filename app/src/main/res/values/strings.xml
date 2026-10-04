@@ -386,6 +386,7 @@
     <string name="home_app_integrations">App integrations</string>
     <string name="home_app_integrations_description">Pause background services that don’t need to run while your device sleeps.</string>
     <string name="home_also_supported">Also supported</string>
+    <string name="home_supported_apps">Supported apps</string>
 
     <string name="home_syncthing_fork">Syncthing‑Fork</string>
     <string name="home_syncthing_broadcast_reminder">Enable Settings → Behaviour → Service control by broadcast in Syncthing-Fork.</string>

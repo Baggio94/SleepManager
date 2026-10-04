@@ -1251,7 +1251,13 @@ private class IntegrationUiRow(
                             }
 
                             Text(
-                                text = stringResource(R.string.home_also_supported),
+                                text = stringResource(
+                                    if (installedRows.isEmpty()) {
+                                        R.string.home_supported_apps
+                                    } else {
+                                        R.string.home_also_supported
+                                    }
+                                ),
                                 modifier = Modifier.padding(
                                     start = 16.dp,
                                     end = 16.dp,
