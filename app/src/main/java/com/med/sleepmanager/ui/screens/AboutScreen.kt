@@ -94,11 +94,15 @@ internal fun AboutPage(
     val cachedHelperRelease = UpdateChecker.cachedHelperReleaseInfo(context)
     val latestMainVersion = UpdateStateStore.latestReleaseVersion(context)
     val updatesRequester = remember { BringIntoViewRequester() }
+    val updatesContentRequester = remember { BringIntoViewRequester() }
     val helperRequester = remember { BringIntoViewRequester() }
 
     LaunchedEffect(scrollRequestId, scrollTarget) {
         when (scrollTarget) {
-            AboutScrollTarget.UPDATES -> updatesRequester.bringIntoView()
+            AboutScrollTarget.UPDATES -> {
+                updatesContentRequester.bringIntoView()
+                updatesRequester.bringIntoView()
+            }
             AboutScrollTarget.HELPER -> {
                 runCatching { helperRequester.bringIntoView() }
                     .onFailure { updatesRequester.bringIntoView() }
@@ -182,7 +186,9 @@ internal fun AboutPage(
             modifier = Modifier.bringIntoViewRequester(updatesRequester)
         )
 
-        SettingsCard {
+        SettingsCard(
+            modifier = Modifier.bringIntoViewRequester(updatesContentRequester)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

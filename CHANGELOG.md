@@ -21,6 +21,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Quick Setup is now a compact amber first-run guide with a softer dark-mode treatment, clearer **Finish setup** guidance, and RAOfflineProxy when detected.
 - App integrations now keep installed apps first and move unavailable integrations into a quieter **Also supported** section so users can still discover compatibility.
 - RAOfflineProxy now uses a simplified monochrome shield mark in App integrations for a consistent icon style.
+- The Home update shortcut now lands directly on the **About → Updates** controls instead of stopping just above them.
 
 ### Battery precision
 
