@@ -2,9 +2,9 @@ package com.med.sleepmanager
 
 import android.content.Intent
 import android.os.ParcelFileDescriptor
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
@@ -581,7 +581,7 @@ class RegressionTest {
         if (available) {
             node.assertIsEnabled()
         } else {
-            node.assertIsNotEnabled()
+            node.assertDoesNotExist()
         }
     }
 
