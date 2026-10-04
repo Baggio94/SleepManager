@@ -1175,14 +1175,13 @@ private class IntegrationUiRow(
                                 },
                                 IntegrationUiRow(
                                     installed = raOfflineProxyInstalled,
-                                    icon = R.drawable.ic_raofflineproxy,
+                                    icon = R.drawable.ic_raofflineproxy_mono,
                                     title = stringResource(
                                         R.string.integration_raofflineproxy
-                                    ),
-                                    preserveIconColors = true
+                                    )
                                 ) {
                                     CompactIntegrationRow(
-                                        icon = R.drawable.ic_raofflineproxy,
+                                        icon = R.drawable.ic_raofflineproxy_mono,
                                         title = stringResource(
                                             R.string.integration_raofflineproxy
                                         ),
@@ -1203,7 +1202,6 @@ private class IntegrationUiRow(
                                         onOpen = {
                                             RaOfflineProxyController.open(context)
                                         },
-                                        preserveIconColors = true,
                                         secondaryActionLabel =
                                             if (!raOfflineProxyBatteryUnrestricted) {
                                                 stringResource(

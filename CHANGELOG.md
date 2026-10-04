@@ -18,9 +18,9 @@ Release notes are organized by version and focus on user-visible behavior first.
 
 ### UI polish
 
-- Quick Setup is now a compact amber first-run guide instead of a long duplicate checklist, and it includes RAOfflineProxy when detected.
+- Quick Setup is now a compact amber first-run guide with a softer dark-mode treatment, clearer **Finish setup** guidance, and RAOfflineProxy when detected.
 - App integrations now keep installed apps first and move unavailable integrations into a quieter **Also supported** section so users can still discover compatibility.
-- RAOfflineProxy now uses its official upstream logo in App integrations.
+- RAOfflineProxy now uses a simplified monochrome shield mark in App integrations for a consistent icon style.
 
 ### Battery precision
 

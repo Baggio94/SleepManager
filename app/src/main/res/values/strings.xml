@@ -17,7 +17,7 @@
     <string name="section_about_subtitle">App information</string>
 
     <string name="quick_setup">Quick setup</string>
-    <string name="quick_setup_description">Enable SleepManager, choose what you want it to manage while your device sleeps, then tap Finish setup.</string>
+    <string name="quick_setup_description">Enable SleepManager, choose what you want it to manage while your device sleeps, then tap Finish setup at the bottom.</string>
     <string name="quick_setup_supported_apps_detected">✓ Supported apps detected</string>
     <string name="quick_setup_helper_installed">✓ Compatibility helper installed</string>
     <string name="quick_setup_helper_installed_with_version">✓ Compatibility helper installed • %1$s</string>

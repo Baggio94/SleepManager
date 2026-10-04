@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.integration.JamesDspController
@@ -135,9 +137,33 @@ internal fun OnboardingCard(
     }
     val darkTheme = isSystemInDarkTheme()
     val containerColor =
-        if (darkTheme) Color(0xFF493C0A) else Color(0xFFFFF3C4)
+        if (darkTheme) Color(0xFF231F18) else Color(0xFFFFF3C4)
     val contentColor =
-        if (darkTheme) Color(0xFFFFE08A) else Color(0xFF3D3000)
+        if (darkTheme) Color(0xFFF3EEE4) else Color(0xFF3D3000)
+    val accentColor =
+        if (darkTheme) Color(0xFFFFC94A) else contentColor
+    val secondaryContentColor =
+        if (darkTheme) Color(0xFFE3DCCE) else contentColor
+
+    val quickSetupDescription = stringResource(R.string.quick_setup_description)
+    val enableSleepManagerText = stringResource(R.string.enable_sleepmanager)
+    val finishSetupText = stringResource(R.string.finish_setup)
+    val quickSetupDescriptionStyled = buildAnnotatedString {
+        append(quickSetupDescription)
+        listOf(
+            enableSleepManagerText,
+            finishSetupText
+        ).forEach { phrase ->
+            val start = quickSetupDescription.indexOf(phrase)
+            if (start >= 0) {
+                addStyle(
+                    SpanStyle(fontWeight = FontWeight.Bold),
+                    start,
+                    start + phrase.length
+                )
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -156,23 +182,27 @@ internal fun OnboardingCard(
             Text(
                 stringResource(R.string.quick_setup),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = accentColor
             )
 
             Text(
-                stringResource(R.string.quick_setup_description),
-                style = MaterialTheme.typography.bodyMedium
+                quickSetupDescriptionStyled,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor
             )
 
             if (detectedApps.isNotEmpty()) {
                 Text(
                     stringResource(R.string.quick_setup_supported_apps_detected),
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = accentColor
                 )
                 Text(
                     detectedApps.joinToString(" · "),
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = secondaryContentColor
                 )
             }
         }
