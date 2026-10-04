@@ -2,6 +2,7 @@ package com.med.sleepmanager.ui.components
 
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -108,29 +110,48 @@ internal fun CompactSideRail(
 
 @Composable
 internal fun OnboardingCard(
-    helperInstalled: Boolean,
-    helperVersion: String?,
     syncthingTarget: SyncthingController.Target?,
-    syncthingEnabled: Boolean,
     tailscaleInstalled: Boolean,
-    tailscaleVersion: String?,
     jamesDspTarget: JamesDspController.Target?,
     basicSyncInstalled: Boolean,
-    basicSyncVersion: String?,
-    managerEnabled: Boolean,
-    onGetHelper: () -> Unit,
-    onShowTest: () -> Unit
+    raOfflineProxyInstalled: Boolean
 ) {
+    val detectedApps = buildList {
+        if (syncthingTarget != null) {
+            add(stringResource(R.string.integration_syncthing_fork))
+        }
+        if (tailscaleInstalled) {
+            add(stringResource(R.string.integration_tailscale))
+        }
+        if (jamesDspTarget != null) {
+            add(stringResource(R.string.integration_jamesdsp))
+        }
+        if (basicSyncInstalled) {
+            add(stringResource(R.string.integration_basicsync))
+        }
+        if (raOfflineProxyInstalled) {
+            add(stringResource(R.string.integration_raofflineproxy))
+        }
+    }
+    val darkTheme = isSystemInDarkTheme()
+    val containerColor =
+        if (darkTheme) Color(0xFF493C0A) else Color(0xFFFFF3C4)
+    val contentColor =
+        if (darkTheme) Color(0xFFFFE08A) else Color(0xFF3D3000)
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("quick_setup_card"),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = containerColor,
+            contentColor = contentColor
         )
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 stringResource(R.string.quick_setup),
@@ -139,142 +160,20 @@ internal fun OnboardingCard(
             )
 
             Text(
-                if (helperInstalled) {
-                    if (helperVersion != null) {
-                        stringResource(
-                            R.string.quick_setup_helper_installed_with_version,
-                            helperVersion
-                        )
-                    } else {
-                        stringResource(R.string.quick_setup_helper_installed)
-                    }
-                } else {
-                    stringResource(R.string.quick_setup_helper_not_installed)
-                },
+                stringResource(R.string.quick_setup_description),
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            if (!helperInstalled) {
-                TextButton(onClick = feedbackClick(onGetHelper)) {
-                    Text(stringResource(R.string.install_helper))
-                }
-            }
-
-            Text(
-                if (syncthingTarget != null) {
-                    stringResource(
-                        R.string.quick_setup_integration_detected,
-                        syncthingTarget.displayName
-                    )
-                } else {
-                    stringResource(
-                        R.string.quick_setup_integration_not_detected,
-                        stringResource(R.string.integration_syncthing_fork)
-                    )
-                },
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            if (syncthingEnabled && syncthingTarget != null) {
+            if (detectedApps.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.quick_setup_syncthing_broadcast_reminder),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    stringResource(R.string.quick_setup_supported_apps_detected),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
                 )
-            }
-
-            val tailscaleDisplayVersion =
-                tailscaleVersion?.substringBefore("-")
-            Text(
-                if (tailscaleInstalled) {
-                    if (tailscaleDisplayVersion != null) {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected_with_version,
-                            stringResource(R.string.integration_tailscale),
-                            tailscaleDisplayVersion
-                        )
-                    } else {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected,
-                            stringResource(R.string.integration_tailscale)
-                        )
-                    }
-                } else {
-                    stringResource(
-                        R.string.quick_setup_integration_not_detected,
-                        stringResource(R.string.integration_tailscale)
-                    )
-                },
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                if (jamesDspTarget != null) {
-                    val version = jamesDspTarget.versionName
-                    if (version != null) {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected_with_version,
-                            stringResource(R.string.integration_jamesdsp),
-                            version
-                        )
-                    } else {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected,
-                            stringResource(R.string.integration_jamesdsp)
-                        )
-                    }
-                } else {
-                    stringResource(
-                        R.string.quick_setup_integration_not_detected,
-                        stringResource(R.string.integration_jamesdsp)
-                    )
-                },
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                if (basicSyncInstalled) {
-                    if (basicSyncVersion != null) {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected_with_version,
-                            stringResource(R.string.integration_basicsync),
-                            basicSyncVersion
-                        )
-                    } else {
-                        stringResource(
-                            R.string.quick_setup_named_integration_detected,
-                            stringResource(R.string.integration_basicsync)
-                        )
-                    }
-                } else {
-                    stringResource(
-                        R.string.quick_setup_integration_not_detected,
-                        stringResource(R.string.integration_basicsync)
-                    )
-                },
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                stringResource(
-                    if (managerEnabled) {
-                        R.string.quick_setup_manager_enabled
-                    } else {
-                        R.string.quick_setup_manager_disabled
-                    }
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Text(
-                stringResource(R.string.quick_setup_sleep_statistics),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            TextButton(onClick = feedbackClick(onShowTest)) {
-                Text(stringResource(R.string.how_to_test_sleep_wake))
+                Text(
+                    detectedApps.joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }

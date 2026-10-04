@@ -84,7 +84,7 @@ class ResponsiveLayoutTest {
     }
 
     @Test
-    fun shortLandscape_testSleepWakeDialogCanScrollToLastInstruction() {
+    fun shortLandscape_quickSetupGuidanceIsReadable() {
         applyDisplay(
             widthPx = 1280,
             heightPx = 960,
@@ -92,17 +92,12 @@ class ResponsiveLayoutTest {
         )
 
         composeRule.onNodeWithTag("main_list")
-            .performScrollToNode(hasText("How to test sleep / wake"))
-        composeRule.onNodeWithText("How to test sleep / wake")
-            .performClick()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText(
-            "Copy log includes the full transaction details if needed."
-        )
-            .performScrollTo()
+            .performScrollToNode(hasTestTag("quick_setup_card"))
+        composeRule.onNodeWithTag("quick_setup_card")
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Got it")
+        composeRule.onNodeWithText(
+            "Enable SleepManager, choose what you want it to manage while your device sleeps, then tap Finish setup."
+        )
             .assertIsDisplayed()
     }
 

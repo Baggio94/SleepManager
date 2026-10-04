@@ -16,6 +16,12 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Android 12+ background restoration requires RAOfflineProxy battery usage to be set to **Unrestricted**; SleepManager checks and surfaces this prerequisite before enabling the integration.
 - Added RAOfflineProxy status, queue, ownership and failure information to Diagnostics 2.0.
 
+### UI polish
+
+- Quick Setup is now a compact amber first-run guide instead of a long duplicate checklist, and it includes RAOfflineProxy when detected.
+- App integrations now keep installed apps first and move unavailable integrations into a quieter **Also supported** section so users can still discover compatibility.
+- RAOfflineProxy now uses its official upstream logo in App integrations.
+
 ### Battery precision
 
 - When a device reports an implausibly high full-charge capacity but its charge counter follows the same scale, SleepManager now normalizes the counter against the trusted design capacity instead of falling back to Android's integer battery percentage.
