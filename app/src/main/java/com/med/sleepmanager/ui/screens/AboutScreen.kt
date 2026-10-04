@@ -104,6 +104,7 @@ internal fun AboutPage(
                 updatesRequester.bringIntoView()
             }
             AboutScrollTarget.HELPER -> {
+                updatesContentRequester.bringIntoView()
                 runCatching { helperRequester.bringIntoView() }
                     .onFailure { updatesRequester.bringIntoView() }
             }
