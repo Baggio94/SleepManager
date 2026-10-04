@@ -95,19 +95,21 @@ See [Advanced Sync Behavior](#advanced-sync-behavior) for the additional sync mo
 
 ### RAOfflineProxy
 
-SleepManager integrates with RAOfflineProxy through its official Android **Automation API v1**.
+SleepManager can manage RAOfflineProxy as part of the normal sleep/wake cycle.
 
-When the RAOfflineProxy cache queue is empty (or blocked), SleepManager can stop the proxy before managed Wi-Fi is turned off and restore it on a real wake only when SleepManager performed that stop.
+When the RAOfflineProxy cache queue is empty or in a safe state, SleepManager can stop the proxy before managed Wi-Fi is turned off and restore it on a real wake only when SleepManager performed that stop.
 
 If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state. This wait is event-driven and does not use permanent polling.
 
-On Android 12+, set:
+Closed-lid false wakes do not restart RAOfflineProxy or interrupt its pending restore ownership.
 
-**RAOfflineProxy → App info → Battery → Unrestricted**
+For reliable background restart on Android 12+, set RAOfflineProxy battery usage to **Unrestricted**:
 
-This is required for Android to allow SleepManager to restart RAOfflineProxy from the background.
+**Settings → Apps → RAOfflineProxy → App battery usage → Unrestricted**
 
-The integration requires RAOfflineProxy **Automation API v1**, first shipped in **v2.0.0-alpha1**.
+SleepManager checks this setting and will warn you if it needs to be changed.
+
+RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
 
 ### Tailscale
 
@@ -154,6 +156,7 @@ SleepManager tracks battery behavior during sleep sessions and provides both rec
 
 - **Last Sleep** — shows the battery change during the most recent sleep session, along with its duration and drain rate.
 - **Measured mAh** — when Android exposes charge-counter data, SleepManager can estimate the actual amount of battery used during sleep.
+- **Battery Health** — compares reported full-charge capacity with battery design capacity when Android exposes trustworthy values; suspect readings are shown as unavailable rather than as a misleading percentage.
 - **Deep Sleep** — shows how much of the sleep session the device spent in deep sleep.
 - **7-Day Average** — calculates the average sleep drain rate from eligible recent sleep sessions.
 - **Estimated Standby** — estimates how long the device could remain in standby based on the measured average drain.
@@ -176,6 +179,7 @@ Use **Copy log** to generate a detailed diagnostic report that includes:
 - Active sleep/wake transaction and pending restore information
 - Recent Wi-Fi toggle results and Airplane mode state
 - BasicSync runtime state and sync counters when available
+- RAOfflineProxy runtime, queue and restore state when available
 - Recent SleepManager activity
 - Recent Android process-exit information on Android 11+ when available
 
@@ -210,6 +214,7 @@ The optional **SleepManager Helper** handles Wi-Fi and Bluetooth control. It has
 ## Compatibility
 
 - Android **9 / API 28 or newer**
+- RAOfflineProxy **v2.0.0-alpha1 or newer** for SleepManager integration
 - Main package: `com.med.sleepmanager`
 - Helper package: `com.med.sleepmanager.helper`
 - Clamshell-specific controls appear only when a compatible lid sensor and the required hardware support are detected
@@ -238,7 +243,7 @@ For state-aware sleep/wake control, use **BasicSync 3.18+**. Advanced completion
 
 ### RAOfflineProxy Does Not Start on Wake
 
-Confirm that RAOfflineProxy is installed with **Automation API v1** support and that its Android battery usage is set to **Unrestricted**.
+Confirm that RAOfflineProxy **v2.0.0-alpha1 or newer** is installed and that its Android battery usage is set to **Unrestricted** under **Settings → Apps → RAOfflineProxy → App battery usage**.
 
 If SleepManager shows **Control permission missing**, install/update RAOfflineProxy first and then reinstall/update SleepManager so Android can grant RAOfflineProxy's control permission.
 

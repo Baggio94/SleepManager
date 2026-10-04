@@ -2,7 +2,7 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## 0.7.1 — In development
+## 0.7.1 — 2026-10-04
 
 ### RAOfflineProxy integration
 
@@ -19,7 +19,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 ### UI polish
 
 - Quick Setup is now a compact amber first-run guide with a softer dark-mode treatment, clearer **Finish setup** guidance, and RAOfflineProxy when detected.
-- App integrations now keep installed apps first and move unavailable integrations into a quieter **Also supported** section so users can still discover compatibility.
+- App integrations now keep installed apps first; when none are installed, compatible integrations are listed under **Supported apps**, and once at least one is installed the remaining ones move to **Also supported**.
 - RAOfflineProxy now uses a simplified monochrome shield mark in App integrations for a consistent icon style.
 - Home **Update** and **Install Helper** shortcuts now land directly on their relevant **About → Updates** controls instead of stopping just above them.
 
@@ -31,7 +31,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 
 ### Compatibility
 
-- Main app: **0.7.1 / versionCode 551**.
+- Main app: **0.7.1 / versionCode 552**.
 - Helper remains **1.1.2 / versionCode 1115**.
 - RAOfflineProxy automation requires a build exposing **Automation API v1** (first released in **v2.0.0-alpha1**).
 
