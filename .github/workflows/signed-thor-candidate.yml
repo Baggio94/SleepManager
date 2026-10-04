@@ -1,6 +1,7 @@
 name: Build signed Thor candidate
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - "dev/0.7.1"
