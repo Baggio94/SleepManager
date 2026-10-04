@@ -199,6 +199,7 @@
     <string name="stats_current">Current</string>
     <string name="stats_estimated_capacity">Estimated capacity</string>
     <string name="stats_current_charge">Current charge</string>
+    <string name="stats_battery_health">Battery health</string>
     <string name="stats_sleep_efficiency">Sleep efficiency</string>
     <string name="stats_7_day_drain">7-day drain</string>
     <string name="stats_charge_drain">Charge drain</string>

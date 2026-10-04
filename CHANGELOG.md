@@ -20,6 +20,7 @@ Release notes are organized by version and focus on user-visible behavior first.
 
 - When a device reports an implausibly high full-charge capacity but its charge counter follows the same scale, SleepManager now normalizes the counter against the trusted design capacity instead of falling back to Android's integer battery percentage.
 - This preserves sub-percent battery movement so long sleep sessions can still report measured mAh and precise drain even when the Android percentage does not change.
+- Stats now shows **Battery health** from reported full-charge capacity versus design capacity; it shows **Unavailable** when the reported full-charge value is detected as suspect.
 
 ### Compatibility
 

@@ -152,6 +152,46 @@ class BatteryCapacityPolicyTest {
     }
 
     @Test
+    fun batteryHealth_usesReportedFullAgainstDesign() {
+        val health =
+            BatteryCapacityPolicy.batteryHealthPercent(
+                learnedFullUah = 5_886_000L,
+                designFullUah = 5_938_000L
+            )
+
+        assertEquals(99.1242842708, health!!, 0.0000001)
+    }
+
+    @Test
+    fun batteryHealth_isUnavailableWhenReportedFullIsSuspect() {
+        val health =
+            BatteryCapacityPolicy.batteryHealthPercent(
+                learnedFullUah = 8_336_000L,
+                designFullUah = 5_938_000L
+            )
+
+        assertEquals(null, health)
+    }
+
+    @Test
+    fun batteryHealth_requiresBothReportedAndDesignCapacity() {
+        assertEquals(
+            null,
+            BatteryCapacityPolicy.batteryHealthPercent(
+                learnedFullUah = null,
+                designFullUah = 5_938_000L
+            )
+        )
+        assertEquals(
+            null,
+            BatteryCapacityPolicy.batteryHealthPercent(
+                learnedFullUah = 5_886_000L,
+                designFullUah = null
+            )
+        )
+    }
+
+    @Test
     fun percentageFallback_roundsToNearestMicroampHour() {
         val result =
             BatteryCapacityPolicy.select(

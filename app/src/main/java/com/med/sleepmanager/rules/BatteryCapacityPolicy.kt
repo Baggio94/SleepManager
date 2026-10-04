@@ -30,6 +30,28 @@ object BatteryCapacityPolicy {
     private const val MAX_COUNTER_OVER_SELECTED_RATIO = 1.05
     private const val MAX_NORMALIZED_COUNTER_PERCENT_DELTA = 5.0
 
+    fun isLearnedFullSuspect(
+        learnedFullUah: Long?,
+        designFullUah: Long?
+    ): Boolean {
+        val learned = learnedFullUah?.takeIf { it > 0L } ?: return false
+        val design = designFullUah?.takeIf { it > 0L } ?: return false
+        return learned.toDouble() >
+            design.toDouble() * MAX_LEARNED_OVER_DESIGN_RATIO
+    }
+
+    fun batteryHealthPercent(
+        learnedFullUah: Long?,
+        designFullUah: Long?
+    ): Double? {
+        val learned = learnedFullUah?.takeIf { it > 0L } ?: return null
+        val design = designFullUah?.takeIf { it > 0L } ?: return null
+        if (isLearnedFullSuspect(learned, design)) return null
+
+        return (learned.toDouble() / design.toDouble() * 100.0)
+            .takeIf { it.isFinite() && it > 0.0 }
+    }
+
     fun select(
         percent: Int?,
         chargeCounterUah: Long?,
@@ -42,10 +64,10 @@ object BatteryCapacityPolicy {
         val design = designFullUah?.takeIf { it > 0L }
 
         val learnedSuspect =
-            learned != null &&
-                design != null &&
-                learned.toDouble() >
-                    design.toDouble() * MAX_LEARNED_OVER_DESIGN_RATIO
+            isLearnedFullSuspect(
+                learnedFullUah = learned,
+                designFullUah = design
+            )
 
         val selectedFull =
             when {
