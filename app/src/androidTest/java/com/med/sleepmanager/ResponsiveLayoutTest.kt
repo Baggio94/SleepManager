@@ -96,7 +96,7 @@ class ResponsiveLayoutTest {
         composeRule.onNodeWithTag("quick_setup_card")
             .assertIsDisplayed()
         composeRule.onNodeWithText(
-            "Enable SleepManager, choose what you want it to manage while your device sleeps, then tap Finish setup at the bottom."
+            "Tap “Enable SleepManager”, choose what it should manage while the device sleeps, then tap “Finish setup” at the bottom."
         )
             .assertIsDisplayed()
     }

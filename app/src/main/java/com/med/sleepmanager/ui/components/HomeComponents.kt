@@ -151,8 +151,8 @@ internal fun OnboardingCard(
     val quickSetupDescriptionStyled = buildAnnotatedString {
         append(quickSetupDescription)
         listOf(
-            enableSleepManagerText,
-            finishSetupText
+            "“$enableSleepManagerText”",
+            "“$finishSetupText”"
         ).forEach { phrase ->
             val start = quickSetupDescription.indexOf(phrase)
             if (start >= 0) {
@@ -179,12 +179,23 @@ internal fun OnboardingCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                stringResource(R.string.quick_setup),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = accentColor
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lightbulb),
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    stringResource(R.string.quick_setup),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accentColor
+                )
+            }
 
             Text(
                 quickSetupDescriptionStyled,
