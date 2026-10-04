@@ -1,65 +1,59 @@
-# SleepManager 0.7.0
+# SleepManager 0.7.1
 
-SleepManager 0.7 is mainly a **reliability and cleanup release**.
+SleepManager 0.7.1 adds **RAOfflineProxy integration**, improves battery measurement on devices with unreliable capacity reporting, and introduces **Battery Health**. It also includes several smaller reliability and diagnostics improvements.
 
-A large part of the app has been refactored internally to make the sleep/wake logic cleaner, easier to maintain and safer to change in the future.
+## RAOfflineProxy Integration
 
-There are also several important bug fixes around false wakes, Wi-Fi/Bluetooth restore, Battery Saver and clamshell behavior.
+SleepManager can now manage **RAOfflineProxy** as part of the normal sleep/wake cycle.
 
-### Major internal refactor
+- SleepManager checks the real RAOfflineProxy state before changing it.
+- When the cache queue is empty or in a safe state, SleepManager can stop RAOfflineProxy before managed Wi-Fi is turned off.
+- If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state.
+- Queue waiting is event-driven and does not use permanent polling.
+- RAOfflineProxy is restored on a real wake only when SleepManager performed the stop.
+- Closed-lid false wakes do not incorrectly restart the proxy.
+- Pending queue, stop and restore ownership are preserved across SleepManager service recovery.
+- Diagnostics now include RAOfflineProxy state, queue and restore information.
 
-A lot of the sleep/wake code has been reorganized and split into smaller, more focused parts.
+For reliable background restart on Android 12+, set RAOfflineProxy battery usage to **Unrestricted**:
 
-This should make SleepManager easier to maintain.
+**Settings → Apps → RAOfflineProxy → App battery usage → Unrestricted**
 
-### Battery Saver improvements
+RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
 
-Battery Saver handling is now aware of external power.
+## Better Battery Precision
 
-If the device goes to sleep while plugged in, SleepManager no longer tries to enable Battery Saver unnecessarily.
+Some devices can report an unrealistic full-charge capacity while also scaling the battery charge counter by the same incorrect amount. SleepManager can now detect this situation and normalize the charge counter against the trusted design capacity instead of immediately falling back to Android's whole-number battery percentage. This preserves sub-percent battery movement, so long sleep sessions can still report **measured mAh and precise drain** even when Android itself remains on the same displayed percentage.
 
-If power is removed while the device is still asleep, Battery Saver can still be enabled and the original state is restored on wake.
+## Battery Health
 
-### Bug fixes
+The Stats page now shows **Battery Health** when Android provides trustworthy battery-capacity values. Battery Health compares the reported full-charge capacity with the battery design capacity. If Android reports an implausible full-charge value, SleepManager shows **Unavailable** instead of displaying a misleading health percentage.
 
-- Fixed **#29** — some devices could report an unrealistic battery capacity. SleepManager now detects clearly invalid battery values and uses a safer fallback for the displayed stats.
-- Improved handling for **#30** on AYN Thor — when SELinux prevents access to the lid sensor, SleepManager now shows a clear warning instead of silently hiding the clamshell options.
-- Improved closed-lid false-wake handling so the original sleep cycle and pending restores are preserved until a real wake.
-- Improved Wi-Fi and Bluetooth restoration around delayed or stale Helper responses.
+## Reliability and Diagnostics
 
-### Diagnostics 2.0
-
-Diagnostics have been expanded to keep more useful information across multiple sleep/wake cycles.
-
-Advanced diagnostics are **off by default** so normal SleepManager operation stays lightweight.
-
-They can be enabled from the Activity page when more detailed troubleshooting information is needed.
-
-## SleepManager Helper 1.1.2
-
-The Helper also receives an update in this release.
-
-- More reliable Wi-Fi and Bluetooth restore.
-- New cycle-aware communication with SleepManager.
-- Better protection against delayed or mismatched restore requests.
-
-The Helper is only required if you use Wi-Fi or Bluetooth management.
+- Improved handling of battery-capacity data that is clearly outside a realistic range.
+- Diagnostics expose the raw and selected battery-capacity values used by SleepManager, making battery-reporting problems easier to identify.
+- Sleep/wake ownership remains state-aware so SleepManager restores only what it actually changed.
+- RAOfflineProxy queue and restore ownership are preserved safely across service recovery.
 
 ## Compatibility
 
+- SleepManager **0.7.1 / versionCode 552**
+- SleepManager Helper remains **1.1.2 / versionCode 1115**
 - Android **9 / API 28 or newer**
-- SleepManager **0.7.0**
-- SleepManager Helper **1.1.2**
+- RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration
 - Existing settings are preserved when updating
 - No root, Shizuku or ADB is required for normal use
 
-## Installation
+## First Install
 
-1. Download and install **SleepManager 0.7.0** from the release assets below.
+1. Download and install **SleepManager 0.7.1** from the release assets below.
 2. If you use Wi-Fi or Bluetooth management, install **SleepManager Helper 1.1.2** as well.
-3. If you are updating from an older version, simply install the new APK over the existing app.
-4. Your existing SleepManager settings will be preserved.
+3. Open SleepManager and choose what you want it to manage during sleep.
+4. Enable **SleepManager**, then tap **Finish setup**.
 
-You can also update directly from **About → Updates** inside SleepManager.
+## Updating
 
-After updating, open SleepManager once and check **About → Updates** to make sure both SleepManager and the Helper are up to date.
+Install SleepManager 0.7.1 over your existing version or use the built-in updater from **About → Updates**. Your existing SleepManager settings are preserved.
+
+If SleepManager Helper **1.1.2** is already installed, there is no Helper update required for this release.

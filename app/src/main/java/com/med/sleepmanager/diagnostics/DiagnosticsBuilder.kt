@@ -10,7 +10,9 @@ import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.DiagnosticsTransitionStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
+import com.med.sleepmanager.data.RaOfflineProxySleepStore
 import com.med.sleepmanager.integration.BasicSyncController
+import com.med.sleepmanager.integration.RaOfflineProxyController
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
 import com.med.sleepmanager.integration.HelperController
@@ -18,6 +20,7 @@ import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.connector.BasicSyncConnector
+import com.med.sleepmanager.integration.connector.RaOfflineProxyConnector
 import com.med.sleepmanager.integration.connector.JamesDspConnector
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.connector.TailscaleConnector
@@ -78,6 +81,17 @@ object DiagnosticsBuilder {
         val basicSyncState = BasicSyncController.lastObservedState()
         val basicSyncPending =
             SleepCycleStore.connectorChange(context, BasicSyncConnector.id)
+        val raOfflineProxyVersion =
+            RaOfflineProxyController.versionName(context)
+        val raOfflineProxyStatus =
+            RaOfflineProxyController.lastObservedStatus()
+        val raOfflineProxyPending =
+            SleepCycleStore.connectorChange(
+                context,
+                RaOfflineProxyConnector.id
+            )
+        val raOfflineProxyGate =
+            RaOfflineProxySleepStore.current(context)
         val wifiDiagnostic = DiagnosticsStateStore.lastWifiToggleDiagnostic(context)
         val processExitHistory = ProcessExitHistoryReader.read(context)
         val deviceCapabilities = DeviceControlController.capabilities(context)
@@ -112,6 +126,7 @@ object DiagnosticsBuilder {
                 if (tailscalePending != null) add("Tailscale")
                 if (jamesDspPending != null) add("JamesDSP")
                 if (basicSyncPending != null) add("BasicSync")
+                if (raOfflineProxyPending != null) add("RAOfflineProxy")
                 if (batterySaverOwned.owned) add("Battery Saver")
                 if (chargingSeparationOwned.owned) add("Charging Separation")
             }
@@ -357,6 +372,7 @@ object DiagnosticsBuilder {
             appendLine("- Tailscale: ${AppPreferences.manageTailscale(context)}")
             appendLine("- JamesDSP: ${AppPreferences.manageJamesDsp(context)}")
             appendLine("- BasicSync: ${AppPreferences.manageBasicSync(context)}")
+            appendLine("- RAOfflineProxy: ${AppPreferences.manageRaOfflineProxy(context)}")
             appendLine("- Closed-lid protection: ${AppPreferences.manageClosedLidProtection(context)}")
             appendLine("- Sleep when external display disconnects: ${AppPreferences.dockDisconnectSleeps(context)}")
             appendLine("- Power button sleeps with lid closed: ${AppPreferences.closedLidPowerSleeps(context)}")
@@ -459,6 +475,46 @@ object DiagnosticsBuilder {
                 "- BasicSync counters: " +
                     (basicSyncState?.syncCounters?.toString() ?: "unavailable")
             )
+            appendLine(
+                "- RAOfflineProxy: " +
+                    if (raOfflineProxyVersion != null) {
+                        "installed • " + raOfflineProxyVersion
+                    } else {
+                        "not installed"
+                    }
+            )
+            appendLine(
+                "- RAOfflineProxy provider: " +
+                    RaOfflineProxyController.providerAvailable(context)
+            )
+            appendLine(
+                "- RAOfflineProxy control permission: " +
+                    RaOfflineProxyController.hasControlPermission(context)
+            )
+            appendLine(
+                "- RAOfflineProxy battery unrestricted: " +
+                    RaOfflineProxyController.isBatteryUnrestricted(context)
+            )
+            appendLine(
+                "- RAOfflineProxy API/status: " +
+                    if (raOfflineProxyStatus == null) {
+                        "unknown"
+                    } else {
+                        "v" + raOfflineProxyStatus.version +
+                            " · running=" + raOfflineProxyStatus.running +
+                            " · shouldBeRunning=" +
+                            raOfflineProxyStatus.shouldBeRunning +
+                            " · online=" + raOfflineProxyStatus.online +
+                            " · queue=" +
+                            raOfflineProxyStatus.queue.state +
+                            "/" + raOfflineProxyStatus.queue.count
+                    }
+            )
+            appendLine(
+                "- RAOfflineProxy sleep gate: " +
+                    raOfflineProxyGate.phase +
+                    " · cycle=" + raOfflineProxyGate.cycleId
+            )
             appendLine()
             appendLine("Last Wi-Fi toggle")
             if (wifiDiagnostic == null) {
@@ -524,6 +580,10 @@ object DiagnosticsBuilder {
             appendLine(
                 "- BasicSync transaction: " +
                     (basicSyncPending?.restoreToken ?: "none")
+            )
+            appendLine(
+                "- RAOfflineProxy transaction: " +
+                    (raOfflineProxyPending?.restoreToken ?: "none")
             )
 
             appendLine()
@@ -787,6 +847,8 @@ object DiagnosticsBuilder {
     ): String =
         when (selection.currentSource) {
             BatteryCurrentSource.RAW_COUNTER -> "charge_counter"
+            BatteryCurrentSource.NORMALIZED_COUNTER ->
+                "charge_counter × design / reported full"
             BatteryCurrentSource.PERCENT_DERIVED -> "percent × selected full capacity"
             BatteryCurrentSource.UNAVAILABLE -> "unavailable"
         }
