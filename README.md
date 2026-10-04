@@ -95,19 +95,11 @@ See [Advanced Sync Behavior](#advanced-sync-behavior) for the additional sync mo
 
 ### RAOfflineProxy
 
-SleepManager can manage RAOfflineProxy as part of the normal sleep/wake cycle.
-
-When the RAOfflineProxy cache queue is empty or in a safe state, SleepManager can stop the proxy before managed Wi-Fi is turned off and restore it on a real wake only when SleepManager performed that stop.
-
-If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state. This wait is event-driven and does not use permanent polling.
-
-Closed-lid false wakes do not restart RAOfflineProxy or interrupt its pending restore ownership.
+SleepManager can automatically stop **RAOfflineProxy** during sleep and restore it on wake. If RAOfflineProxy is still caching games or waiting for its next cache window, SleepManager keeps the proxy and Wi-Fi available until it is safe to stop them.
 
 For reliable background restart on Android 12+, set RAOfflineProxy battery usage to **Unrestricted**:
 
 **Settings → Apps → RAOfflineProxy → App battery usage → Unrestricted**
-
-SleepManager checks this setting and will warn you if it needs to be changed.
 
 RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
 
