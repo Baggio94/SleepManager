@@ -847,6 +847,8 @@ object DiagnosticsBuilder {
     ): String =
         when (selection.currentSource) {
             BatteryCurrentSource.RAW_COUNTER -> "charge_counter"
+            BatteryCurrentSource.NORMALIZED_COUNTER ->
+                "charge_counter × design / reported full"
             BatteryCurrentSource.PERCENT_DERIVED -> "percent × selected full capacity"
             BatteryCurrentSource.UNAVAILABLE -> "unavailable"
         }

@@ -16,6 +16,11 @@ Release notes are organized by version and focus on user-visible behavior first.
 - Android 12+ background restoration requires RAOfflineProxy battery usage to be set to **Unrestricted**; SleepManager checks and surfaces this prerequisite before enabling the integration.
 - Added RAOfflineProxy status, queue, ownership and failure information to Diagnostics 2.0.
 
+### Battery precision
+
+- When a device reports an implausibly high full-charge capacity but its charge counter follows the same scale, SleepManager now normalizes the counter against the trusted design capacity instead of falling back to Android's integer battery percentage.
+- This preserves sub-percent battery movement so long sleep sessions can still report measured mAh and precise drain even when the Android percentage does not change.
+
 ### Compatibility
 
 - Main app: **0.7.1 / versionCode 551**.
