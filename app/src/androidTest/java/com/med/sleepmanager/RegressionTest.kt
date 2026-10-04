@@ -2,14 +2,15 @@ package com.med.sleepmanager
 
 import android.content.Intent
 import android.os.ParcelFileDescriptor
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -581,7 +582,12 @@ class RegressionTest {
         if (available) {
             node.assertIsEnabled()
         } else {
-            node.assertDoesNotExist()
+            assertTrue(
+                "Unavailable integration must not expose an active toggle: $contentDescription",
+                composeRule.onAllNodesWithContentDescription(contentDescription)
+                    .fetchSemanticsNodes()
+                    .isEmpty()
+            )
         }
     }
 
