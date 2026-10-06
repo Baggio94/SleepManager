@@ -59,22 +59,30 @@ object RadioController {
         !directAvailable() && !HelperController.isInstalled(context)
 
     fun currentWifiEnabled(context: Context): Boolean? =
-        runCatching {
-            val manager =
-                context.applicationContext
-                    .getSystemService(Context.WIFI_SERVICE) as? WifiManager
-                    ?: return@runCatching null
-            manager.isWifiEnabled
-        }.getOrNull()
+        if (directAvailable()) {
+            DeviceControlController.wifiEnabledPrivileged()
+        } else {
+            runCatching {
+                val manager =
+                    context.applicationContext
+                        .getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                        ?: return@runCatching null
+                manager.isWifiEnabled
+            }.getOrNull()
+        }
 
     fun currentBluetoothEnabled(context: Context): Boolean? =
-        runCatching {
-            val manager =
-                context.getSystemService(Context.BLUETOOTH_SERVICE)
-                    as? BluetoothManager
-                    ?: return@runCatching null
-            manager.adapter?.isEnabled
-        }.getOrNull()
+        if (directAvailable()) {
+            DeviceControlController.bluetoothEnabledPrivileged()
+        } else {
+            runCatching {
+                val manager =
+                    context.getSystemService(Context.BLUETOOTH_SERVICE)
+                        as? BluetoothManager
+                        ?: return@runCatching null
+                manager.adapter?.isEnabled
+            }.getOrNull()
+        }
 
     fun applyDirectSleep(
         context: Context,
