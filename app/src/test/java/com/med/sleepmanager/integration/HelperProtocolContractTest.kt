@@ -12,6 +12,10 @@ class HelperProtocolContractTest {
             "com.med.sleepmanager.helper.SleepManagerHelperReceiver",
             HelperProtocol.HELPER_RECEIVER_CLASS
         )
+        assertEquals(
+            "com.med.sleepmanager.helper.HelperActivationActivity",
+            HelperProtocol.HELPER_ACTIVATION_ACTIVITY_CLASS
+        )
         assertEquals(HelperProtocol.PERMISSION, HelperController.PERMISSION)
         assertEquals(HelperProtocol.ACTION_STATE, HelperController.ACTION_STATE)
         assertEquals(HelperProtocol.ACTION_RESULT, HelperController.ACTION_RESULT)
