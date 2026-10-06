@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.util.Log
+import android.os.Build
+import android.os.PowerManager
 import com.med.sleepmanager.protocol.HelperProtocol
 
 data class HelperWifiControlAccess(
@@ -70,6 +72,17 @@ object HelperController {
         } catch (_: PackageManager.NameNotFoundException) {
             false
         }
+    }
+
+    fun isBatteryUnrestricted(context: Context): Boolean {
+        if (!isInstalled(context)) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+
+        val powerManager =
+            context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                ?: return false
+
+        return powerManager.isIgnoringBatteryOptimizations(PACKAGE)
     }
 
     /**
