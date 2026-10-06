@@ -245,6 +245,57 @@
       color: var(--primary);
     }
 
+    .mobile-menu-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface-low);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .mobile-menu-toggle svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .mobile-menu {
+      position: absolute;
+      top: calc(100% - 1px);
+      right: 0;
+      z-index: 20;
+      min-width: 220px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface-container);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, .14);
+    }
+
+    .mobile-menu[hidden] {
+      display: none !important;
+    }
+
+    .mobile-menu a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 9px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: .95rem;
+      font-weight: 620;
+    }
+
+    .mobile-menu a:hover {
+      background: var(--surface-high);
+      color: var(--primary);
+    }
+
 
     main section {
       padding: 72px 0;
@@ -768,11 +819,13 @@
     }
 
     @media (max-width: 920px) {
-      .navlinks a:not(:last-child) { display: none; }
+      nav { position: relative; }
+      .navlinks { display: none; }
+      .mobile-menu-toggle { display: inline-flex; }
+      .mobile-menu:not([hidden]) { display: block; }
     }
 
     @media (max-width: 860px) {
-      header { position: static; }
       .hero { padding: 48px 0 58px; }
       main section { padding: 58px 0; }
       .feature-grid,
@@ -796,7 +849,7 @@
       .brand { gap: 8px; }
       .brand img { width: 30px; height: 30px; }
       .brand-name { font-size: .95rem; }
-      .brand-tagline { margin-top: 3px; font-size: .62rem; }
+      .brand-tagline { display: none; }
       .navlinks { display: none; }
       h1 { font-size: clamp(2.2rem, 9vw, 3.5rem); }
       .hero-identity { gap: 10px 12px; margin-bottom: 22px; }
@@ -840,6 +893,21 @@
             <a href="#setup">Setup</a>
             <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
           </div>
+
+          <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="mobile-menu" id="mobile-menu" hidden>
+          <a href="#features">Features</a>
+          <a href="#integrations">Integrations</a>
+          <a href="#videos">Videos</a>
+          <a href="#community">Community</a>
+          <a href="#setup">Setup</a>
+          <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
         </div>
       </nav>
     </div>
@@ -1220,5 +1288,45 @@
     </div>
   </footer>
 
+  <script>
+    (() => {
+      const toggle = document.querySelector('.mobile-menu-toggle');
+      const menu = document.getElementById('mobile-menu');
+
+      if (!toggle || !menu) return;
+
+      const closeMenu = () => {
+        menu.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Open menu');
+      };
+
+      toggle.addEventListener('click', () => {
+        const opening = menu.hidden;
+        menu.hidden = !opening;
+        toggle.setAttribute('aria-expanded', String(opening));
+        toggle.setAttribute('aria-label', opening ? 'Close menu' : 'Open menu');
+      });
+
+      menu.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMenu);
+      });
+
+      document.addEventListener('click', event => {
+        if (!menu.hidden && !event.target.closest('nav')) closeMenu();
+      });
+
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !menu.hidden) {
+          closeMenu();
+          toggle.focus();
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 920 && !menu.hidden) closeMenu();
+      });
+    })();
+  </script>
 </body>
 </html>
