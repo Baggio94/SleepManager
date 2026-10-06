@@ -160,6 +160,7 @@ private class IntegrationUiRow(
         onOpenExternalUrlRequested: (String) -> Unit,
         onOpenAppInfoRequested: () -> Unit,
         onOpenBatteryOptimizationRequested: () -> Unit,
+        onOpenHelperWifiControlSettingsRequested: () -> Unit,
         onOpenRaOfflineProxySettingsRequested: () -> Unit,
         onOpenUnusedAppRestrictionsRequested: () -> Unit,
         onRequestUpdateNotificationPermissionRequested: () -> Unit,
@@ -276,6 +277,17 @@ private class IntegrationUiRow(
         }
         val radioControlReady =
             directRadioControlAvailable || helperInstalled
+        val helperWifiControlAccess =
+            remember(refreshToken) {
+                if (
+                    helperInstalled &&
+                    !directRadioControlAvailable
+                ) {
+                    HelperController.wifiControlAccess(context)
+                } else {
+                    null
+                }
+            }
         val helperVersion = remember(refreshToken) {
             runCatching {
                 context.packageManager.getPackageInfo(HelperController.PACKAGE, 0).versionName
@@ -792,6 +804,31 @@ private class IntegrationUiRow(
                             onAction = {
                                 navigateToAbout(AboutScrollTarget.HELPER)
                             }
+                        )
+                    }
+                }
+
+                item {
+                    AnimatedVisibility(
+                        visible =
+                            !directRadioControlAvailable &&
+                                helperInstalled &&
+                                wifiEnabled &&
+                                helperWifiControlAccess
+                                    ?.effectivelyAllowed == false
+                    ) {
+                        InfoCard(
+                            title = stringResource(
+                                R.string.home_helper_wifi_control_title
+                            ),
+                            text = stringResource(
+                                R.string.home_helper_wifi_control_description
+                            ),
+                            actionLabel = stringResource(
+                                R.string.home_helper_wifi_control_action
+                            ),
+                            onAction =
+                                onOpenHelperWifiControlSettingsRequested
                         )
                     }
                 }
