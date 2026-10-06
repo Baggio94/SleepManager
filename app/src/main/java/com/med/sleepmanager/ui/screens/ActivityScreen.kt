@@ -160,7 +160,7 @@ private fun ActivityTimelineCard(
                     verticalAlignment = Alignment.Top
                 ) {
                     Text(
-                        text = "\${index + 1}",
+                        text = (index + 1).toString(),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
