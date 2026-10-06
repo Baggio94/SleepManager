@@ -251,13 +251,12 @@ class HelperVersionCompatibilityTest {
     private fun runRealRoundTrip(expectCycleId: Boolean) {
         AppPreferences.setSetupComplete(context, true)
         AppPreferences.setEnabled(context, true)
+        AppPreferences.setManageWifi(context, true)
+        AppPreferences.setManageBluetooth(context, false)
+        AppPreferences.setSleepGraceMs(context, 0L)
+        AppPreferences.setCustomDelayEnabled(context, false)
 
-        // Let Main consume a complete real SCREEN_OFF -> SCREEN_ON pair before
-        // the test creates its synthetic transaction. This prevents startup
-        // screen broadcasts from racing with SleepCycleStore.begin() and
-        // accidentally restoring or completing the synthetic cycle.
         startMainServiceAndWaitUntilSettled()
-        settleInitialScreenState()
 
         val results = LinkedBlockingQueue<Intent>()
         val receiver =
@@ -279,43 +278,22 @@ class HelperVersionCompatibilityTest {
         )
 
         try {
-            DiagnosticsCycleStore.begin(context)
-            val cycle =
-                SleepCycleStore.begin(
-                    context = context,
-                    helperExpected = true,
-                    wifiManaged = false,
-                    bluetoothManaged = false
-                )
-            SleepCycleStore.markHelperSleepRequested(context)
-
-            assertTrue(
-                HelperController.sendSleep(
-                    context = context,
-                    wifi = false,
-                    bluetooth = false,
-                    cycleId = cycle.cycleId
-                )
-            )
+            setScreenInteractive(false)
 
             val sleepResult = awaitPhase(results, HelperController.PHASE_SLEEP)
             assertEquals(
                 HelperController.STATUS_OK,
                 sleepResult.getStringExtra(HelperController.EXTRA_STATUS)
             )
+
+            val cycle =
+                waitForActiveHelperCycle(
+                    timeoutMs = 5_000L
+                )
             assertCycleCorrelation(sleepResult, cycle.cycleId, expectCycleId)
 
-            assertTrue(
-                "Main transaction did not remain active after Helper sleep result",
-                waitUntil(timeoutMs = 5_000L) {
-                    val current = SleepCycleStore.current(context)
-                    current.active &&
-                        current.cycleId == cycle.cycleId &&
-                        !current.helperRestored
-                }
-            )
+            setScreenInteractive(true)
 
-            assertTrue(HelperController.restoreNow(context, cycle.cycleId))
             val wakeResult = awaitPhase(results, HelperController.PHASE_WAKE)
             assertEquals(
                 HelperController.STATUS_OK,
@@ -331,13 +309,14 @@ class HelperVersionCompatibilityTest {
 
             assertTrue(
                 "Main did not accept the real Helper wake result",
-                waitUntil(timeoutMs = 1_500L) {
+                waitUntil(timeoutMs = 5_000L) {
                     !SleepCycleStore.isActive(context)
                 }
             )
             assertNull(SleepCycleStore.restoreProblem(context))
         } finally {
             context.unregisterReceiver(receiver)
+            setScreenInteractive(true)
         }
     }
 
@@ -403,31 +382,42 @@ class HelperVersionCompatibilityTest {
             .getPackageInfo(HelperController.PACKAGE, 0)
             .versionName
 
-    private fun settleInitialScreenState() {
+    private fun setScreenInteractive(interactive: Boolean) {
         val powerManager =
             context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val uiAutomation =
             InstrumentationRegistry.getInstrumentation().uiAutomation
 
-        uiAutomation.executeShellCommand("input keyevent 223").close()
-        assertTrue(
-            "Emulator did not reach non-interactive state during Helper setup",
-            waitUntil(timeoutMs = 5_000L) { !powerManager.isInteractive }
-        )
-
-        uiAutomation.executeShellCommand("input keyevent 224").close()
-        assertTrue(
-            "Emulator did not return to interactive state during Helper setup",
-            waitUntil(timeoutMs = 5_000L) { powerManager.isInteractive }
-        )
+        val keyCode = if (interactive) 224 else 223
+        uiAutomation.executeShellCommand("input keyevent $keyCode").close()
 
         assertTrue(
-            "SleepManager did not settle its startup screen transition",
-            waitUntil(timeoutMs = 3_000L) {
-                !SleepCycleStore.isActive(context)
+            if (interactive) {
+                "Emulator did not return to interactive state"
+            } else {
+                "Emulator did not reach non-interactive state"
+            },
+            waitUntil(timeoutMs = 8_000L) {
+                powerManager.isInteractive == interactive
             }
         )
-        SystemClock.sleep(500L)
+    }
+
+    private fun waitForActiveHelperCycle(
+        timeoutMs: Long
+    ): SleepCycleStore.Snapshot {
+        var snapshot = SleepCycleStore.current(context)
+        assertTrue(
+            "Main transaction did not remain active after Helper sleep result",
+            waitUntil(timeoutMs) {
+                snapshot = SleepCycleStore.current(context)
+                snapshot.active &&
+                    snapshot.helperExpected &&
+                    snapshot.helperSleepRequested &&
+                    !snapshot.helperRestored
+            }
+        )
+        return snapshot
     }
 
     private fun startMainServiceAndWaitUntilSettled() {
