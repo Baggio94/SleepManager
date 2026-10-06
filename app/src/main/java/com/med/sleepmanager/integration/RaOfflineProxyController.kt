@@ -12,11 +12,13 @@ import android.util.Log
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyCommandResult
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueStatus
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardState
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardsStatus
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatus
 import org.json.JSONObject
 
 /**
- * Thin Android adapter around RAOfflineProxy's documented Automation API v1.
+ * Thin Android adapter around RAOfflineProxy's documented Automation API.
  *
  * ContentResolver.call() can block. status/start/stop must therefore be invoked
  * from a worker thread by service orchestration; UI callers should only use the
@@ -30,6 +32,10 @@ object RaOfflineProxyController {
     const val CONTROL_PERMISSION =
         "com.raofflineproxy.permission.CONTROL_PROXY"
     const val SUPPORTED_API_VERSION = 1
+    const val MAX_SUPPORTED_API_VERSION = 2
+
+    fun isSupportedApiVersion(version: Int?): Boolean =
+        version != null && version in SUPPORTED_API_VERSION..MAX_SUPPORTED_API_VERSION
 
     private const val METHOD_STATUS = "status"
     private const val METHOD_START = "start"
@@ -167,6 +173,19 @@ object RaOfflineProxyController {
                 } else {
                     queue.optLong("nextWindowAt")
                 }
+            val pendingAwards =
+                json.optJSONObject("pendingAwards")?.let { pending ->
+                    RaOfflineProxyPendingAwardsStatus(
+                        count = pending.optInt("count", 0),
+                        state =
+                            RaOfflineProxyPendingAwardState.fromWire(
+                                pending.optString("state", null)
+                            ),
+                        error =
+                            pending.optString("error", null)
+                                ?.takeUnless { it.isBlank() || it == "null" }
+                    )
+                }
 
             RaOfflineProxyStatus(
                 version = json.optInt("version", -1),
@@ -182,7 +201,8 @@ object RaOfflineProxyController {
                                 queue.optString("state", null)
                             ),
                         nextWindowAt = nextWindowAt
-                    )
+                    ),
+                pendingAwards = pendingAwards
             )
         }.onFailure {
             Log.w(TAG, "Invalid RAOfflineProxy status payload", it)
