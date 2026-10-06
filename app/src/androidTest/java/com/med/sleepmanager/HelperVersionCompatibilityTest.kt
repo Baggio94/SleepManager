@@ -84,7 +84,7 @@ class HelperVersionCompatibilityTest {
         val receiver =
             object : BroadcastReceiver() {
                 override fun onReceive(receiverContext: Context?, intent: Intent?) {
-                    if (intent?.action == HelperController.ACTION_RESULT) {
+                    if (intent?.action == HelperController.resultAction(context)) {
                         results.offer(Intent(intent))
                     }
                 }
@@ -93,8 +93,8 @@ class HelperVersionCompatibilityTest {
         ContextCompat.registerReceiver(
             context,
             receiver,
-            IntentFilter(HelperController.ACTION_RESULT),
-            HelperController.PERMISSION,
+            IntentFilter(HelperController.resultAction(context)),
+            HelperController.responsePermission(context),
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
