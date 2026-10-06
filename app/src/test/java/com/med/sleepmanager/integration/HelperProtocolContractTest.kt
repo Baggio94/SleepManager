@@ -8,6 +8,10 @@ class HelperProtocolContractTest {
     @Test
     fun helperControllerCompatibilityAliasesUseSharedProtocol() {
         assertEquals(HelperProtocol.HELPER_PACKAGE, HelperController.PACKAGE)
+        assertEquals(
+            "com.med.sleepmanager.helper.SleepManagerHelperReceiver",
+            HelperProtocol.HELPER_RECEIVER_CLASS
+        )
         assertEquals(HelperProtocol.PERMISSION, HelperController.PERMISSION)
         assertEquals(HelperProtocol.ACTION_STATE, HelperController.ACTION_STATE)
         assertEquals(HelperProtocol.ACTION_RESULT, HelperController.ACTION_RESULT)
