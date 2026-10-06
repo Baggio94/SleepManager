@@ -98,19 +98,54 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
             HelperCyclePolicy.SleepDecision.CYCLE_MISMATCH -> {
                 Log.w(
                     TAG,
-                    "Sleep cycle mismatch: requested=$cycleId active=$activeCycleId"
+                    "Sleep cycle mismatch: requested=$cycleId active=$activeCycleId; " +
+                        "reconciling stale Helper ownership first"
                 )
-                sendResult(
+
+                // A previous Main/Helper acknowledgement can be lost even after
+                // the radios have physically returned to their pre-sleep state.
+                // Reconcile the Helper-owned cycle before accepting a new one.
+                // The old wake result is cycle-correlated, so a newer Main
+                // transaction safely ignores it as stale.
+                restore(
                     context = context,
-                    phase = HelperProtocol.PHASE_SLEEP,
-                    cycleId = cycleId,
-                    wifiManaged = false,
-                    wifiPrevious = false,
-                    wifiChanged = false,
-                    bluetoothManaged = false,
-                    bluetoothPrevious = false,
-                    bluetoothChanged = false,
-                    status = HelperProtocol.STATUS_CYCLE_MISMATCH
+                    requestedCycleId = activeCycleId
+                )
+
+                if (
+                    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        .getBoolean(KEY_CYCLE_ACTIVE, false)
+                ) {
+                    Log.w(
+                        TAG,
+                        "Stale Helper cycle could not be reconciled; " +
+                            "rejecting new sleep cycle=$cycleId"
+                    )
+                    sendResult(
+                        context = context,
+                        phase = HelperProtocol.PHASE_SLEEP,
+                        cycleId = cycleId,
+                        wifiManaged = false,
+                        wifiPrevious = false,
+                        wifiChanged = false,
+                        bluetoothManaged = false,
+                        bluetoothPrevious = false,
+                        bluetoothChanged = false,
+                        status = HelperProtocol.STATUS_CYCLE_MISMATCH
+                    )
+                    return
+                }
+
+                Log.i(
+                    TAG,
+                    "Stale Helper cycle=$activeCycleId reconciled; " +
+                        "starting new cycle=$cycleId"
+                )
+                enterSleep(
+                    context = context,
+                    manageWifi = manageWifi,
+                    manageBluetooth = manageBluetooth,
+                    cycleId = cycleId
                 )
                 return
             }
@@ -391,16 +426,29 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
         val wifiRestoreRequired = wifiChanged && wifiPrevious
         val bluetoothRestoreRequired = bluetoothChanged && bluetoothPrevious
 
-        val wifiRestored = if (wifiRestoreRequired) {
-            setWifi(wifiManager, true)
-        } else {
-            false
-        }
-        val bluetoothRestored = if (bluetoothRestoreRequired) {
-            setBluetooth(bluetooth, true)
-        } else {
-            false
-        }
+        val wifiAlreadyRestored =
+            wifiRestoreRequired && safeWifiState(wifiManager) == wifiPrevious
+        val bluetoothAlreadyRestored =
+            bluetoothRestoreRequired &&
+                safeBluetoothState(bluetooth) == bluetoothPrevious
+
+        val wifiRestoreAttempted =
+            wifiRestoreRequired && !wifiAlreadyRestored
+        val bluetoothRestoreAttempted =
+            bluetoothRestoreRequired && !bluetoothAlreadyRestored
+
+        val wifiRestored =
+            when {
+                !wifiRestoreRequired -> false
+                wifiAlreadyRestored -> true
+                else -> setWifi(wifiManager, wifiPrevious)
+            }
+        val bluetoothRestored =
+            when {
+                !bluetoothRestoreRequired -> false
+                bluetoothAlreadyRestored -> true
+                else -> setBluetooth(bluetooth, bluetoothPrevious)
+            }
 
         val wifiRestoreSuccess = !wifiRestoreRequired || wifiRestored
         val bluetoothRestoreSuccess = !bluetoothRestoreRequired || bluetoothRestored
@@ -421,9 +469,10 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
         Log.i(
             TAG,
             "Wake restore result: success=$restoreSuccess " +
-                "wifi=$wifiPrevious (attempted=$wifiRestoreRequired restored=$wifiRestored) " +
+                "wifi=$wifiPrevious (attempted=$wifiRestoreAttempted restored=$wifiRestored) " +
                 "airplaneMode=$airplaneModeOn " +
-                "bluetooth=$bluetoothPrevious (restored=$bluetoothRestored)"
+                "bluetooth=$bluetoothPrevious " +
+                "(attempted=$bluetoothRestoreAttempted restored=$bluetoothRestored)"
         )
 
         if (wifiRestoreRequired && !wifiRestored) {
@@ -440,7 +489,7 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
             wifiManaged = wifiManaged,
             wifiPrevious = wifiPrevious,
             wifiChanged = wifiRestored,
-            wifiAttempted = wifiRestoreRequired,
+            wifiAttempted = wifiRestoreAttempted,
             wifiAction = "ON",
             wifiToggleSuccess = !wifiRestoreRequired || wifiRestored,
             airplaneMode = airplaneModeOn,
@@ -487,6 +536,11 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
             .putExtra(HelperProtocol.EXTRA_STATUS, status)
 
         context.sendBroadcast(response, responsePermission)
+        Log.i(
+            TAG,
+            "Result reported: phase=$phase cycle=$cycleId status=$status " +
+                "restoreSuccess=$restoreSuccess"
+        )
     }
 
     private fun isAirplaneModeOn(context: Context): Boolean =
