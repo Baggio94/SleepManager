@@ -1528,6 +1528,8 @@ private class IntegrationUiRow(
                                 onUpdateStateChanged = {
                                     onRefreshRequested()
                                 },
+                                showCompatibilityHelper =
+                                    !directRadioControlAvailable,
                                 scrollTarget = aboutScrollTarget,
                                 scrollRequestId = aboutScrollRequestId,
                                 onScrollTargetConsumed = {
