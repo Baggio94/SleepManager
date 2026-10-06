@@ -977,14 +977,6 @@ private class IntegrationUiRow(
                     ) {
                         val syncthingBroadcastReminder =
                             stringResource(R.string.home_syncthing_broadcast_reminder)
-                        val basicSyncRemoteControlReminder =
-                            stringResource(
-                                if (BasicSyncController.supportsStateApi(context)) {
-                                    R.string.home_basicsync_remote_control_modern
-                                } else {
-                                    R.string.home_basicsync_remote_control_legacy
-                                }
-                            )
                         val raOfflineProxyStatusText =
                             when {
                                 !raOfflineProxyInstalled ->
@@ -1251,13 +1243,7 @@ private class IntegrationUiRow(
                                         onCheckedChange = {
                                             onManageBasicSyncChange(it)
 
-                                            if (it) {
-                                                Toast.makeText(
-                                                    context,
-                                                    basicSyncRemoteControlReminder,
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            } else if (managerEnabled) {
+                                            if (!it && managerEnabled) {
                                                 onRestoreBasicSyncRequested()
                                                 SleepCycleStore.completeIfRestored(context)
                                                 SyncMaintenanceScheduler.cancel(context)
