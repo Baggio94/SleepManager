@@ -259,6 +259,10 @@ object BasicSyncController {
     ): RemoteState? {
         if (!isInstalled(context)) return null
 
+        // A previous successful STATE_CHANGED must not keep the integration
+        // available after the user disables BasicSync remote control.
+        clearObservedState()
+
         val appContext = context.applicationContext
         val result = AtomicReference<RemoteState?>(null)
         val latch = CountDownLatch(1)
