@@ -302,6 +302,17 @@ private class IntegrationUiRow(
         val basicSyncVersion = remember(refreshToken) {
             BasicSyncController.versionName(context)
         }
+        val basicSyncStateApi =
+            BasicSyncController.supportsStateApi(context)
+        val basicSyncReady =
+            basicSyncInstalled &&
+                (
+                    !basicSyncStateApi ||
+                        (
+                            uiState.basicSyncReadinessProbeComplete &&
+                                uiState.currentBasicSyncState != null
+                        )
+                )
         val raOfflineProxyInstalled = remember(refreshToken) {
             RaOfflineProxyController.isInstalled(context)
         }
@@ -1096,7 +1107,7 @@ private class IntegrationUiRow(
                                             basicSyncVersion
                                                 ?: stringResource(R.string.installed),
                                         status =
-                                            if (BasicSyncController.supportsStateApi(context)) {
+                                            if (basicSyncStateApi) {
                                                 uiState.currentBasicSyncState?.let { state ->
                                                     val mode =
                                                         stringResource(
@@ -1151,14 +1162,22 @@ private class IntegrationUiRow(
                                                         runState,
                                                         syncState
                                                     ).joinToString(" · ")
-                                                } ?: stringResource(R.string.checking)
+                                                } ?: stringResource(
+                                                    if (
+                                                        uiState.basicSyncReadinessProbeComplete
+                                                    ) {
+                                                        R.string.home_basicsync_remote_control_required
+                                                    } else {
+                                                        R.string.checking
+                                                    }
+                                                )
                                             } else {
                                                 stringResource(
                                                     R.string.home_basicsync_legacy_status
                                                 )
                                             },
-                                        checked = basicSyncEnabled,
-                                        enabled = true,
+                                        checked = basicSyncEnabled && basicSyncReady,
+                                        enabled = basicSyncReady,
                                         onCheckedChange = {
                                             onManageBasicSyncChange(it)
 
