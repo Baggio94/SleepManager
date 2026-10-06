@@ -1,16 +1,17 @@
 package com.med.sleepmanager.integration
 
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardState
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatusParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class RaOfflineProxyControllerTest {
+class RaOfflineProxyStatusParserTest {
     @Test
     fun parsesApiV2PendingAwards() {
         val status =
-            RaOfflineProxyController.parseStatus(
+            RaOfflineProxyStatusParser.parse(
                 """
                 {
                   "version":2,
@@ -36,7 +37,7 @@ class RaOfflineProxyControllerTest {
     @Test
     fun apiV1WithoutPendingAwardsRemainsValid() {
         val status =
-            RaOfflineProxyController.parseStatus(
+            RaOfflineProxyStatusParser.parse(
                 """
                 {
                   "version":1,
@@ -55,7 +56,7 @@ class RaOfflineProxyControllerTest {
     @Test
     fun parsesBlockedPendingAwardError() {
         val status =
-            RaOfflineProxyController.parseStatus(
+            RaOfflineProxyStatusParser.parse(
                 """
                 {
                   "version":2,
