@@ -29,12 +29,15 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.DiagnosticsStateStore
+import com.med.sleepmanager.data.DirectRadioStore
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.ClamshellStateStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.data.RaOfflineProxySleepStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
+import com.med.sleepmanager.device.RadioBackend
+import com.med.sleepmanager.device.RadioController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
@@ -788,6 +791,22 @@ class SleepManagerService : Service() {
         }
         if (
             cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val reapplied =
+                RadioController.reapplyDirectSleepState(
+                    this,
+                    cycle.cycleId
+                )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Recovery → PServer sleep radio state " +
+                    if (reapplied) "re-applied" else "re-apply failed"
+            )
+            return
+        }
+        if (
+            cycle.active &&
             cycle.helperExpected &&
             cycle.wifiManaged &&
             !cycle.helperRestored &&
@@ -1046,6 +1065,25 @@ class SleepManagerService : Service() {
         var cycle = SleepCycleStore.current(this)
         if (
             cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val restored =
+                RadioController.restoreDirect(this, cycle.cycleId)
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Wake → PServer radios " +
+                    if (restored) "restored" else "restore pending"
+            )
+            if (!restored) {
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Direct Wi-Fi / Bluetooth restore is still pending."
+                )
+            }
+            cycle = SleepCycleStore.current(this)
+        }
+        if (
+            cycle.active &&
             cycle.helperExpected &&
             !cycle.helperSleepRequested &&
             !cycle.helperRestored
@@ -1166,6 +1204,17 @@ class SleepManagerService : Service() {
                 existingCycle.active &&
                     existingCycle.helperExpected &&
                     !existingCycle.helperSleepRequested
+            val directRadioSleepPending =
+                existingCycle.active &&
+                    !existingCycle.helperExpected &&
+                    (existingCycle.wifiManaged || existingCycle.bluetoothManaged) &&
+                    RadioController.backend(this) == RadioBackend.PSERVER &&
+                    !DirectRadioStore.isPendingForCycle(
+                        this,
+                        existingCycle.cycleId
+                    )
+            val radioSleepPending =
+                helperSleepPending || directRadioSleepPending
             val batterySaverWillEnable =
                 batterySaverWillEnableForSleep()
             val syncthingStopPending =
@@ -1200,7 +1249,7 @@ class SleepManagerService : Service() {
                 SleepWakePolicy
                     .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                         wifiManaged = existingCycle.wifiManaged,
-                        helperAvailable = helperSleepPending,
+                        helperAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         syncthingStopRequested = syncthingStopPending,
                         basicSyncStopRequested = basicSyncStopPending
@@ -1208,7 +1257,7 @@ class SleepManagerService : Service() {
             val waitForTailscale =
                 SleepWakePolicy
                     .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                        helperAvailable = helperSleepPending,
+                        helperAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         tailscaleVerificationPending =
                             tailscaleVerificationPending
@@ -1219,7 +1268,7 @@ class SleepManagerService : Service() {
                     (
                         waitForManagedStops ||
                             waitForTailscale ||
-                            helperSleepPending ||
+                            radioSleepPending ||
                             batterySaverWillEnable
                     )
 
@@ -1230,9 +1279,9 @@ class SleepManagerService : Service() {
 
                 sleepStopWaitState.pendingPostStopActions = true
                 sleepStopWaitState.pendingWifi =
-                    helperSleepPending && existingCycle.wifiManaged
+                    radioSleepPending && existingCycle.wifiManaged
                 sleepStopWaitState.pendingBluetooth =
-                    helperSleepPending && existingCycle.bluetoothManaged
+                    radioSleepPending && existingCycle.bluetoothManaged
                 sleepStopWaitState.pendingSyncthing =
                     waitForManagedStops && syncthingStopPending
                 sleepStopWaitState.pendingBasicSync =
@@ -1651,7 +1700,13 @@ class SleepManagerService : Service() {
             BasicSyncController.startStateObserver(this)
         }
         val radiosManaged = wifi || bluetooth
-        val helperAvailable = radiosManaged && HelperController.isInstalled(this)
+        val radioBackend =
+            if (radiosManaged) RadioController.backend(this)
+            else RadioBackend.NONE
+        val radioControlAvailable =
+            radiosManaged && radioBackend != RadioBackend.NONE
+        val helperAvailable =
+            radiosManaged && radioBackend == RadioBackend.HELPER
         val batterySaverWillEnable =
             batterySaverWillEnableForSleep()
 
@@ -1665,7 +1720,8 @@ class SleepManagerService : Service() {
             TAG,
             "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
-                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped"
+                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped " +
+                "radioBackend=$radioBackend"
         )
 
         // Syncthing always keeps its normal STOP/FOLLOW ownership. Advanced
@@ -1810,7 +1866,7 @@ class SleepManagerService : Service() {
             SleepWakePolicy
                 .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                     wifiManaged = wifi,
-                    helperAvailable = helperAvailable,
+                    helperAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     syncthingStopRequested = syncthingStopRequested,
                     basicSyncStopRequested = basicSyncStopRequested
@@ -1818,7 +1874,7 @@ class SleepManagerService : Service() {
         val waitForTailscale =
             SleepWakePolicy
                 .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                    helperAvailable = helperAvailable,
+                    helperAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     tailscaleVerificationPending =
                         tailscaleVerificationPending
@@ -1858,12 +1914,7 @@ class SleepManagerService : Service() {
             )
         }
 
-        if (
-            !helperAvailable &&
-            !SleepCycleStore.hasPendingConnectorChanges(this)
-        ) {
-            SleepCycleStore.clear(this)
-        }
+        SleepCycleStore.completeIfRestored(this)
 
         SyncMaintenanceScheduler.scheduleNext(this)
     }
@@ -2200,18 +2251,8 @@ class SleepManagerService : Service() {
     ) {
         applyBatterySaverForSleep()
 
-        val helperSent = if (wifi || bluetooth) {
-            HelperController.sendSleep(this, wifi, bluetooth, SleepCycleStore.current(this).cycleId)
-        } else {
-            false
-        }
-
-        if (helperSent) {
-            SleepCycleStore.markHelperSleepRequested(this)
-        } else {
-            if (SleepCycleStore.isActive(this)) {
-                SleepCycleStore.markHelperRestored(this)
-            }
+        val cycle = SleepCycleStore.current(this)
+        if (!(wifi || bluetooth) || !cycle.active) {
             releaseSleepTransitionWakeLock()
             DiagnosticsStateStore.recordEvent(
                 this,
@@ -2223,6 +2264,66 @@ class SleepManagerService : Service() {
                     syncthingState = syncthingSleepSummaryState
                 )
             )
+            SleepCycleStore.completeIfRestored(this)
+            return
+        }
+
+        when (RadioController.backend(this)) {
+            RadioBackend.PSERVER -> {
+                val result =
+                    RadioController.applyDirectSleep(
+                        context = this,
+                        wifi = wifi,
+                        bluetooth = bluetooth,
+                        cycleId = cycle.cycleId
+                    )
+                releaseSleepTransitionWakeLock()
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    buildSleepSummary(
+                        wifiManaged = result.wifiManaged,
+                        wifiChanged = result.wifiChanged,
+                        bluetoothManaged = result.bluetoothManaged,
+                        bluetoothChanged = result.bluetoothChanged,
+                        syncthingState = syncthingSleepSummaryState
+                    ) + " · radio=PServer" +
+                        if (result.success) "" else " · radioError"
+                )
+                SleepCycleStore.completeIfRestored(this)
+            }
+
+            RadioBackend.HELPER -> {
+                val helperSent =
+                    HelperController.sendSleep(
+                        this,
+                        wifi,
+                        bluetooth,
+                        cycle.cycleId
+                    )
+                if (helperSent) {
+                    SleepCycleStore.markHelperSleepRequested(this)
+                } else {
+                    if (cycle.helperExpected) {
+                        SleepCycleStore.markRestoreProblem(
+                            this,
+                            "Compatibility Helper could not receive the sleep radio request."
+                        )
+                    }
+                    releaseSleepTransitionWakeLock()
+                }
+            }
+
+            RadioBackend.NONE -> {
+                if (cycle.helperExpected) {
+                    SleepCycleStore.markHelperRestored(this)
+                }
+                releaseSleepTransitionWakeLock()
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Sleep → radio control unavailable; Wi-Fi / Bluetooth left unchanged"
+                )
+                SleepCycleStore.completeIfRestored(this)
+            }
         }
     }
 
@@ -3250,6 +3351,25 @@ class SleepManagerService : Service() {
         }
 
         var cycle = SleepCycleStore.current(this)
+        if (
+            cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val restored =
+                RadioController.restoreDirect(this, cycle.cycleId)
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Disable → PServer radios " +
+                    if (restored) "restored" else "restore pending"
+            )
+            if (!restored) {
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Direct Wi-Fi / Bluetooth restore is still pending."
+                )
+            }
+            cycle = SleepCycleStore.current(this)
+        }
         if (
             cycle.active &&
             cycle.helperExpected &&
