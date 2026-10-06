@@ -33,9 +33,12 @@ data class DirectRadioSleepResult(
 object RadioController {
     private const val TAG = "SleepManagerRadio"
 
+    @Volatile
+    private var directCapabilityConfirmed = false
+
     fun backend(context: Context): RadioBackend =
         when {
-            DeviceControlController.supportsDirectRadioControl() ->
+            directAvailable() ->
                 RadioBackend.PSERVER
             HelperController.isInstalled(context) ->
                 RadioBackend.HELPER
@@ -43,8 +46,14 @@ object RadioController {
                 RadioBackend.NONE
         }
 
-    fun directAvailable(): Boolean =
-        DeviceControlController.supportsDirectRadioControl()
+    fun directAvailable(): Boolean {
+        if (directCapabilityConfirmed) return true
+        val ready = DeviceControlController.supportsDirectRadioControl()
+        if (ready) {
+            directCapabilityConfirmed = true
+        }
+        return ready
+    }
 
     fun helperRequired(context: Context): Boolean =
         !directAvailable() && !HelperController.isInstalled(context)
