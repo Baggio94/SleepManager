@@ -81,6 +81,24 @@ object DeviceControlController {
         return ready
     }
 
+    internal fun wifiEnabledPrivileged(): Boolean? =
+        executePrivileged("cmd wifi status")
+            .getOrNull()
+            ?.lineSequence()
+            ?.map(String::trim)
+            ?.firstNotNullOfOrNull { line ->
+                when {
+                    line.equals("Wifi is enabled", ignoreCase = true) -> true
+                    line.equals("Wifi is disabled", ignoreCase = true) -> false
+                    else -> null
+                }
+            }
+
+    internal fun bluetoothEnabledPrivileged(): Boolean? =
+        executePrivileged("settings get global bluetooth_on")
+            .getOrNull()
+            ?.let(::parseBooleanSetting)
+
     internal fun setWifiEnabledPrivileged(enabled: Boolean): Boolean =
         executePrivileged(
             "cmd wifi set-wifi-enabled " +
