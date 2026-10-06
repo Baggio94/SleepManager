@@ -33,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -94,6 +95,7 @@ import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.components.StatusCard
 import com.med.sleepmanager.ui.components.SyncthingTargetDialog
 import com.med.sleepmanager.ui.components.UpdateAvailableCard
+import com.med.sleepmanager.ui.controller.controllerNavigation
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -223,6 +225,14 @@ private class IntegrationUiRow(
             advancedScrollTarget = target
             advancedScrollRequestId++
             currentSection = AppSection.ADVANCED
+        }
+
+        fun navigateSection(offset: Int) {
+            val sections = AppSection.entries
+            val currentIndex = sections.indexOf(currentSection)
+            val nextIndex =
+                (currentIndex + offset + sections.size) % sections.size
+            currentSection = sections[nextIndex]
         }
 
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
@@ -440,6 +450,13 @@ private class IntegrationUiRow(
         }
 
         ModalNavigationDrawer(
+            modifier =
+                Modifier.controllerNavigation(
+                    listState = currentListState,
+                    enabled = drawerState.isClosed,
+                    onPreviousSection = { navigateSection(-1) },
+                    onNextSection = { navigateSection(1) }
+                ),
             drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
@@ -586,6 +603,20 @@ private class IntegrationUiRow(
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        },
+                        actions = {
+                            if (currentSection == AppSection.ACTIVITY_LOG) {
+                                OutlinedButton(
+                                    onClick = feedbackClick {
+                                        onCopyDiagnosticsRequested()
+                                    },
+                                    modifier = Modifier.padding(end = 12.dp)
+                                ) {
+                                    Text(
+                                        stringResource(R.string.activity_copy_log)
+                                    )
+                                }
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -1230,8 +1261,8 @@ private class IntegrationUiRow(
                                                     R.string.home_basicsync_legacy_status
                                                 )
                                             },
-                                        checked = basicSyncEnabled && basicSyncReady,
-                                        enabled = basicSyncReady,
+                                        checked = basicSyncEnabled,
+                                        enabled = basicSyncReady || basicSyncEnabled,
                                         onCheckedChange = {
                                             onManageBasicSyncChange(it)
 
@@ -1542,8 +1573,7 @@ private class IntegrationUiRow(
                     AppSection.ACTIVITY_LOG -> {
                         item {
                             ActivityLogPage(
-                                context = context,
-                                onCopyLog = { onCopyDiagnosticsRequested() }
+                                context = context
                             )
                         }
                     }

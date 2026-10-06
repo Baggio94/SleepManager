@@ -255,7 +255,9 @@ object BasicSyncController {
 
     fun requestState(
         context: Context,
-        timeoutMs: Long = STATE_QUERY_TIMEOUT_MS
+        timeoutMs: Long = STATE_QUERY_TIMEOUT_MS,
+        attempts: Int = 1,
+        retryDelayMs: Long = 0L
     ): RemoteState? {
         if (!isInstalled(context)) return null
 
@@ -299,17 +301,37 @@ object BasicSyncController {
             )
             registered = true
 
-            if (!sendRemoteControl(appContext, ACTION_REQUEST_STATE)) {
-                Log.w(TAG, "REQUEST_STATE could not be sent")
-                return null
+            val safeAttempts = attempts.coerceAtLeast(1)
+            val safeTimeoutMs = timeoutMs.coerceAtLeast(1L)
+
+            for (attempt in 1..safeAttempts) {
+                if (!sendRemoteControl(appContext, ACTION_REQUEST_STATE)) {
+                    Log.w(TAG, "REQUEST_STATE could not be sent")
+                    return null
+                }
+
+                Log.i(
+                    TAG,
+                    "REQUEST_STATE attempt $attempt/$safeAttempts sent; " +
+                        "waiting up to ${safeTimeoutMs}ms"
+                )
+                val received =
+                    latch.await(safeTimeoutMs, TimeUnit.MILLISECONDS)
+                val state = result.get() ?: observedState
+                if (received || state != null) {
+                    return state
+                }
+
+                if (attempt < safeAttempts && retryDelayMs > 0L) {
+                    Thread.sleep(retryDelayMs)
+                }
             }
 
-            Log.i(TAG, "REQUEST_STATE sent; waiting up to ${timeoutMs}ms")
-            val received = latch.await(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
-            if (!received) {
-                Log.w(TAG, "Timed out waiting for STATE_CHANGED")
-            }
-            result.get()
+            Log.w(
+                TAG,
+                "Timed out waiting for STATE_CHANGED after $safeAttempts attempts"
+            )
+            null
         } catch (t: Throwable) {
             Log.e(TAG, "Unable to query BasicSync state", t)
             null
