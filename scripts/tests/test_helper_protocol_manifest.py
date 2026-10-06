@@ -39,6 +39,7 @@ class HelperProtocolManifestTest(unittest.TestCase):
             "HELPER_PACKAGE",
             "PERMISSION",
             "PERMISSION_V2",
+            "HELPER_COMMAND_SERVICE_V2_CLASS",
             "ACTION_SLEEP",
             "ACTION_WAKE",
             "ACTION_RESTORE",
@@ -66,6 +67,18 @@ class HelperProtocolManifestTest(unittest.TestCase):
         self.assertIn(self.contract["PERMISSION"], used_permissions)
         self.assertIn(self.contract["PERMISSION_V2"], used_permissions)
         self.assertIn(self.contract["HELPER_PACKAGE"], queried_packages)
+
+
+    def test_helper_v2_command_service_is_signature_protected(self):
+        services = {
+            node.get(ANDROID_NAME): node
+            for node in self.helper.findall("./application/service")
+        }
+        service = services[".HelperCommandServiceV2"]
+        self.assertEqual(
+            service.get(ANDROID_PERMISSION),
+            self.contract["PERMISSION_V2"],
+        )
 
     def test_helper_receiver_permission_and_actions_match_protocol(self):
         declared_permissions = {
