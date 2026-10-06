@@ -28,6 +28,8 @@ object HelperController {
     private val ACTION_SET_TEMP_WIFI = HelperProtocol.ACTION_SET_TEMP_WIFI
     private val HELPER_RECEIVER =
         ComponentName(PACKAGE, HelperProtocol.HELPER_RECEIVER_CLASS)
+    private val HELPER_ACTIVATION =
+        ComponentName(PACKAGE, HelperProtocol.HELPER_ACTIVATION_ACTIVITY_CLASS)
     @JvmField val ACTION_STATE = HelperProtocol.ACTION_STATE
     @JvmField val ACTION_RESULT = HelperProtocol.ACTION_RESULT
 
@@ -142,6 +144,36 @@ object HelperController {
         )
     }
 
+    private fun activateIfFreshlyStopped(context: Context) {
+        val applicationInfo =
+            runCatching {
+                context.packageManager.getApplicationInfo(PACKAGE, 0)
+            }.getOrNull() ?: return
+
+        if (applicationInfo.flags and ApplicationInfo.FLAG_STOPPED == 0) {
+            return
+        }
+
+        runCatching {
+            context.startActivity(
+                Intent()
+                    .setComponent(HELPER_ACTIVATION)
+                    .addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                            Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                    )
+            )
+            Log.i("SleepManager", "Compatibility Helper activation requested")
+        }.onFailure { error ->
+            Log.w(
+                "SleepManager",
+                "Compatibility Helper activation failed",
+                error
+            )
+        }
+    }
+
     private fun commandIntent(action: String): Intent =
         Intent(action)
             .setComponent(HELPER_RECEIVER)
@@ -188,6 +220,7 @@ object HelperController {
 
     fun requestState(context: Context): Boolean {
         if (!isInstalled(context)) return false
+        activateIfFreshlyStopped(context)
         context.sendBroadcast(
             commandIntent(ACTION_QUERY),
             PERMISSION
