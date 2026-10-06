@@ -94,7 +94,9 @@ object BatterySleepStore {
         val deepSleepMs: Long? = null,
         val preciseDrainPercent: Double? = null,
         val preciseBatteryChangePercent: Double? = null,
-        val falseWakeCount: Int = 0
+        val falseWakeCount: Int = 0,
+        val startChargeUah: Long? = null,
+        val endChargeUah: Long? = null
     ) {
         val drainPerHour: Double?
             get() {
@@ -354,7 +356,12 @@ object BatterySleepStore {
             deepSleepMs = deepSleepMs,
             preciseDrainPercent = preciseDrainPercent,
             preciseBatteryChangePercent = preciseBatteryChangePercent,
-            falseWakeCount = falseWakeCount
+            falseWakeCount = falseWakeCount,
+            startChargeUah =
+                startChargeUah
+                    .takeIf { it != Int.MIN_VALUE }
+                    ?.toLong(),
+            endChargeUah = endCounter?.toLong()
         )
 
         appendSession(context, session)
@@ -520,6 +527,12 @@ object BatterySleepStore {
                         item.preciseBatteryChangePercent?.let {
                             put("preciseBatteryChangePercent", it)
                         }
+                        item.startChargeUah?.let {
+                            put("startChargeUah", it)
+                        }
+                        item.endChargeUah?.let {
+                            put("endChargeUah", it)
+                        }
                         put("falseWakeCount", item.falseWakeCount.coerceAtLeast(0))
                     }
             )
@@ -581,7 +594,21 @@ object BatterySleepStore {
                                 },
                             falseWakeCount =
                                 item.optInt("falseWakeCount", 0)
-                                    .coerceAtLeast(0)
+                                    .coerceAtLeast(0),
+                            startChargeUah =
+                                if (item.has("startChargeUah")) {
+                                    item.optLong("startChargeUah")
+                                        .takeIf { it >= 0L }
+                                } else {
+                                    null
+                                },
+                            endChargeUah =
+                                if (item.has("endChargeUah")) {
+                                    item.optLong("endChargeUah")
+                                        .takeIf { it >= 0L }
+                                } else {
+                                    null
+                                }
                         )
                     )
                 }
@@ -626,13 +653,26 @@ object BatterySleepStore {
             .takeIf { it.isFinite() && it > 0.0 && it <= 100.0 }
     }
 
-    private fun isEligibleForLongTermStats(session: SleepSession): Boolean =
+    internal fun sessionAnalyticsEligible(session: SleepSession): Boolean =
         !session.chargedDuringSleep &&
-            session.durationMs >= MIN_AVERAGE_DURATION_MS &&
-            (
-                session.preciseDrainPercent != null ||
-                    session.endPercent <= session.startPercent
-            )
+            session.durationMs >= MIN_AVERAGE_DURATION_MS
+
+    internal fun drainSampleExclusionReason(
+        session: SleepSession
+    ): String? =
+        when {
+            session.chargedDuringSleep ->
+                "charged during sleep"
+            session.durationMs < MIN_AVERAGE_DURATION_MS ->
+                "sleep shorter than 3 hours"
+            effectiveDrainPercent(session) == null ->
+                "no measurable battery decrease"
+            else ->
+                null
+        }
+
+    private fun isEligibleForLongTermStats(session: SleepSession): Boolean =
+        sessionAnalyticsEligible(session)
 
     private fun enrichHistoricalPrecision(
         session: SleepSession,
