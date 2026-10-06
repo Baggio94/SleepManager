@@ -12,7 +12,14 @@ import android.util.Log
 import com.med.sleepmanager.protocol.HelperCyclePolicy
 import com.med.sleepmanager.protocol.HelperProtocol
 
-class SleepManagerHelperReceiver : BroadcastReceiver() {
+open class SleepManagerHelperReceiver : BroadcastReceiver() {
+    protected open val responsePermission: String
+        get() = HelperProtocol.PERMISSION
+    protected open val stateAction: String
+        get() = HelperProtocol.ACTION_STATE
+    protected open val resultAction: String
+        get() = HelperProtocol.ACTION_RESULT
+
     companion object {
         private const val TAG = "SleepManagerHelper"
         private const val PREFS = "helper_state"
@@ -62,12 +69,12 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         val wifiOn = safeWifiState(wifiManager)
         val bluetoothOn = safeBluetoothState(bluetooth)
 
-        val response = Intent(HelperProtocol.ACTION_STATE)
+        val response = Intent(stateAction)
             .setPackage(HelperProtocol.MAIN_PACKAGE)
             .putExtra(HelperProtocol.EXTRA_WIFI_STATE, wifiOn)
             .putExtra(HelperProtocol.EXTRA_BLUETOOTH_STATE, bluetoothOn)
 
-        context.sendBroadcast(response, HelperProtocol.PERMISSION)
+        context.sendBroadcast(response, responsePermission)
         Log.i(TAG, "Current state reported: wifi=$wifiOn bluetooth=$bluetoothOn")
     }
 
@@ -462,7 +469,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
         restoreSuccess: Boolean = true,
         status: String = HelperProtocol.STATUS_OK
     ) {
-        val response = Intent(HelperProtocol.ACTION_RESULT)
+        val response = Intent(resultAction)
             .setPackage(HelperProtocol.MAIN_PACKAGE)
             .putExtra(HelperProtocol.EXTRA_PHASE, phase)
             .putExtra(HelperProtocol.EXTRA_CYCLE_ID, cycleId)
@@ -479,7 +486,7 @@ class SleepManagerHelperReceiver : BroadcastReceiver() {
             .putExtra(HelperProtocol.EXTRA_RESTORE_SUCCESS, restoreSuccess)
             .putExtra(HelperProtocol.EXTRA_STATUS, status)
 
-        context.sendBroadcast(response, HelperProtocol.PERMISSION)
+        context.sendBroadcast(response, responsePermission)
     }
 
     private fun isAirplaneModeOn(context: Context): Boolean =
