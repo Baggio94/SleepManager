@@ -39,8 +39,6 @@ class HelperVersionCompatibilityTest {
             compatibilityEnabled()
         )
         stopMainService()
-        HelperController.forgetPendingState(context)
-        SystemClock.sleep(250L)
         SleepCycleStore.clear(context)
         DiagnosticsCycleStore.clear(context)
         EventHistoryStore.clear(context)
@@ -50,8 +48,6 @@ class HelperVersionCompatibilityTest {
     fun cleanup() {
         if (!compatibilityEnabled()) return
         stopMainService()
-        HelperController.forgetPendingState(context)
-        SystemClock.sleep(250L)
         SleepCycleStore.clear(context)
         DiagnosticsCycleStore.clear(context)
         EventHistoryStore.clear(context)
@@ -256,14 +252,12 @@ class HelperVersionCompatibilityTest {
         AppPreferences.setSetupComplete(context, true)
         AppPreferences.setEnabled(context, true)
 
-        // A persisted sleep transaction is only valid while the device is
-        // actually non-interactive. Starting the service while awake now
-        // intentionally reconciles such a transaction as a missed wake.
-        // Put the emulator to sleep before starting Main so this compatibility
-        // test exercises the real Helper sleep/wake contract instead of the
-        // awake recovery path.
-        ensureScreenOff()
+        // Let Main consume a complete real SCREEN_OFF -> SCREEN_ON pair before
+        // the test creates its synthetic transaction. This prevents startup
+        // screen broadcasts from racing with SleepCycleStore.begin() and
+        // accidentally restoring or completing the synthetic cycle.
         startMainServiceAndWaitUntilSettled()
+        settleInitialScreenState()
 
         val results = LinkedBlockingQueue<Intent>()
         val receiver =
@@ -409,21 +403,31 @@ class HelperVersionCompatibilityTest {
             .getPackageInfo(HelperController.PACKAGE, 0)
             .versionName
 
-    private fun ensureScreenOff() {
+    private fun settleInitialScreenState() {
         val powerManager =
             context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val uiAutomation =
+            InstrumentationRegistry.getInstrumentation().uiAutomation
 
-        if (powerManager.isInteractive) {
-            InstrumentationRegistry.getInstrumentation()
-                .uiAutomation
-                .executeShellCommand("input keyevent 223")
-                .close()
-        }
-
+        uiAutomation.executeShellCommand("input keyevent 223").close()
         assertTrue(
-            "Emulator did not reach non-interactive state before Helper round-trip",
+            "Emulator did not reach non-interactive state during Helper setup",
             waitUntil(timeoutMs = 5_000L) { !powerManager.isInteractive }
         )
+
+        uiAutomation.executeShellCommand("input keyevent 224").close()
+        assertTrue(
+            "Emulator did not return to interactive state during Helper setup",
+            waitUntil(timeoutMs = 5_000L) { powerManager.isInteractive }
+        )
+
+        assertTrue(
+            "SleepManager did not settle its startup screen transition",
+            waitUntil(timeoutMs = 3_000L) {
+                !SleepCycleStore.isActive(context)
+            }
+        )
+        SystemClock.sleep(500L)
     }
 
     private fun startMainServiceAndWaitUntilSettled() {
