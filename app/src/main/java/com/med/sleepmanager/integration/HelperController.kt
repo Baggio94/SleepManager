@@ -253,7 +253,13 @@ object HelperController {
             .putExtra(EXTRA_WIFI, wifi)
             .putExtra(EXTRA_BLUETOOTH, bluetooth)
             .putExtra(EXTRA_CYCLE_ID, cycleId)
-        context.sendBroadcast(intent, responsePermission(context))
+        // The Helper receiver itself is protected by a signature permission.
+        // Do not also pass that permission as sendBroadcast(receiverPermission):
+        // doing so requires the receiving Helper package to hold the permission
+        // and some OEM package managers can leave that self-grant stale after an
+        // update. The manifest receiver permission already authenticates the
+        // SleepManager sender.
+        context.sendBroadcast(intent)
         Log.i("SleepManager", "Helper sleep request: wifi=$wifi bluetooth=$bluetooth")
         return true
     }
@@ -262,8 +268,7 @@ object HelperController {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
             commandIntent(context, ACTION_WAKE)
-                .putExtra(EXTRA_CYCLE_ID, cycleId),
-            responsePermission(context)
+                .putExtra(EXTRA_CYCLE_ID, cycleId)
         )
         Log.i("SleepManager", "Helper wake request")
         return true
@@ -274,8 +279,7 @@ object HelperController {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
             commandIntent(context, ACTION_SET_TEMP_WIFI)
-                .putExtra(EXTRA_WIFI, enabled),
-            responsePermission(context)
+                .putExtra(EXTRA_WIFI, enabled)
         )
         Log.i("SleepManager", "Helper temporary Wi-Fi request: enabled=$enabled")
         return true
@@ -285,8 +289,7 @@ object HelperController {
         if (!isInstalled(context)) return false
         activateIfFreshlyStopped(context)
         context.sendBroadcast(
-            commandIntent(context, ACTION_QUERY),
-            responsePermission(context)
+            commandIntent(context, ACTION_QUERY)
         )
         Log.i("SleepManager", "Helper state query")
         return true
@@ -295,8 +298,7 @@ object HelperController {
     fun forgetPendingState(context: Context): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            commandIntent(context, ACTION_FORGET_STATE),
-            responsePermission(context)
+            commandIntent(context, ACTION_FORGET_STATE)
         )
         Log.i("SleepManager", "Helper pending state forget request")
         return true
@@ -306,8 +308,7 @@ object HelperController {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
             commandIntent(context, ACTION_RESTORE)
-                .putExtra(EXTRA_CYCLE_ID, cycleId),
-            responsePermission(context)
+                .putExtra(EXTRA_CYCLE_ID, cycleId)
         )
         Log.i("SleepManager", "Helper restore request")
         return true
