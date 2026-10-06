@@ -884,7 +884,7 @@
 
       nav { position: relative; }
       .nav-start { gap: 6px; }
-      .nav-right { display: none; }
+      .nav-right { display: flex; gap: 0; }
       .navlinks { display: none; }
       .mobile-menu-toggle { display: inline-flex; flex: 0 0 auto; }
       .mobile-menu:not([hidden]) { display: block; }
@@ -964,14 +964,6 @@
     <div class="wrap">
       <nav aria-label="Main navigation">
         <div class="nav-start">
-          <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-            <span class="menu-icon" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-          </button>
-
           <a class="brand" href="#">
             <img src="assets/sleepmanager.png" width="32" height="32" alt="">
             <span class="brand-copy">
@@ -990,6 +982,14 @@
             <a href="#setup">Setup</a>
             <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
           </div>
+
+          <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+            <span class="menu-icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
         </div>
 
         <div class="mobile-menu" id="mobile-menu" hidden>
