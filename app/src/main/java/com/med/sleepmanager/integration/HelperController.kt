@@ -38,6 +38,8 @@ object HelperController {
         ComponentName(PACKAGE, HelperProtocol.HELPER_RECEIVER_V2_CLASS)
     private val HELPER_ACTIVATION_V2 =
         ComponentName(PACKAGE, HelperProtocol.HELPER_ACTIVATION_ACTIVITY_V2_CLASS)
+    private val HELPER_COMMAND_SERVICE_V2 =
+        ComponentName(PACKAGE, HelperProtocol.HELPER_COMMAND_SERVICE_V2_CLASS)
     @JvmField val ACTION_STATE = HelperProtocol.ACTION_STATE
     @JvmField val ACTION_RESULT = HelperProtocol.ACTION_RESULT
     @JvmField val ACTION_STATE_V2 = HelperProtocol.ACTION_STATE_V2
@@ -95,6 +97,11 @@ object HelperController {
     fun usesOwnerStableProtocol(context: Context): Boolean =
         helperVersionCode(context) >=
             HelperProtocol.HELPER_PROTOCOL_V2_MIN_VERSION_CODE &&
+            ownerStablePermissionGranted(context)
+
+    private fun usesOwnerStableService(context: Context): Boolean =
+        helperVersionCode(context) >=
+            HelperProtocol.HELPER_SERVICE_V2_MIN_VERSION_CODE &&
             ownerStablePermissionGranted(context)
 
     fun responsePermission(context: Context): String =
@@ -234,13 +241,40 @@ object HelperController {
         }
     }
 
-    private fun commandIntent(
-        context: Context,
-        action: String
-    ): Intent =
+    private fun commandIntent(action: String): Intent =
         Intent(action)
-            .setComponent(commandReceiver(context))
-            .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+
+    private fun dispatchCommand(
+        context: Context,
+        intent: Intent
+    ): Boolean {
+        if (usesOwnerStableService(context)) {
+            return runCatching {
+                context.startService(
+                    Intent(intent).setComponent(HELPER_COMMAND_SERVICE_V2)
+                )
+                Log.i(
+                    "SleepManager",
+                    "Helper command service start: action=${intent.action}"
+                )
+                true
+            }.getOrElse { error ->
+                Log.w(
+                    "SleepManager",
+                    "Helper command service start failed: action=${intent.action}",
+                    error
+                )
+                false
+            }
+        }
+
+        context.sendBroadcast(
+            Intent(intent)
+                .setComponent(commandReceiver(context))
+                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+        )
+        return true
+    }
 
     fun sendSleep(
         context: Context,
@@ -249,68 +283,78 @@ object HelperController {
         cycleId: Long
     ): Boolean {
         if (!isInstalled(context)) return false
-        val intent = commandIntent(context, ACTION_SLEEP)
+        val intent = commandIntent(ACTION_SLEEP)
             .putExtra(EXTRA_WIFI, wifi)
             .putExtra(EXTRA_BLUETOOTH, bluetooth)
             .putExtra(EXTRA_CYCLE_ID, cycleId)
-        // The Helper receiver itself is protected by a signature permission.
-        // Do not also pass that permission as sendBroadcast(receiverPermission):
-        // doing so requires the receiving Helper package to hold the permission
-        // and some OEM package managers can leave that self-grant stale after an
-        // update. The manifest receiver permission already authenticates the
-        // SleepManager sender.
-        context.sendBroadcast(intent)
-        Log.i("SleepManager", "Helper sleep request: wifi=$wifi bluetooth=$bluetooth")
-        return true
+        val sent = dispatchCommand(context, intent)
+        Log.i(
+            "SleepManager",
+            "Helper sleep request: wifi=$wifi bluetooth=$bluetooth sent=$sent"
+        )
+        return sent
     }
 
     fun sendWake(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
-        context.sendBroadcast(
-            commandIntent(context, ACTION_WAKE)
-                .putExtra(EXTRA_CYCLE_ID, cycleId)
-        )
-        Log.i("SleepManager", "Helper wake request")
-        return true
+        val sent =
+            dispatchCommand(
+                context,
+                commandIntent(ACTION_WAKE)
+                    .putExtra(EXTRA_CYCLE_ID, cycleId)
+            )
+        Log.i("SleepManager", "Helper wake request: sent=$sent")
+        return sent
     }
 
 
     fun setTemporaryWifi(context: Context, enabled: Boolean): Boolean {
         if (!isInstalled(context)) return false
-        context.sendBroadcast(
-            commandIntent(context, ACTION_SET_TEMP_WIFI)
-                .putExtra(EXTRA_WIFI, enabled)
+        val sent =
+            dispatchCommand(
+                context,
+                commandIntent(ACTION_SET_TEMP_WIFI)
+                    .putExtra(EXTRA_WIFI, enabled)
+            )
+        Log.i(
+            "SleepManager",
+            "Helper temporary Wi-Fi request: enabled=$enabled sent=$sent"
         )
-        Log.i("SleepManager", "Helper temporary Wi-Fi request: enabled=$enabled")
-        return true
+        return sent
     }
 
     fun requestState(context: Context): Boolean {
         if (!isInstalled(context)) return false
         activateIfFreshlyStopped(context)
-        context.sendBroadcast(
-            commandIntent(context, ACTION_QUERY)
-        )
-        Log.i("SleepManager", "Helper state query")
-        return true
+        val sent =
+            dispatchCommand(
+                context,
+                commandIntent(ACTION_QUERY)
+            )
+        Log.i("SleepManager", "Helper state query: sent=$sent")
+        return sent
     }
 
     fun forgetPendingState(context: Context): Boolean {
         if (!isInstalled(context)) return false
-        context.sendBroadcast(
-            commandIntent(context, ACTION_FORGET_STATE)
-        )
-        Log.i("SleepManager", "Helper pending state forget request")
-        return true
+        val sent =
+            dispatchCommand(
+                context,
+                commandIntent(ACTION_FORGET_STATE)
+            )
+        Log.i("SleepManager", "Helper pending state forget request: sent=$sent")
+        return sent
     }
 
     fun restoreNow(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
-        context.sendBroadcast(
-            commandIntent(context, ACTION_RESTORE)
-                .putExtra(EXTRA_CYCLE_ID, cycleId)
-        )
-        Log.i("SleepManager", "Helper restore request")
-        return true
+        val sent =
+            dispatchCommand(
+                context,
+                commandIntent(ACTION_RESTORE)
+                    .putExtra(EXTRA_CYCLE_ID, cycleId)
+            )
+        Log.i("SleepManager", "Helper restore request: sent=$sent")
+        return sent
     }
 }
