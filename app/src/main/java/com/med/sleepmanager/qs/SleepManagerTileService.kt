@@ -56,7 +56,7 @@ class SleepManagerTileService : TileService() {
         if (helperNeeded && !HelperController.isInstalled(this)) {
             Toast.makeText(
                 this,
-                "SleepManager helper required for Wi-Fi / Bluetooth",
+                "Helper required for Wi-Fi / Bluetooth.",
                 Toast.LENGTH_SHORT
             ).show()
             return
