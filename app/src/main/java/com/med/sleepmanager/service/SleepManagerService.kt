@@ -1071,7 +1071,7 @@ class SleepManagerService : Service() {
                 RadioController.restoreDirect(this, cycle.cycleId)
             DiagnosticsStateStore.recordEvent(
                 this,
-                "Wake → PServer radios " +
+                "Disable → PServer radios " +
                     if (restored) "restored" else "restore pending"
             )
             if (!restored) {
@@ -3359,7 +3359,7 @@ class SleepManagerService : Service() {
                 RadioController.restoreDirect(this, cycle.cycleId)
             DiagnosticsStateStore.recordEvent(
                 this,
-                "Disable → PServer radios " +
+                "Wake → PServer radios " +
                     if (restored) "restored" else "restore pending"
             )
             if (!restored) {
