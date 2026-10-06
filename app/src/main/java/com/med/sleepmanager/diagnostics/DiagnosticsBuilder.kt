@@ -3,6 +3,7 @@ package com.med.sleepmanager.diagnostics
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import com.med.sleepmanager.device.SysfsAccessCache
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.DiagnosticsCycleStore
@@ -316,6 +317,14 @@ object DiagnosticsBuilder {
             appendLine("- Raw charge_counter: ${batterySnapshot.chargeCounterUah?.let { "$it uAh" } ?: "unavailable"}")
             appendLine("- Raw charge_full: ${batterySnapshot.fullChargeUah?.let { "$it uAh" } ?: "unavailable"}")
             appendLine("- Raw charge_full_design: ${batterySnapshot.designChargeUah?.let { "$it uAh" } ?: "unavailable"}")
+            appendLine(
+                "- Battery capacity sysfs access: " +
+                    SysfsAccessCache.batteryCapacityAccessSummary()
+            )
+            appendLine(
+                "- Input sysfs access: " +
+                    SysfsAccessCache.inputAccessSummary()
+            )
             appendLine(
                 "- Selected full capacity: " +
                     (
