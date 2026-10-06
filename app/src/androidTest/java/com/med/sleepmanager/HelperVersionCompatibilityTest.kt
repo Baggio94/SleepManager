@@ -63,8 +63,15 @@ class HelperVersionCompatibilityTest {
     }
 
     @Test
-    fun helper112_realRoundTripEchoesCycleId_andCompletesMain() {
-        assumeTrue("Requires Helper 1.1.2", helperVersionName() == "1.1.2")
+    fun currentHelper_realRoundTripEchoesCycleId_andCompletesMain() {
+        val expectedVersion =
+            InstrumentationRegistry.getArguments()
+                .getString("expectedHelperVersion")
+        assumeTrue(
+            "Requires current Helper version",
+            !expectedVersion.isNullOrBlank() &&
+                helperVersionName() == expectedVersion
+        )
         runRealRoundTrip(expectCycleId = true)
     }
 
@@ -161,7 +168,7 @@ class HelperVersionCompatibilityTest {
         expectCycleId: Boolean
     ) {
         if (expectCycleId) {
-            assertTrue("Helper 1.1.2 result did not include cycleId", result.hasExtra(HelperController.EXTRA_CYCLE_ID))
+            assertTrue("Current Helper result did not include cycleId", result.hasExtra(HelperController.EXTRA_CYCLE_ID))
             assertEquals(
                 cycleId,
                 result.getLongExtra(HelperController.EXTRA_CYCLE_ID, -1L)
