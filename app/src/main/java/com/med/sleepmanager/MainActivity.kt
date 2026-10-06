@@ -1188,7 +1188,7 @@ class MainActivity : ComponentActivity() {
         ) {
             Toast.makeText(
                 this,
-                "Allow SleepManager Helper background operation first",
+                "Allow Helper background access first.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1221,7 +1221,7 @@ class MainActivity : ComponentActivity() {
         if (helperNeeded && !HelperController.isInstalled(this)) {
             Toast.makeText(
                 this,
-                "Install the SleepManager compatibility helper first",
+                "Install Helper first.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1233,7 +1233,7 @@ class MainActivity : ComponentActivity() {
         ) {
             Toast.makeText(
                 this,
-                "Allow SleepManager Helper background operation first",
+                "Allow Helper background access first.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1437,7 +1437,7 @@ class MainActivity : ComponentActivity() {
         if (!HelperController.isInstalled(this)) {
             Toast.makeText(
                 this,
-                "Install the SleepManager compatibility helper first",
+                "Install Helper first.",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1473,7 +1473,7 @@ class MainActivity : ComponentActivity() {
         }.onSuccess {
             Toast.makeText(
                 this,
-                "Open Wi-Fi control, then allow SleepManager Helper.",
+                "Allow Helper in Wi-Fi control.",
                 Toast.LENGTH_LONG
             ).show()
         }.onFailure {
@@ -1490,7 +1490,7 @@ class MainActivity : ComponentActivity() {
                 pendingExternalNavigation = false
                 Toast.makeText(
                     this,
-                    "Open Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper.",
+                    "Allow Helper in Settings → Wi-Fi control.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -1560,7 +1560,7 @@ class MainActivity : ComponentActivity() {
         if (pendingHelperInstallerReturn) {
             Toast.makeText(
                 this,
-                "If Android warns that the Helper was built for an older Android version, choose More info → Install anyway.",
+                "Older-app warning? More details → Install anyway.",
                 Toast.LENGTH_LONG
             ).show()
         }
