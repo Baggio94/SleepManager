@@ -160,6 +160,7 @@ private class IntegrationUiRow(
         onOpenExternalUrlRequested: (String) -> Unit,
         onOpenAppInfoRequested: () -> Unit,
         onOpenBatteryOptimizationRequested: () -> Unit,
+        onOpenHelperBatteryOptimizationRequested: () -> Unit,
         onOpenHelperWifiControlSettingsRequested: () -> Unit,
         onOpenRaOfflineProxySettingsRequested: () -> Unit,
         onOpenUnusedAppRestrictionsRequested: () -> Unit,
@@ -277,6 +278,17 @@ private class IntegrationUiRow(
         }
         val radioControlReady =
             directRadioControlAvailable || helperInstalled
+        val helperBatteryUnrestricted =
+            remember(refreshToken) {
+                if (
+                    helperInstalled &&
+                    !directRadioControlAvailable
+                ) {
+                    HelperController.isBatteryUnrestricted(context)
+                } else {
+                    true
+                }
+            }
         val helperWifiControlAccess =
             remember(refreshToken) {
                 if (
@@ -813,6 +825,31 @@ private class IntegrationUiRow(
                         visible =
                             !directRadioControlAvailable &&
                                 helperInstalled &&
+                                (wifiEnabled || bluetoothEnabled) &&
+                                !helperBatteryUnrestricted
+                    ) {
+                        InfoCard(
+                            title = stringResource(
+                                R.string.home_helper_background_title
+                            ),
+                            text = stringResource(
+                                R.string.home_helper_background_description
+                            ),
+                            actionLabel = stringResource(
+                                R.string.home_helper_background_action
+                            ),
+                            onAction =
+                                onOpenHelperBatteryOptimizationRequested
+                        )
+                    }
+                }
+
+                item {
+                    AnimatedVisibility(
+                        visible =
+                            !directRadioControlAvailable &&
+                                helperInstalled &&
+                                helperBatteryUnrestricted &&
                                 wifiEnabled &&
                                 helperWifiControlAccess
                                     ?.effectivelyAllowed == false
