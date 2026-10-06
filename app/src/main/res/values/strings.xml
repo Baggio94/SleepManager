@@ -380,6 +380,9 @@
     <string name="home_battery_saver_description">Enable during sleep and restore the previous state on wake.</string>
     <string name="home_helper_not_installed_title">Compatibility helper not installed</string>
     <string name="home_helper_not_installed_description">The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.</string>
+    <string name="home_helper_wifi_control_title">Wi-Fi control access required</string>
+    <string name="home_helper_wifi_control_description">SleepManager Helper is installed, but Android is not allowing it to control Wi-Fi. Open Special app access → Wi-Fi control and allow SleepManager Helper. Some OEM firmware can still show its own Wi-Fi confirmation even when this access is already allowed.</string>
+    <string name="home_helper_wifi_control_action">Open special access</string>
     <string name="home_sleep_behavior">Sleep behavior</string>
     <string name="home_sleep_behavior_description">Control how SleepManager reacts when the screen turns off.</string>
     <string name="home_clamshell_options">Clamshell options</string>
