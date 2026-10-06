@@ -36,6 +36,13 @@
             android:permission="com.med.sleepmanager.helper.permission.CONTROL"
             android:theme="@android:style/Theme.NoDisplay" />
 
+        <service
+            android:name=".HelperCommandServiceV2"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="com.med.sleepmanager.helper.permission.CONTROL"
+            android:stopWithTask="false" />
+
         <receiver
             android:name=".SleepManagerHelperReceiver"
             android:enabled="true"
