@@ -392,6 +392,7 @@
     <string name="home_syncthing_broadcast_reminder">Enable Settings → Behaviour → Service control by broadcast in Syncthing-Fork.</string>
     <string name="home_basicsync_legacy_status">Legacy: STOP → Auto mode</string>
     <string name="home_basicsync_remote_control_modern">Enable Allow remote control in BasicSync. SleepManager will preserve and restore BasicSync\'s previous mode.</string>
+    <string name="home_basicsync_remote_control_required">Allow remote control required</string>
     <string name="home_basicsync_remote_control_legacy">Enable Allow remote control in BasicSync. This BasicSync version uses legacy STOP → Auto mode behavior.</string>
 
     <string name="home_condition_battery_below">Battery below %1$d%%</string>
