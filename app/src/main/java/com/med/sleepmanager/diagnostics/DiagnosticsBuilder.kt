@@ -498,6 +498,16 @@ object DiagnosticsBuilder {
                     }
             )
             appendLine(
+                "- Helper battery optimization: " +
+                    if (helperVersion == null) {
+                        "not installed"
+                    } else if (HelperController.isBatteryUnrestricted(context)) {
+                        "unrestricted"
+                    } else {
+                        "optimized"
+                    }
+            )
+            appendLine(
                 "- Helper Wi-Fi control permission: " +
                     helperWifiControl.permissionGranted
             )
