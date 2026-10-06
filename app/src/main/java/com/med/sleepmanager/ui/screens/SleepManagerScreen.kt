@@ -306,13 +306,9 @@ private class IntegrationUiRow(
             BasicSyncController.supportsStateApi(context)
         val basicSyncReady =
             basicSyncInstalled &&
-                (
-                    !basicSyncStateApi ||
-                        (
-                            uiState.basicSyncReadinessProbeComplete &&
-                                uiState.currentBasicSyncState != null
-                        )
-                )
+                basicSyncStateApi &&
+                uiState.basicSyncReadinessProbeComplete &&
+                uiState.currentBasicSyncState != null
         val raOfflineProxyInstalled = remember(refreshToken) {
             RaOfflineProxyController.isInstalled(context)
         }
