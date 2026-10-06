@@ -247,34 +247,75 @@
 
     .mobile-menu-toggle {
       display: none;
+      position: relative;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       padding: 0;
-      border: 1px solid var(--border);
-      border-radius: 11px;
-      background: var(--surface-low);
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
       color: var(--text);
       cursor: pointer;
+      transition: background-color .18s ease, color .18s ease;
     }
 
-    .mobile-menu-toggle svg {
+    .mobile-menu-toggle:hover,
+    .mobile-menu-toggle[aria-expanded="true"] {
+      background: var(--brand-surface);
+      color: var(--primary);
+    }
+
+    .menu-icon {
+      position: relative;
       width: 22px;
-      height: 22px;
+      height: 16px;
+    }
+
+    .menu-icon span {
+      position: absolute;
+      left: 1px;
+      width: 20px;
+      height: 2px;
+      border-radius: 999px;
+      background: currentColor;
+      transform-origin: center;
+      transition: top .18s ease, transform .18s ease, opacity .14s ease;
+    }
+
+    .menu-icon span:nth-child(1) { top: 1px; }
+    .menu-icon span:nth-child(2) { top: 7px; }
+    .menu-icon span:nth-child(3) { top: 13px; }
+
+    .mobile-menu-toggle[aria-expanded="true"] .menu-icon span:nth-child(1) {
+      top: 7px;
+      transform: rotate(45deg);
+    }
+
+    .mobile-menu-toggle[aria-expanded="true"] .menu-icon span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .mobile-menu-toggle[aria-expanded="true"] .menu-icon span:nth-child(3) {
+      top: 7px;
+      transform: rotate(-45deg);
     }
 
     .mobile-menu {
       position: absolute;
-      top: calc(100% - 1px);
+      top: 100%;
+      left: 0;
       right: 0;
       z-index: 20;
-      min-width: 220px;
-      padding: 8px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--surface-container);
-      box-shadow: 0 14px 34px rgba(0, 0, 0, .14);
+      padding: 8px 0 12px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      border-radius: 0 0 16px 16px;
+      background: var(--header);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, .10);
     }
 
     .mobile-menu[hidden] {
@@ -282,9 +323,11 @@
     }
 
     .mobile-menu a {
-      display: block;
-      padding: 10px 12px;
-      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 9px 12px;
+      border-radius: 10px;
       color: var(--text);
       text-decoration: none;
       font-size: .95rem;
@@ -292,8 +335,12 @@
     }
 
     .mobile-menu a:hover {
-      background: var(--surface-high);
+      background: var(--brand-surface);
       color: var(--primary);
+    }
+
+    .mobile-menu a + a {
+      margin-top: 2px;
     }
 
 
@@ -849,7 +896,7 @@
       .brand { gap: 8px; }
       .brand img { width: 30px; height: 30px; }
       .brand-name { font-size: .95rem; }
-      .brand-tagline { display: none; }
+      .brand-tagline { margin-top: 3px; font-size: .60rem; }
       .navlinks { display: none; }
       h1 { font-size: clamp(2.2rem, 9vw, 3.5rem); }
       .hero-identity { gap: 10px 12px; margin-bottom: 22px; }
@@ -862,6 +909,16 @@
       .integration-logo img,
       .integration-logo svg { width: 38px; height: 38px; }
       .integration-logo.tailscale svg { width: 36px; height: 36px; }
+    }
+
+    @media (max-width: 360px) {
+      .wrap { width: min(var(--max), calc(100% - 22px)); }
+      nav { gap: 8px; }
+      .brand { gap: 7px; }
+      .brand img { width: 28px; height: 28px; }
+      .brand-name { font-size: .91rem; }
+      .brand-tagline { font-size: .56rem; }
+      .mobile-menu-toggle { width: 40px; height: 40px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -895,9 +952,11 @@
           </div>
 
           <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+            <span class="menu-icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
           </button>
         </div>
 
