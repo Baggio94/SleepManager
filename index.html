@@ -94,6 +94,7 @@
       --outline: #797A83;
       --border: rgba(93, 95, 103, .24);
       --header: rgba(250, 248, 255, .90);
+      --header-mobile: rgba(250, 248, 255, .97);
       --quote: #2F3036;
       --brand-surface: #E9EDFA;
       --brand-border: #C8D2EC;
@@ -121,6 +122,7 @@
       --outline: #8A90A5;
       --border: rgba(138, 144, 165, .28);
       --header: rgba(18, 19, 24, .90);
+      --header-mobile: rgba(18, 19, 24, .97);
       --quote: #E4E1E9;
       --brand-surface: #1C2538;
       --brand-border: #354B74;
@@ -222,10 +224,18 @@
       white-space: nowrap;
     }
 
+    .nav-start {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
     .nav-right {
       display: flex;
       align-items: center;
       gap: 18px;
+      margin-left: auto;
     }
 
     .navlinks {
@@ -312,9 +322,9 @@
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
       border-radius: 0 0 16px 16px;
-      background: var(--header);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: var(--header-mobile);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 14px 28px rgba(0, 0, 0, .10);
     }
 
@@ -866,9 +876,17 @@
     }
 
     @media (max-width: 920px) {
+      header {
+        background: var(--header-mobile);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
       nav { position: relative; }
+      .nav-start { gap: 6px; }
+      .nav-right { display: none; }
       .navlinks { display: none; }
-      .mobile-menu-toggle { display: inline-flex; }
+      .mobile-menu-toggle { display: inline-flex; flex: 0 0 auto; }
       .mobile-menu:not([hidden]) { display: block; }
     }
 
@@ -891,9 +909,14 @@
 
     @media (max-width: 600px) {
       .wrap { width: min(var(--max), calc(100% - 28px)); }
-      .nav-right { gap: 9px; }
       nav { gap: 12px; }
       .brand { gap: 8px; }
+      .mobile-menu {
+        left: -14px;
+        right: -14px;
+        padding-left: 14px;
+        padding-right: 14px;
+      }
       .brand img { width: 30px; height: 30px; }
       .brand-name { font-size: .95rem; }
       .brand-tagline { margin-top: 3px; font-size: .60rem; }
@@ -914,6 +937,12 @@
     @media (max-width: 360px) {
       .wrap { width: min(var(--max), calc(100% - 22px)); }
       nav { gap: 8px; }
+      .mobile-menu {
+        left: -11px;
+        right: -11px;
+        padding-left: 11px;
+        padding-right: 11px;
+      }
       .brand { gap: 7px; }
       .brand img { width: 28px; height: 28px; }
       .brand-name { font-size: .91rem; }
@@ -934,13 +963,24 @@
   <header>
     <div class="wrap">
       <nav aria-label="Main navigation">
-        <a class="brand" href="#">
-          <img src="assets/sleepmanager.png" width="32" height="32" alt="">
-          <span class="brand-copy">
-            <span class="brand-name">SleepManager</span>
-            <span class="brand-tagline">Quiet on sleep. Ready on wake.</span>
-          </span>
-        </a>
+        <div class="nav-start">
+          <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+            <span class="menu-icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
+
+          <a class="brand" href="#">
+            <img src="assets/sleepmanager.png" width="32" height="32" alt="">
+            <span class="brand-copy">
+              <span class="brand-name">SleepManager</span>
+              <span class="brand-tagline">Quiet on sleep. Ready on wake.</span>
+            </span>
+          </a>
+        </div>
+
         <div class="nav-right">
           <div class="navlinks">
             <a href="#features">Features</a>
@@ -950,14 +990,6 @@
             <a href="#setup">Setup</a>
             <a href="https://github.com/Baggio94/SleepManager" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
           </div>
-
-          <button class="mobile-menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
-            <span class="menu-icon" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-          </button>
         </div>
 
         <div class="mobile-menu" id="mobile-menu" hidden>
