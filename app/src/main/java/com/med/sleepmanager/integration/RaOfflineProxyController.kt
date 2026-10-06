@@ -10,12 +10,8 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyCommandResult
-import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
-import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueStatus
-import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardState
-import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardsStatus
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatus
-import org.json.JSONObject
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatusParser
 
 /**
  * Thin Android adapter around RAOfflineProxy's documented Automation API.
@@ -161,53 +157,8 @@ object RaOfflineProxyController {
         }
     }
 
-    internal fun parseStatus(raw: String?): RaOfflineProxyStatus? {
-        if (raw.isNullOrBlank()) return null
-
-        return runCatching {
-            val json = JSONObject(raw)
-            val queue = json.optJSONObject("queue") ?: JSONObject()
-            val nextWindowAt =
-                if (queue.isNull("nextWindowAt")) {
-                    null
-                } else {
-                    queue.optLong("nextWindowAt")
-                }
-            val pendingAwards =
-                json.optJSONObject("pendingAwards")?.let { pending ->
-                    RaOfflineProxyPendingAwardsStatus(
-                        count = pending.optInt("count", 0),
-                        state =
-                            RaOfflineProxyPendingAwardState.fromWire(
-                                pending.optString("state", null)
-                            ),
-                        error =
-                            pending.optString("error", null)
-                                ?.takeUnless { it.isBlank() || it == "null" }
-                    )
-                }
-
-            RaOfflineProxyStatus(
-                version = json.optInt("version", -1),
-                running = json.optBoolean("running", false),
-                shouldBeRunning =
-                    json.optBoolean("shouldBeRunning", false),
-                online = json.optBoolean("online", false),
-                queue =
-                    RaOfflineProxyQueueStatus(
-                        count = queue.optInt("count", 0),
-                        state =
-                            RaOfflineProxyQueueState.fromWire(
-                                queue.optString("state", null)
-                            ),
-                        nextWindowAt = nextWindowAt
-                    ),
-                pendingAwards = pendingAwards
-            )
-        }.onFailure {
-            Log.w(TAG, "Invalid RAOfflineProxy status payload", it)
-        }.getOrNull()
-    }
+    internal fun parseStatus(raw: String?): RaOfflineProxyStatus? =
+        RaOfflineProxyStatusParser.parse(raw)
 
     private fun command(
         context: Context,
