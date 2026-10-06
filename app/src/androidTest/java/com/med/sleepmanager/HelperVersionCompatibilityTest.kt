@@ -171,6 +171,86 @@ class HelperVersionCompatibilityTest {
         }
     }
 
+    @Test
+    fun currentHelper_reconcilesStaleActiveCycleOnNewerRestore() {
+        val expectedVersion =
+            InstrumentationRegistry.getArguments()
+                .getString("expectedHelperVersion")
+        assumeTrue(
+            "Requires current Helper version",
+            !expectedVersion.isNullOrBlank() &&
+                helperVersionName() == expectedVersion
+        )
+
+        val results = LinkedBlockingQueue<Intent>()
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                    if (intent?.action == HelperController.resultAction(context)) {
+                        results.offer(Intent(intent))
+                    }
+                }
+            }
+
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(HelperController.resultAction(context)),
+            HelperController.responsePermission(context),
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+
+        try {
+            val staleCycleId = 51L
+            val newerMainCycleId = 52L
+
+            assertTrue(
+                HelperController.sendSleep(
+                    context = context,
+                    wifi = false,
+                    bluetooth = false,
+                    cycleId = staleCycleId
+                )
+            )
+            val sleepResult =
+                awaitPhaseForCycle(
+                    results,
+                    HelperController.PHASE_SLEEP,
+                    staleCycleId
+                )
+            assertEquals(
+                HelperController.STATUS_OK,
+                sleepResult.getStringExtra(HelperController.EXTRA_STATUS)
+            )
+
+            assertTrue(
+                HelperController.restoreNow(
+                    context,
+                    newerMainCycleId
+                )
+            )
+            val wakeResult =
+                awaitPhaseForCycle(
+                    results,
+                    HelperController.PHASE_WAKE,
+                    newerMainCycleId
+                )
+            assertTrue(
+                wakeResult.getBooleanExtra(
+                    HelperController.EXTRA_RESTORE_SUCCESS,
+                    false
+                )
+            )
+            assertEquals(
+                HelperController.STATUS_ALREADY_RESTORED,
+                wakeResult.getStringExtra(HelperController.EXTRA_STATUS)
+            )
+        } finally {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
     private fun runRealRoundTrip(expectCycleId: Boolean) {
         AppPreferences.setSetupComplete(context, true)
         AppPreferences.setEnabled(context, true)
@@ -272,6 +352,27 @@ class HelperVersionCompatibilityTest {
         } else {
             assertFalse("Helper 1.1.1 unexpectedly returned cycleId", result.hasExtra(HelperController.EXTRA_CYCLE_ID))
         }
+    }
+
+    private fun awaitPhaseForCycle(
+        queue: LinkedBlockingQueue<Intent>,
+        phase: String,
+        cycleId: Long
+    ): Intent {
+        val deadline = SystemClock.elapsedRealtime() + 8_000L
+        while (SystemClock.elapsedRealtime() < deadline) {
+            val remaining =
+                (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1L)
+            val result = queue.poll(remaining, TimeUnit.MILLISECONDS) ?: break
+            if (
+                result.getStringExtra(HelperController.EXTRA_PHASE) == phase &&
+                result.getLongExtra(HelperController.EXTRA_CYCLE_ID, -1L) ==
+                    cycleId
+            ) {
+                return result
+            }
+        }
+        error("Timed out waiting for Helper phase=$phase cycle=$cycleId")
     }
 
     private fun awaitPhase(
