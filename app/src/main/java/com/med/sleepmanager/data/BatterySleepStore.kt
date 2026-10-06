@@ -5,9 +5,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.SystemClock
+import com.med.sleepmanager.device.SysfsAccessCache
 import com.med.sleepmanager.rules.BatteryCapacityPolicy
 import com.med.sleepmanager.rules.BatteryCapacitySelection
-import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.max
@@ -204,10 +204,10 @@ object BatterySleepStore {
             charging = charging,
             externalPowerConnected = plugged != 0,
             chargeCounterUah = chargeCounter,
-            fullChargeUah = readChargeUahFromSysfs(
+            fullChargeUah = SysfsAccessCache.readPositiveLong(
                 "/sys/class/power_supply/battery/charge_full"
             ),
-            designChargeUah = readChargeUahFromSysfs(
+            designChargeUah = SysfsAccessCache.readPositiveLong(
                 "/sys/class/power_supply/battery/charge_full_design"
             )
         )
@@ -704,13 +704,4 @@ object BatterySleepStore {
     private fun estimateCapacityMah(snapshot: BatterySnapshot): Double? =
         bestCapacityUah(snapshot)?.div(1000.0)
 
-    private fun readChargeUahFromSysfs(path: String): Long? =
-        runCatching {
-            File(path)
-                .takeIf { it.canRead() }
-                ?.readText()
-                ?.trim()
-                ?.toLongOrNull()
-                ?.takeIf { it > 0L }
-        }.getOrNull()
 }
