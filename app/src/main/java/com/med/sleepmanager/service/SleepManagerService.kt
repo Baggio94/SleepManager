@@ -92,6 +92,8 @@ class SleepManagerService : Service() {
         private const val SYNC_STOP_POLL_INTERVAL_MS = 250L
         private const val SYNC_STOP_TIMEOUT_MS = 5_000L
         private const val BASIC_SYNC_FRESH_STATE_TIMEOUT_MS = 1_500L
+        private const val BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS = 250L
+        private const val BASIC_SYNC_WAKE_RESTORE_CONFIRM_TIMEOUT_MS = 5_000L
         private const val BASIC_SYNC_ACTIVE_FINISH_TIMEOUT_MS = 120_000L
         private const val BASIC_SYNC_ACTIVE_FINISH_POLL_MS = 500L
         private const val BASIC_SYNC_IDLE_STABILITY_MS = 3_000L
@@ -173,6 +175,11 @@ class SleepManagerService : Service() {
     private val deviceControlRestoreRetryState =
         DeviceControlRestoreRetryState()
     private val disableRestoreState = DisableRestoreRuntimeState()
+
+    private var basicSyncWakeRestoreStartedAt = 0L
+    private val basicSyncWakeRestoreRunnable = Runnable {
+        verifyPendingBasicSyncRestore()
+    }
 
     private val ownedBasicSyncRestoreRunnable = Runnable {
         maybeRestoreOwnedBasicSyncState()
@@ -1294,6 +1301,7 @@ class SleepManagerService : Service() {
     }
 
     private fun onScreenOff() {
+        resetBasicSyncWakeRestoreConfirmation()
         closedLidState.clearSleepRequestPending()
 
         if (sleepCycleRuntimeState.consumeFalseWakeResleepPending()) {
@@ -3050,26 +3058,24 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun resetBasicSyncWakeRestoreConfirmation() {
+        handler.removeCallbacks(basicSyncWakeRestoreRunnable)
+        basicSyncWakeRestoreStartedAt = 0L
+    }
+
     private fun restorePendingBasicSync() {
         val change =
             SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
-                ?: return
+                ?: run {
+                    resetBasicSyncWakeRestoreConfirmation()
+                    return
+                }
 
         val wakeResult =
             BasicSyncConnector.wake(this, change.restoreToken)
 
-        if (wakeResult.success) {
-            val restoreTarget =
-                BasicSyncConnector.restoreTargetName(change.restoreToken)
-            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
-            if (!disableRestoreState.isRequested) {
-                DiagnosticsStateStore.recordEvent(
-                    this,
-                    "Wake → BasicSync restored · $restoreTarget"
-                )
-            }
-            Log.i(TAG, "BasicSync restore sent: $restoreTarget")
-        } else {
+        if (!wakeResult.success) {
+            resetBasicSyncWakeRestoreConfirmation()
             SleepCycleStore.markRestoreProblem(
                 this,
                 "BasicSync restore is still pending: ${wakeResult.detail}."
@@ -3083,7 +3089,115 @@ class SleepManagerService : Service() {
                 }
             )
             Log.w(TAG, "BasicSync restore failed; preserving transaction")
+            return
         }
+
+        val restoreTarget =
+            BasicSyncConnector.restoreTargetName(change.restoreToken)
+
+        if (!BasicSyncController.supportsStateApi(this)) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+            if (!disableRestoreState.isRequested) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Wake → BasicSync restored · $restoreTarget"
+                )
+            }
+            Log.i(
+                TAG,
+                "BasicSync restore sent without state API confirmation: $restoreTarget"
+            )
+            return
+        }
+
+        BasicSyncController.startStateObserver(this)
+        resetBasicSyncWakeRestoreConfirmation()
+        basicSyncWakeRestoreStartedAt = System.currentTimeMillis()
+        BasicSyncController.requestStateBroadcast(this)
+        handler.postDelayed(
+            basicSyncWakeRestoreRunnable,
+            BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS
+        )
+        Log.i(
+            TAG,
+            "BasicSync restore sent: $restoreTarget; awaiting state confirmation"
+        )
+    }
+
+    private fun verifyPendingBasicSyncRestore() {
+        val change =
+            SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
+                ?: run {
+                    resetBasicSyncWakeRestoreConfirmation()
+                    return
+                }
+
+        val restoreTarget =
+            BasicSyncConnector.restoreTargetName(change.restoreToken)
+        val state = BasicSyncController.lastObservedState()
+
+        if (
+            BasicSyncConnector.restoreConfirmed(
+                change.restoreToken,
+                state
+            )
+        ) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+            resetBasicSyncWakeRestoreConfirmation()
+
+            if (!disableRestoreState.isRequested) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Wake → BasicSync restored · $restoreTarget"
+                )
+            }
+            Log.i(
+                TAG,
+                "BasicSync restore confirmed: $restoreTarget " +
+                    "runState=${state?.runState}"
+            )
+            SleepCycleStore.completeIfRestored(this)
+            finishDisableRestoreIfRequested()
+            return
+        }
+
+        val startedAt =
+            basicSyncWakeRestoreStartedAt.takeIf { it > 0L }
+                ?: System.currentTimeMillis().also {
+                    basicSyncWakeRestoreStartedAt = it
+                }
+        val elapsed = System.currentTimeMillis() - startedAt
+
+        if (elapsed >= BASIC_SYNC_WAKE_RESTORE_CONFIRM_TIMEOUT_MS) {
+            resetBasicSyncWakeRestoreConfirmation()
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "BasicSync restore is still pending: $restoreTarget was not confirmed."
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                if (disableRestoreState.isRequested) {
+                    "Disable → BasicSync restore pending · $restoreTarget not confirmed"
+                } else {
+                    "Wake → BasicSync restore pending · $restoreTarget not confirmed"
+                }
+            )
+            Log.w(
+                TAG,
+                "BasicSync restore not confirmed; preserving transaction " +
+                    "target=$restoreTarget state=$state"
+            )
+            finishDisableRestoreIfRequested(
+                forceStop = disableRestoreState.isRequested
+            )
+            return
+        }
+
+        BasicSyncController.requestStateBroadcast(this)
+        handler.postDelayed(
+            basicSyncWakeRestoreRunnable,
+            BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS
+        )
     }
 
     private fun hasPendingNetworkConnectorRestore(): Boolean {
@@ -4485,6 +4599,7 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(closedLidGuardRunnable)
         handler.removeCallbacks(closedLidScreenOnRecheckRunnable)
         handler.removeCallbacks(dockDisconnectRunnable)
+        resetBasicSyncWakeRestoreConfirmation()
         handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
         handler.removeCallbacks(ownedDeviceControlRestoreRunnable)
         handler.removeCallbacks(helperRestoreRetryRunnable)

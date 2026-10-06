@@ -9,6 +9,8 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import java.net.InetSocketAddress
+import java.net.Socket
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyCommandResult
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatus
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatusParser
@@ -38,6 +40,7 @@ object RaOfflineProxyController {
     private const val METHOD_STOP = "stop"
     private const val EXTRA_RESULT = "result"
     private const val EXTRA_STATUS = "status"
+    private const val COLUMN_PROXY_PORT = "proxy_port"
 
     val URI: Uri = Uri.parse("content://$AUTHORITY")
 
@@ -113,6 +116,51 @@ object RaOfflineProxyController {
         }.getOrNull()?.also {
             cachedStatus = it
         }
+
+    fun proxyPort(context: Context): Int? =
+        runCatching {
+            context.contentResolver
+                .query(
+                    URI,
+                    arrayOf(COLUMN_PROXY_PORT),
+                    null,
+                    null,
+                    null
+                )
+                ?.use { cursor ->
+                    if (!cursor.moveToFirst()) {
+                        null
+                    } else {
+                        val index = cursor.getColumnIndex(COLUMN_PROXY_PORT)
+                        if (index < 0) {
+                            null
+                        } else {
+                            cursor.getInt(index)
+                                .takeIf { it in 1..65_535 }
+                        }
+                    }
+                }
+        }.onFailure {
+            Log.w(TAG, "proxy port query failed", it)
+        }.getOrNull()
+
+    fun isProxyEndpointReachable(
+        context: Context,
+        timeoutMs: Int = 350
+    ): Boolean {
+        val port = proxyPort(context) ?: return false
+        val safeTimeoutMs = timeoutMs.coerceIn(50, 2_000)
+
+        return runCatching {
+            Socket().use { socket ->
+                socket.connect(
+                    InetSocketAddress("127.0.0.1", port),
+                    safeTimeoutMs
+                )
+            }
+            true
+        }.getOrDefault(false)
+    }
 
     fun start(context: Context): RaOfflineProxyCommandResult =
         command(context, METHOD_START)
