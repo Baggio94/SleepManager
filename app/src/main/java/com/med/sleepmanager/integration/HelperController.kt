@@ -2,6 +2,7 @@ package com.med.sleepmanager.integration
 
 import android.Manifest
 import android.app.AppOpsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -25,6 +26,8 @@ object HelperController {
     private val ACTION_QUERY = HelperProtocol.ACTION_QUERY
     private val ACTION_FORGET_STATE = HelperProtocol.ACTION_FORGET_STATE
     private val ACTION_SET_TEMP_WIFI = HelperProtocol.ACTION_SET_TEMP_WIFI
+    private val HELPER_RECEIVER =
+        ComponentName(PACKAGE, HelperProtocol.HELPER_RECEIVER_CLASS)
     @JvmField val ACTION_STATE = HelperProtocol.ACTION_STATE
     @JvmField val ACTION_RESULT = HelperProtocol.ACTION_RESULT
 
@@ -139,6 +142,11 @@ object HelperController {
         )
     }
 
+    private fun commandIntent(action: String): Intent =
+        Intent(action)
+            .setComponent(HELPER_RECEIVER)
+            .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+
     fun sendSleep(
         context: Context,
         wifi: Boolean,
@@ -146,9 +154,7 @@ object HelperController {
         cycleId: Long
     ): Boolean {
         if (!isInstalled(context)) return false
-        val intent = Intent(ACTION_SLEEP)
-            .setPackage(PACKAGE)
-            .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+        val intent = commandIntent(ACTION_SLEEP)
             .putExtra(EXTRA_WIFI, wifi)
             .putExtra(EXTRA_BLUETOOTH, bluetooth)
             .putExtra(EXTRA_CYCLE_ID, cycleId)
@@ -160,9 +166,7 @@ object HelperController {
     fun sendWake(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            Intent(ACTION_WAKE)
-                .setPackage(PACKAGE)
-                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+            commandIntent(ACTION_WAKE)
                 .putExtra(EXTRA_CYCLE_ID, cycleId),
             PERMISSION
         )
@@ -174,9 +178,7 @@ object HelperController {
     fun setTemporaryWifi(context: Context, enabled: Boolean): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            Intent(ACTION_SET_TEMP_WIFI)
-                .setPackage(PACKAGE)
-                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+            commandIntent(ACTION_SET_TEMP_WIFI)
                 .putExtra(EXTRA_WIFI, enabled),
             PERMISSION
         )
@@ -187,9 +189,7 @@ object HelperController {
     fun requestState(context: Context): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            Intent(ACTION_QUERY)
-                .setPackage(PACKAGE)
-                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES),
+            commandIntent(ACTION_QUERY),
             PERMISSION
         )
         Log.i("SleepManager", "Helper state query")
@@ -199,9 +199,7 @@ object HelperController {
     fun forgetPendingState(context: Context): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            Intent(ACTION_FORGET_STATE)
-                .setPackage(PACKAGE)
-                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES),
+            commandIntent(ACTION_FORGET_STATE),
             PERMISSION
         )
         Log.i("SleepManager", "Helper pending state forget request")
@@ -211,9 +209,7 @@ object HelperController {
     fun restoreNow(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            Intent(ACTION_RESTORE)
-                .setPackage(PACKAGE)
-                .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+            commandIntent(ACTION_RESTORE)
                 .putExtra(EXTRA_CYCLE_ID, cycleId),
             PERMISSION
         )
