@@ -270,6 +270,14 @@ class MainActivity : ComponentActivity() {
             uiViewModel.update { it.copy(currentBasicSyncState = value) }
         }
 
+    internal var basicSyncReadinessProbeComplete: Boolean
+        get() = uiState.basicSyncReadinessProbeComplete
+        set(value) {
+            uiViewModel.update {
+                it.copy(basicSyncReadinessProbeComplete = value)
+            }
+        }
+
     internal var currentRaOfflineProxyStatus: RaOfflineProxyStatus?
         get() = uiState.currentRaOfflineProxyStatus
         set(value) {
@@ -306,6 +314,8 @@ class MainActivity : ComponentActivity() {
 
     @Volatile
     private var syncthingStateProbeRunning = false
+    @Volatile
+    private var basicSyncReadinessProbeRunning = false
     @Volatile
     private var raOfflineProxyStateProbeRunning = false
     @Volatile
@@ -387,16 +397,42 @@ class MainActivity : ComponentActivity() {
                 null
             }
 
-        currentBasicSyncState =
-            if (
-                BasicSyncController.isInstalled(this) &&
-                BasicSyncController.supportsStateApi(this)
-            ) {
-                BasicSyncController.startStateObserver(this)
+        if (
+            BasicSyncController.isInstalled(this) &&
+            BasicSyncController.supportsStateApi(this)
+        ) {
+            BasicSyncController.startStateObserver(this)
+            currentBasicSyncState =
                 BasicSyncController.lastObservedState()
-            } else {
-                null
+
+            if (
+                !basicSyncReadinessProbeComplete &&
+                !basicSyncReadinessProbeRunning
+            ) {
+                basicSyncReadinessProbeRunning = true
+                val appContext = applicationContext
+                Thread {
+                    val state =
+                        BasicSyncController.requestState(
+                            appContext,
+                            1_750L
+                        )
+                    runOnUiThread {
+                        currentBasicSyncState = state
+                        basicSyncReadinessProbeComplete = true
+                        basicSyncReadinessProbeRunning = false
+                        activityRefreshToken++
+                    }
+                }.apply {
+                    name = "SleepManagerBasicSyncReadiness"
+                    isDaemon = true
+                    start()
+                }
             }
+        } else {
+            currentBasicSyncState = null
+            basicSyncReadinessProbeComplete = true
+        }
 
         if (!RaOfflineProxyController.isInstalled(this)) {
             currentRaOfflineProxyStatus = null
@@ -847,6 +883,10 @@ class MainActivity : ComponentActivity() {
         super.onResume()
 
         pendingExternalNavigation = false
+        // Re-check the explicit REQUEST_STATE/STATE_CHANGED contract after
+        // returning from BasicSync settings; this is the authoritative remote
+        // control readiness signal.
+        basicSyncReadinessProbeComplete = false
 
         if (pendingPackageInstallerReturn) {
             pendingPackageInstallerReturn = false
