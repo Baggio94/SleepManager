@@ -704,12 +704,10 @@ class SleepManagerService : Service() {
                         waitForNetworkAndRestorePendingConnectors()
                         maybeStartWakeTransitionSync()
                     } else {
-                        if (
-                            !disableRestoreState.isRequested &&
-                            !SleepCycleStore.hasPendingConnectorChanges(
-                                this@SleepManagerService
-                            )
-                        ) {
+                        if (!disableRestoreState.isRequested) {
+                            // The Helper result is authoritative for radio restoration.
+                            // Log it immediately even while independent connector restores
+                            // (for example BasicSync or RAOfflineProxy) are still pending.
                             DiagnosticsStateStore.recordEvent(
                                 this@SleepManagerService,
                                 buildWakeSummary(
