@@ -4463,11 +4463,15 @@ class SleepManagerService : Service() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         }
+        // SCREEN_ON/OFF and power connection changes are framework broadcasts.
+        // Android 13+ requires an exported context receiver for broadcasts that
+        // originate outside this app. These actions are system-defined and the
+        // receiver still ignores every action outside the explicit filter above.
         ContextCompat.registerReceiver(
             this,
             screenReceiver,
             filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            ContextCompat.RECEIVER_EXPORTED
         )
         receiverRegistered = true
     }
