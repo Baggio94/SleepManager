@@ -36,7 +36,7 @@
     <string name="raofflineproxy_queue_waiting">Waiting · %1$d queued</string>
     <string name="raofflineproxy_queue_blocked">Queue blocked</string>
     <string name="raofflineproxy_app_settings">App settings</string>
-    <string name="raofflineproxy_unrestricted_hint">Open Battery in RAOfflineProxy app info and set battery usage to Unrestricted.</string>
+    <string name="raofflineproxy_unrestricted_hint">Set RAOfflineProxy battery usage to Unrestricted.</string>
     <string name="quick_setup_integration_detected">✓ %1$s detected</string>
     <string name="quick_setup_named_integration_detected">✓ %1$s detected</string>
     <string name="quick_setup_named_integration_detected_with_version">✓ %1$s • %2$s detected</string>
@@ -163,8 +163,8 @@
     <string name="about_main_apk_verified">APK verified. Opening Android installer…</string>
     <string name="about_helper_name">SleepManager Helper</string>
     <string name="about_helper_version">SleepManager Helper %1$s</string>
-    <string name="about_download_verify_install_helper_wifi_bluetooth">Download, verify and install the signed Helper for Wi-Fi and Bluetooth. On newer Android versions, the older-app warning is expected: choose More info → Install anyway if Android requires it.</string>
-    <string name="about_helper_install_anyway_reminder">Compatibility Helper is still not installed. If Android showed the older-app warning, choose More info → Install anyway.</string>
+    <string name="about_download_verify_install_helper_wifi_bluetooth">Required for Wi-Fi and Bluetooth. Older-app warning? More details → Install anyway.</string>
+    <string name="about_helper_install_anyway_reminder">Helper not installed — More details → Install anyway.</string>
     <string name="about_download_verify_install_helper">Download, verify and install the signed Helper APK.</string>
     <string name="about_preparing_helper">Preparing SleepManager Helper…</string>
     <string name="about_downloading_helper">Downloading SleepManager Helper %1$s…</string>
@@ -396,11 +396,11 @@
     <string name="home_supported_apps">Supported apps</string>
 
     <string name="home_syncthing_fork">Syncthing‑Fork</string>
-    <string name="home_syncthing_broadcast_reminder">Enable Settings → Behaviour → Service control by broadcast in Syncthing-Fork.</string>
+    <string name="home_syncthing_broadcast_reminder">Enable “Service control by broadcast” in Syncthing.</string>
     <string name="home_basicsync_legacy_status">Legacy: STOP → Auto mode</string>
-    <string name="home_basicsync_remote_control_modern">Enable Allow remote control in BasicSync. SleepManager will preserve and restore BasicSync\'s previous mode.</string>
+    <string name="home_basicsync_remote_control_modern">Enable “Allow remote control” in BasicSync.</string>
     <string name="home_basicsync_remote_control_required">Allow remote control required</string>
-    <string name="home_basicsync_remote_control_legacy">Enable Allow remote control in BasicSync. This BasicSync version uses legacy STOP → Auto mode behavior.</string>
+    <string name="home_basicsync_remote_control_legacy">Enable “Allow remote control” in BasicSync.</string>
 
     <string name="home_condition_battery_below">Battery below %1$d%%</string>
     <string name="home_condition_not_charging">Device is not charging</string>
