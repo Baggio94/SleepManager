@@ -22,6 +22,7 @@ data class HelperWifiControlAccess(
 object HelperController {
     @JvmField val PACKAGE = HelperProtocol.HELPER_PACKAGE
     @JvmField val PERMISSION = HelperProtocol.PERMISSION
+    @JvmField val PERMISSION_V2 = HelperProtocol.PERMISSION_V2
 
     private val ACTION_SLEEP = HelperProtocol.ACTION_SLEEP
     private val ACTION_WAKE = HelperProtocol.ACTION_WAKE
@@ -33,8 +34,14 @@ object HelperController {
         ComponentName(PACKAGE, HelperProtocol.HELPER_RECEIVER_CLASS)
     private val HELPER_ACTIVATION =
         ComponentName(PACKAGE, HelperProtocol.HELPER_ACTIVATION_ACTIVITY_CLASS)
+    private val HELPER_RECEIVER_V2 =
+        ComponentName(PACKAGE, HelperProtocol.HELPER_RECEIVER_V2_CLASS)
+    private val HELPER_ACTIVATION_V2 =
+        ComponentName(PACKAGE, HelperProtocol.HELPER_ACTIVATION_ACTIVITY_V2_CLASS)
     @JvmField val ACTION_STATE = HelperProtocol.ACTION_STATE
     @JvmField val ACTION_RESULT = HelperProtocol.ACTION_RESULT
+    @JvmField val ACTION_STATE_V2 = HelperProtocol.ACTION_STATE_V2
+    @JvmField val ACTION_RESULT_V2 = HelperProtocol.ACTION_RESULT_V2
 
     private val EXTRA_WIFI = HelperProtocol.EXTRA_WIFI
     private val EXTRA_BLUETOOTH = HelperProtocol.EXTRA_BLUETOOTH
@@ -73,6 +80,45 @@ object HelperController {
             false
         }
     }
+
+    private fun helperVersionCode(context: Context): Long =
+        runCatching {
+            context.packageManager.getPackageInfo(PACKAGE, 0).longVersionCode
+        }.getOrDefault(0L)
+
+    private fun ownerStablePermissionGranted(context: Context): Boolean =
+        context.packageManager.checkPermission(
+            PERMISSION_V2,
+            context.packageName
+        ) == PackageManager.PERMISSION_GRANTED
+
+    fun usesOwnerStableProtocol(context: Context): Boolean =
+        helperVersionCode(context) >=
+            HelperProtocol.HELPER_PROTOCOL_V2_MIN_VERSION_CODE &&
+            ownerStablePermissionGranted(context)
+
+    fun responsePermission(context: Context): String =
+        if (usesOwnerStableProtocol(context)) PERMISSION_V2 else PERMISSION
+
+    fun stateAction(context: Context): String =
+        if (usesOwnerStableProtocol(context)) ACTION_STATE_V2 else ACTION_STATE
+
+    fun resultAction(context: Context): String =
+        if (usesOwnerStableProtocol(context)) ACTION_RESULT_V2 else ACTION_RESULT
+
+    private fun commandReceiver(context: Context): ComponentName =
+        if (usesOwnerStableProtocol(context)) {
+            HELPER_RECEIVER_V2
+        } else {
+            HELPER_RECEIVER
+        }
+
+    private fun activationActivity(context: Context): ComponentName =
+        if (usesOwnerStableProtocol(context)) {
+            HELPER_ACTIVATION_V2
+        } else {
+            HELPER_ACTIVATION
+        }
 
     fun isBatteryUnrestricted(context: Context): Boolean {
         if (!isInstalled(context)) return false
@@ -171,7 +217,7 @@ object HelperController {
         runCatching {
             context.startActivity(
                 Intent()
-                    .setComponent(HELPER_ACTIVATION)
+                    .setComponent(activationActivity(context))
                     .addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                             Intent.FLAG_ACTIVITY_NO_ANIMATION or
@@ -188,9 +234,12 @@ object HelperController {
         }
     }
 
-    private fun commandIntent(action: String): Intent =
+    private fun commandIntent(
+        context: Context,
+        action: String
+    ): Intent =
         Intent(action)
-            .setComponent(HELPER_RECEIVER)
+            .setComponent(commandReceiver(context))
             .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
 
     fun sendSleep(
@@ -200,7 +249,7 @@ object HelperController {
         cycleId: Long
     ): Boolean {
         if (!isInstalled(context)) return false
-        val intent = commandIntent(ACTION_SLEEP)
+        val intent = commandIntent(context, ACTION_SLEEP)
             .putExtra(EXTRA_WIFI, wifi)
             .putExtra(EXTRA_BLUETOOTH, bluetooth)
             .putExtra(EXTRA_CYCLE_ID, cycleId)
@@ -212,9 +261,9 @@ object HelperController {
     fun sendWake(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            commandIntent(ACTION_WAKE)
+            commandIntent(context, ACTION_WAKE)
                 .putExtra(EXTRA_CYCLE_ID, cycleId),
-            PERMISSION
+            responsePermission(context)
         )
         Log.i("SleepManager", "Helper wake request")
         return true
@@ -224,9 +273,9 @@ object HelperController {
     fun setTemporaryWifi(context: Context, enabled: Boolean): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            commandIntent(ACTION_SET_TEMP_WIFI)
+            commandIntent(context, ACTION_SET_TEMP_WIFI)
                 .putExtra(EXTRA_WIFI, enabled),
-            PERMISSION
+            responsePermission(context)
         )
         Log.i("SleepManager", "Helper temporary Wi-Fi request: enabled=$enabled")
         return true
@@ -236,8 +285,8 @@ object HelperController {
         if (!isInstalled(context)) return false
         activateIfFreshlyStopped(context)
         context.sendBroadcast(
-            commandIntent(ACTION_QUERY),
-            PERMISSION
+            commandIntent(context, ACTION_QUERY),
+            responsePermission(context)
         )
         Log.i("SleepManager", "Helper state query")
         return true
@@ -246,8 +295,8 @@ object HelperController {
     fun forgetPendingState(context: Context): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            commandIntent(ACTION_FORGET_STATE),
-            PERMISSION
+            commandIntent(context, ACTION_FORGET_STATE),
+            responsePermission(context)
         )
         Log.i("SleepManager", "Helper pending state forget request")
         return true
@@ -256,9 +305,9 @@ object HelperController {
     fun restoreNow(context: Context, cycleId: Long): Boolean {
         if (!isInstalled(context)) return false
         context.sendBroadcast(
-            commandIntent(ACTION_RESTORE)
+            commandIntent(context, ACTION_RESTORE)
                 .putExtra(EXTRA_CYCLE_ID, cycleId),
-            PERMISSION
+            responsePermission(context)
         )
         Log.i("SleepManager", "Helper restore request")
         return true
