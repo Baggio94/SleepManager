@@ -84,6 +84,82 @@ class ActivityTimelineBuilderTest {
     }
 
     @Test
+    fun hidesRadioBackendAndExternalPowerImplementationDetails() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Sleep → Battery Saver deferred · external power · " +
+                            "Wi-Fi off · Bluetooth off · radio=PServer"
+                    )
+                )
+            )
+
+        assertEquals(
+            listOf(
+                "Battery Saver not used while charging",
+                "Wi-Fi turned off",
+                "Bluetooth turned off"
+            ),
+            groups.single().steps.map { it.text }
+        )
+    }
+
+    @Test
+    fun directRadioFailureUsesPlainLanguageWithoutBackendName() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Sleep → Wi-Fi unchanged · Bluetooth unchanged · " +
+                            "radio=PServer · radioError"
+                    )
+                )
+            )
+
+        assertEquals(
+            listOf(
+                "Wi-Fi already in the right state",
+                "Bluetooth already in the right state",
+                "Wi-Fi and Bluetooth could not be changed"
+            ),
+            groups.single().steps.map { it.text }
+        )
+    }
+
+    @Test
+    fun pendingRestoresHideTechnicalBackendDetails() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Wake → PServer radios restore pending"
+                    ),
+                    EventHistoryStore.Event(
+                        110L,
+                        "Wake → RAOfflineProxy restore pending · endpoint timeout"
+                    ),
+                    EventHistoryStore.Event(
+                        120L,
+                        "Recovery → PServer sleep radio state re-apply failed"
+                    )
+                )
+            )
+
+        val texts = groups.flatMap { it.steps }.map { it.text }
+        assertTrue("Wi-Fi and Bluetooth could not be restored yet" in texts)
+        assertTrue("RAOfflineProxy could not be restored yet" in texts)
+        assertTrue(
+            "Wi-Fi and Bluetooth sleep state could not be restored" in texts
+        )
+        assertTrue(texts.none { "PServer" in it })
+        assertTrue(texts.none { "endpoint" in it })
+    }
+
+    @Test
     fun recoveryMessagesUsePlainLanguage() {
         val groups =
             ActivityTimelineBuilder.build(
