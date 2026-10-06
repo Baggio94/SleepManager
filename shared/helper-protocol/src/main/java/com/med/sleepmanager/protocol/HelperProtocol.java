@@ -13,6 +13,8 @@ public final class HelperProtocol {
     public static final String HELPER_PACKAGE = "com.med.sleepmanager.helper";
     public static final String HELPER_RECEIVER_CLASS =
             "com.med.sleepmanager.helper.SleepManagerHelperReceiver";
+    public static final String HELPER_ACTIVATION_ACTIVITY_CLASS =
+            "com.med.sleepmanager.helper.HelperActivationActivity";
     public static final String PERMISSION =
             "com.med.sleepmanager.permission.CONTROL_HELPER";
 
