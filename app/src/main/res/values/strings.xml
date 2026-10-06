@@ -381,7 +381,7 @@
     <string name="home_helper_not_installed_title">Compatibility helper not installed</string>
     <string name="home_helper_not_installed_description">The helper controls Wi‑Fi and Bluetooth without root or Shizuku. It has no launcher icon and runs only when SleepManager asks it to.</string>
     <string name="home_helper_background_title">Allow Helper background operation</string>
-    <string name="home_helper_background_description">Android battery optimization can block Helper commands after the app moves to the background. Allow SleepManager Helper to run unrestricted so Wi‑Fi and Bluetooth control stays reliable.</string>
+    <string name="home_helper_background_description">Required for reliable Wi-Fi and Bluetooth control.</string>
     <string name="home_helper_background_action">Allow background</string>
     <string name="home_helper_wifi_control_title">Wi-Fi control access required</string>
     <string name="home_helper_wifi_control_description">SleepManager Helper is installed, but Android is not allowing it to control Wi-Fi. Open Special app access → Wi-Fi control and allow SleepManager Helper. Some OEM firmware can still show its own Wi-Fi confirmation even when this access is already allowed.</string>
