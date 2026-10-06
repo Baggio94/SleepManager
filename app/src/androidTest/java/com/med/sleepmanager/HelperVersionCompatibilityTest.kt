@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -254,6 +255,14 @@ class HelperVersionCompatibilityTest {
     private fun runRealRoundTrip(expectCycleId: Boolean) {
         AppPreferences.setSetupComplete(context, true)
         AppPreferences.setEnabled(context, true)
+
+        // A persisted sleep transaction is only valid while the device is
+        // actually non-interactive. Starting the service while awake now
+        // intentionally reconciles such a transaction as a missed wake.
+        // Put the emulator to sleep before starting Main so this compatibility
+        // test exercises the real Helper sleep/wake contract instead of the
+        // awake recovery path.
+        ensureScreenOff()
         startMainServiceAndWaitUntilSettled()
 
         val results = LinkedBlockingQueue<Intent>()
@@ -399,6 +408,23 @@ class HelperVersionCompatibilityTest {
         context.packageManager
             .getPackageInfo(HelperController.PACKAGE, 0)
             .versionName
+
+    private fun ensureScreenOff() {
+        val powerManager =
+            context.getSystemService(Context.POWER_SERVICE) as PowerManager
+
+        if (powerManager.isInteractive) {
+            InstrumentationRegistry.getInstrumentation()
+                .uiAutomation
+                .executeShellCommand("input keyevent 223")
+                .close()
+        }
+
+        assertTrue(
+            "Emulator did not reach non-interactive state before Helper round-trip",
+            waitUntil(timeoutMs = 5_000L) { !powerManager.isInteractive }
+        )
+    }
 
     private fun startMainServiceAndWaitUntilSettled() {
         ContextCompat.startForegroundService(
