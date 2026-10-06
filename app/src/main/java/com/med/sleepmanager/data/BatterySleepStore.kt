@@ -58,12 +58,15 @@ object BatterySleepStore {
         val chargeMah: Double?
             get() = capacitySelection.displayedCurrentUah?.div(1000.0)
 
-        val batteryHealthPercent: Double?
+        val rawBatteryHealthPercent: Double?
             get() =
-                BatteryCapacityPolicy.batteryHealthPercent(
+                BatteryCapacityPolicy.rawBatteryHealthPercent(
                     learnedFullUah = fullChargeUah,
-                    designFullUah = designChargeUah
+                    designFullUah = capacitySelection.effectiveDesignUah
                 )
+
+        val batteryHealthPercent: Double?
+            get() = rawBatteryHealthPercent?.coerceAtMost(100.0)
 
         val precisePercent: Double?
             get() {
@@ -429,7 +432,7 @@ object BatterySleepStore {
             }
 
         val deepSessions =
-            measured.mapNotNull { (session, _) ->
+            eligible.mapNotNull { session ->
                 session.deepSleepPercent?.let { percent ->
                     percent to session.durationMs
                 }
@@ -473,8 +476,8 @@ object BatterySleepStore {
             averageDrainPerHour = averageDrainPerHour,
             averageDrainMahPerHour = averageDrainMahPerHour,
             averageDeepSleepPercent = averageDeepSleepPercent,
-            averageSessionCount = measured.size,
-            totalMeasuredSleepMs = measured.sumOf { it.first.durationMs },
+            averageSessionCount = eligible.size,
+            totalMeasuredSleepMs = eligible.sumOf { it.durationMs },
             bestDrainPerHour = drainRates.minOrNull(),
             worstDrainPerHour = drainRates.maxOrNull(),
             estimatedHoursRemaining = estimatedHoursRemaining,
