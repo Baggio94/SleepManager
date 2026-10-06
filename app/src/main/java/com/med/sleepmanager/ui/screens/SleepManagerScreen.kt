@@ -319,8 +319,9 @@ private class IntegrationUiRow(
         val raOfflineProxyStatusProbeComplete =
             uiState.raOfflineProxyStatusProbeComplete
         val raOfflineProxyApiCompatible =
-            raOfflineProxyStatus?.version ==
-                RaOfflineProxyController.SUPPORTED_API_VERSION
+            RaOfflineProxyController.isSupportedApiVersion(
+                raOfflineProxyStatus?.version
+            )
         val raOfflineProxyReady =
             raOfflineProxyInstalled &&
                 raOfflineProxyProviderAvailable &&
