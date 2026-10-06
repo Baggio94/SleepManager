@@ -142,6 +142,9 @@ internal object ActivityTimelineBuilder {
             message.startsWith("Setup finished") ->
                 return listOf("Setup completed")
 
+            message.startsWith("Quick Settings → Unable to start") ->
+                return listOf("SleepManager could not start from Quick Settings")
+
             message.startsWith("Started after ") ->
                 return listOf("SleepManager restarted after device boot")
 
@@ -173,8 +176,28 @@ internal object ActivityTimelineBuilder {
             ) ->
                 return listOf("Radio restoration retry failed")
 
-            message.startsWith("Recovery → PServer sleep radio state") ->
-                return listOf("Sleep radio state recovered")
+            message.startsWith(
+                "Recovery → PServer sleep radio state re-applied"
+            ) ->
+                return listOf("Wi-Fi and Bluetooth sleep state restored")
+
+            message.startsWith(
+                "Recovery → PServer sleep radio state re-apply failed"
+            ) ->
+                return listOf(
+                    "Wi-Fi and Bluetooth sleep state could not be restored"
+                )
+
+            message.startsWith(
+                "Recovery → service restarted · transaction resumed"
+            ) ->
+                return listOf(
+                    "SleepManager restarted",
+                    "Sleep protection resumed"
+                )
+
+            message.startsWith("Recovery → service restarted") ->
+                return listOf("SleepManager restarted")
 
             message.startsWith("Recovery → pending restore forgotten") ->
                 return listOf("Pending restoration cleared")
@@ -231,6 +254,15 @@ internal object ActivityTimelineBuilder {
             ) ->
                 return listOf("BasicSync pause could not be confirmed")
 
+            message.startsWith("Sleep → JamesDSP OFF sent") ->
+                return listOf("JamesDSP turned off")
+
+            message.startsWith("Sleep → JamesDSP OFF not confirmed") ->
+                return listOf("JamesDSP turn-off could not be confirmed")
+
+            message.startsWith("Sleep → JamesDSP unchanged") ->
+                return listOf("JamesDSP left unchanged")
+
             message.startsWith(
                 "Sleep → Syncthing STOP not confirmed"
             ) ->
@@ -244,19 +276,27 @@ internal object ActivityTimelineBuilder {
             message.startsWith("Sleep → RAOfflineProxy queue busy") ->
                 return listOf(
                     "Waiting for RAOfflineProxy to finish",
-                    "Wi-Fi kept available"
+                    "Wi-Fi kept on"
+                )
+
+            message.startsWith(
+                "Sleep → RAOfflineProxy STOP confirmation timed out"
+            ) ->
+                return listOf(
+                    "RAOfflineProxy did not stop in time",
+                    "Wi-Fi kept on"
                 )
 
             message.startsWith("Sleep → RAOfflineProxy status unavailable") ->
                 return listOf(
                     "Waiting for RAOfflineProxy status",
-                    "Wi-Fi kept available"
+                    "Wi-Fi kept on"
                 )
 
             message.startsWith("Sleep → unsupported RAOfflineProxy") ->
                 return listOf(
                     "RAOfflineProxy automation is not compatible",
-                    "Wi-Fi kept available"
+                    "Wi-Fi kept on"
                 )
 
             message.startsWith("Sleep → RAOfflineProxy not installed") ->
@@ -264,6 +304,9 @@ internal object ActivityTimelineBuilder {
 
             message.startsWith("Sleep → RAOfflineProxy unavailable") ->
                 return listOf("RAOfflineProxy unavailable")
+
+            message.startsWith("Sleep → Helper cycle mismatch") ->
+                return listOf("Wi-Fi and Bluetooth sleep action skipped")
 
             message.startsWith("Sleep → radio control unavailable") ->
                 return listOf("Wi-Fi and Bluetooth left unchanged")
@@ -277,7 +320,7 @@ internal object ActivityTimelineBuilder {
                 )
 
             message.startsWith("Sleep power connected →") ->
-                return listOf("Battery Saver deferred while charging")
+                return listOf("Battery Saver not used while charging")
 
             message.startsWith("Lid closed dock →") ->
                 return listOf("Charging Separation left unchanged while docked")
@@ -293,6 +336,21 @@ internal object ActivityTimelineBuilder {
             message.startsWith("Wake → BasicSync restored") ->
                 return listOf("BasicSync restored")
 
+            message.startsWith("Wake → RAOfflineProxy restore pending") ->
+                return listOf("RAOfflineProxy could not be restored yet")
+
+            message.startsWith("Wake → JamesDSP restore pending") ->
+                return listOf("JamesDSP could not be restored yet")
+
+            message.startsWith("Wake → BasicSync restore pending") ->
+                return listOf("BasicSync could not be restored yet")
+
+            message.startsWith("Wake → Syncthing restore pending") ->
+                return listOf("Syncthing could not resume yet")
+
+            message.startsWith("Wake → Tailscale restore pending") ->
+                return listOf("Tailscale could not reconnect yet")
+
             message.startsWith("Wake →") ->
                 return message.substringAfter("→")
                     .split(" · ")
@@ -305,10 +363,61 @@ internal object ActivityTimelineBuilder {
                     .map { friendlyAction(it.trim(), ActivityTimelineKind.SLEEP) }
                     .filter { it.isNotBlank() }
 
+            message.startsWith("Disable → Battery Saver restore retries exhausted") ->
+                return listOf("Battery Saver could not be restored")
+
+            message.startsWith(
+                "Disable → Charging Separation restore retries exhausted"
+            ) ->
+                return listOf("Charging Separation could not be restored")
+
+            message.startsWith("Disable → system setting restore pending") ->
+                return listOf("Some settings could not be restored yet")
+
+            message.startsWith("Disable → PServer radios restored") ->
+                return listOf("Wi-Fi and Bluetooth restored")
+
+            message.startsWith("Disable → PServer radios restore pending") ->
+                return listOf("Wi-Fi and Bluetooth could not be restored yet")
+
+            message.startsWith("Disable → Helper restore pending") ->
+                return listOf("Wi-Fi and Bluetooth restoration is still pending")
+
+            message.startsWith("Disable → RAOfflineProxy restored") ->
+                return listOf("RAOfflineProxy restored")
+
+            message.startsWith("Disable → RAOfflineProxy restore pending") ->
+                return listOf("RAOfflineProxy could not be restored yet")
+
+            message.startsWith("Disable → JamesDSP restore pending") ->
+                return listOf("JamesDSP could not be restored yet")
+
+            message.startsWith("Disable → BasicSync") &&
+                message.contains("restore pending") ->
+                return listOf("BasicSync could not be restored yet")
+
+            message.startsWith("Disable → Syncthing restore pending") ->
+                return listOf("Syncthing could not resume yet")
+
+            message.startsWith("Disable → Tailscale restore pending") ->
+                return listOf("Tailscale could not reconnect yet")
+
             message.startsWith("Disable →") ->
                 return listOf(
                     "SleepManager is restoring settings before turning off"
                 )
+
+            message.startsWith("BasicSync → original state restore retries exhausted") ->
+                return listOf("BasicSync could not be restored")
+
+            message == "Syncthing restore pending" ->
+                return listOf("Syncthing could not be restored yet")
+
+            message == "JamesDSP restore pending" ->
+                return listOf("JamesDSP could not be restored yet")
+
+            message == "BasicSync restore pending" ->
+                return listOf("BasicSync could not be restored yet")
 
             message.startsWith("Memory pressure →") ->
                 return listOf("Android reported low memory")
@@ -339,7 +448,10 @@ internal object ActivityTimelineBuilder {
 
             action == "Battery Saver enabled" -> "Battery Saver enabled"
             action == "Battery Saver deferred · external power" ->
-                "Battery Saver deferred while charging"
+                "Battery Saver not used while charging"
+            action == "Battery Saver deferred" ->
+                "Battery Saver not used while charging"
+            action == "external power" -> ""
             action == "Battery Saver enable failed" ->
                 "Battery Saver could not be enabled"
             action == "Battery Saver restored" -> "Battery Saver restored"
@@ -363,7 +475,13 @@ internal object ActivityTimelineBuilder {
             action == "JamesDSP restored" -> "JamesDSP restored"
             action.startsWith("BasicSync restored") -> "BasicSync restored"
 
+            action == "previous state unknown" -> ""
+            action == "radio=PServer" -> ""
+            action == "radioError" ->
+                "Wi-Fi and Bluetooth could not be changed"
+
             action == "Syncthing STOP confirmed" -> "Syncthing paused"
+            action == "Syncthing STOP not sent" -> "Syncthing left unchanged"
             action == "Syncthing STOP sent" -> "Pausing Syncthing"
             action.startsWith("Syncthing STOP sent") ->
                 "Syncthing pause requested"
@@ -373,7 +491,10 @@ internal object ActivityTimelineBuilder {
                 "Syncthing pause could not be confirmed"
             action == "Syncthing FOLLOW sent" -> "Syncthing resumed"
 
-            action.startsWith("PServer radios") ->
+            action.startsWith("PServer radios restore pending") ->
+                "Wi-Fi and Bluetooth could not be restored yet"
+
+            action.startsWith("PServer radios restored") ->
                 if (phase == ActivityTimelineKind.WAKE) {
                     "Wi-Fi and Bluetooth restored"
                 } else {
