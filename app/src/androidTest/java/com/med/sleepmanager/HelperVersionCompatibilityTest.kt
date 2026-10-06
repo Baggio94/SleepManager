@@ -75,6 +75,102 @@ class HelperVersionCompatibilityTest {
         runRealRoundTrip(expectCycleId = true)
     }
 
+    @Test
+    fun currentHelper_reconcilesStaleCycleBeforeDifferentSleep() {
+        val expectedVersion =
+            InstrumentationRegistry.getArguments()
+                .getString("expectedHelperVersion")
+        assumeTrue(
+            "Requires current Helper version",
+            !expectedVersion.isNullOrBlank() &&
+                helperVersionName() == expectedVersion
+        )
+
+        val results = LinkedBlockingQueue<Intent>()
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(receiverContext: Context?, intent: Intent?) {
+                    if (intent?.action == HelperController.resultAction(context)) {
+                        results.offer(Intent(intent))
+                    }
+                }
+            }
+
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter(HelperController.resultAction(context)),
+            HelperController.responsePermission(context),
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+
+        try {
+            val staleCycleId = 41L
+            val replacementCycleId = 42L
+
+            assertTrue(
+                HelperController.sendSleep(
+                    context = context,
+                    wifi = false,
+                    bluetooth = false,
+                    cycleId = staleCycleId
+                )
+            )
+            val firstSleep = awaitPhase(results, HelperController.PHASE_SLEEP)
+            assertEquals(
+                HelperController.STATUS_OK,
+                firstSleep.getStringExtra(HelperController.EXTRA_STATUS)
+            )
+            assertEquals(
+                staleCycleId,
+                firstSleep.getLongExtra(HelperController.EXTRA_CYCLE_ID, -1L)
+            )
+
+            assertTrue(
+                HelperController.sendSleep(
+                    context = context,
+                    wifi = false,
+                    bluetooth = false,
+                    cycleId = replacementCycleId
+                )
+            )
+            val replacementSleep =
+                awaitPhase(results, HelperController.PHASE_SLEEP)
+            assertEquals(
+                HelperController.STATUS_OK,
+                replacementSleep.getStringExtra(HelperController.EXTRA_STATUS)
+            )
+            assertEquals(
+                replacementCycleId,
+                replacementSleep.getLongExtra(
+                    HelperController.EXTRA_CYCLE_ID,
+                    -1L
+                )
+            )
+
+            assertTrue(
+                HelperController.restoreNow(
+                    context,
+                    replacementCycleId
+                )
+            )
+            val wakeResult = awaitPhase(results, HelperController.PHASE_WAKE)
+            assertEquals(
+                replacementCycleId,
+                wakeResult.getLongExtra(HelperController.EXTRA_CYCLE_ID, -1L)
+            )
+            assertTrue(
+                wakeResult.getBooleanExtra(
+                    HelperController.EXTRA_RESTORE_SUCCESS,
+                    false
+                )
+            )
+        } finally {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
     private fun runRealRoundTrip(expectCycleId: Boolean) {
         AppPreferences.setSetupComplete(context, true)
         AppPreferences.setEnabled(context, true)
