@@ -88,6 +88,8 @@ adb_target shell am force-stop com.med.sleepmanager >/dev/null 2>&1 || true
 adb_target uninstall com.med.sleepmanager.helper >/dev/null 2>&1 || true
 adb_target install -t "$STABLE_HELPER_APK" >/dev/null \
   || fail "Unable to install stable Helper 1.1.1"
+adb_target shell dumpsys deviceidle whitelist +com.med.sleepmanager.helper \
+  >/dev/null 2>&1 || true
 
 [ "$(helper_version)" = "1.1.1" ] \
   || fail "Expected Helper 1.1.1, got $(helper_version)"
@@ -96,6 +98,8 @@ run_case "$LEGACY_TEST" "helper-1.1.1.txt"
 echo "=== Upgrade Helper 1.1.1 -> $CURRENT_HELPER_VERSION in place ==="
 adb_target install -r -t "$CURRENT_HELPER_APK" >/dev/null \
   || fail "Unable to upgrade Helper to $CURRENT_HELPER_VERSION"
+adb_target shell dumpsys deviceidle whitelist +com.med.sleepmanager.helper \
+  >/dev/null 2>&1 || true
 
 [ "$(helper_version)" = "$CURRENT_HELPER_VERSION" ] \
   || fail "Expected Helper $CURRENT_HELPER_VERSION after upgrade, got $(helper_version)"
