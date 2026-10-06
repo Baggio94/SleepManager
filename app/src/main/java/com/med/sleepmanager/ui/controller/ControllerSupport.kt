@@ -5,6 +5,7 @@ import android.view.InputDevice
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.MotionEvent
 import android.view.View
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -67,6 +68,8 @@ internal fun Modifier.controllerNavigation(
 ): Modifier {
     val focusManager = LocalFocusManager.current
     val view = LocalView.current
+    val backDispatcher =
+        LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()
 
@@ -204,6 +207,36 @@ internal fun Modifier.controllerNavigation(
     return this
         .onPreviewKeyEvent { event ->
             val native = event.nativeKeyEvent
+
+            if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_A) {
+                ControllerInputMode.active = true
+                val mapped =
+                    AndroidKeyEvent(
+                        native.downTime,
+                        native.eventTime,
+                        native.action,
+                        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+                        native.repeatCount,
+                        native.metaState,
+                        native.deviceId,
+                        native.scanCode,
+                        native.flags,
+                        native.source
+                    )
+                return@onPreviewKeyEvent view.dispatchKeyEvent(mapped)
+            }
+
+            if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_B) {
+                ControllerInputMode.active = true
+                if (
+                    native.action == AndroidKeyEvent.ACTION_DOWN &&
+                    native.repeatCount == 0
+                ) {
+                    backDispatcher?.onBackPressed()
+                }
+                return@onPreviewKeyEvent true
+            }
+
             if (native.action != AndroidKeyEvent.ACTION_DOWN) {
                 return@onPreviewKeyEvent false
             }

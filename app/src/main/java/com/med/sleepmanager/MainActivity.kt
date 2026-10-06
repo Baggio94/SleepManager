@@ -69,36 +69,6 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
-    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
-        val mappedKeyCode =
-            when (event.keyCode) {
-                android.view.KeyEvent.KEYCODE_BUTTON_A ->
-                    android.view.KeyEvent.KEYCODE_DPAD_CENTER
-                android.view.KeyEvent.KEYCODE_BUTTON_B ->
-                    android.view.KeyEvent.KEYCODE_BACK
-                else -> event.keyCode
-            }
-
-        if (mappedKeyCode == event.keyCode) {
-            return super.dispatchKeyEvent(event)
-        }
-
-        val mapped =
-            android.view.KeyEvent(
-                event.downTime,
-                event.eventTime,
-                event.action,
-                mappedKeyCode,
-                event.repeatCount,
-                event.metaState,
-                event.deviceId,
-                event.scanCode,
-                event.flags,
-                event.source
-            )
-        return super.dispatchKeyEvent(mapped)
-    }
-
     private val uiViewModel: SleepManagerViewModel by viewModels()
 
     internal val uiState: SleepManagerUiState
