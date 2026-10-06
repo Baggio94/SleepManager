@@ -105,6 +105,8 @@ class SleepManagerService : Service() {
         private const val SYNCTHING_PRE_SLEEP_PROBE_TIMEOUT_MS = 1_500L
         private const val OWNED_BASIC_SYNC_RESTORE_INTERVAL_MS = 250L
         private const val OWNED_BASIC_SYNC_RESTORE_MAX_ATTEMPTS = 8
+        private const val HELPER_RESTORE_RETRY_DELAY_MS = 2_000L
+        private const val HELPER_RESTORE_MAX_ATTEMPTS = 3
         private const val CLOSED_LID_GUARD_DELAY_MS = 1500L
         private const val CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val DOCK_DISCONNECT_DEBOUNCE_MS = 500L
@@ -156,6 +158,11 @@ class SleepManagerService : Service() {
     private var networkReadyGate: NetworkReadyGate? = null
     private val helperNetworkRestoreHandoffState =
         HelperNetworkRestoreHandoffState()
+    private val helperRestoreRetryState =
+        HelperRestoreRetryState()
+    private val helperRestoreRetryRunnable = Runnable {
+        retryPendingHelperRestoreAcknowledgement()
+    }
     private val tailscaleVerificationState =
         TailscaleVerificationRuntimeState()
     private var initialScreenStateApplied = false
@@ -173,6 +180,105 @@ class SleepManagerService : Service() {
 
     private val ownedDeviceControlRestoreRunnable = Runnable {
         continueOwnedDeviceControlRestoreForDisable()
+    }
+
+    private fun armHelperRestoreRetry(
+        cycleId: Long,
+        requestSent: Boolean
+    ) {
+        handler.removeCallbacks(helperRestoreRetryRunnable)
+        helperRestoreRetryState.begin(
+            cycleId = cycleId,
+            requestSent = requestSent
+        )
+        if (helperRestoreRetryState.pending) {
+            handler.postDelayed(
+                helperRestoreRetryRunnable,
+                HELPER_RESTORE_RETRY_DELAY_MS
+            )
+        }
+    }
+
+    private fun clearHelperRestoreRetry(resultCycleId: Long = 0L) {
+        helperRestoreRetryState.acknowledge(resultCycleId)
+        if (!helperRestoreRetryState.pending) {
+            handler.removeCallbacks(helperRestoreRetryRunnable)
+        }
+    }
+
+    private fun retryPendingHelperRestoreAcknowledgement() {
+        val cycle = SleepCycleStore.current(this)
+        val stillNeedsRestore =
+            cycle.active &&
+                cycle.helperExpected &&
+                cycle.helperSleepRequested &&
+                !cycle.helperRestored
+
+        when (
+            helperRestoreRetryState.decision(
+                activeCycleId = cycle.cycleId,
+                stillNeedsRestore = stillNeedsRestore,
+                maxAttempts = HELPER_RESTORE_MAX_ATTEMPTS
+            )
+        ) {
+            HelperRestoreRetryDecision.STALE -> {
+                helperRestoreRetryState.clear()
+                return
+            }
+
+            HelperRestoreRetryDecision.EXHAUSTED -> {
+                val attempts = helperRestoreRetryState.attempts
+                helperRestoreRetryState.clear()
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Compatibility Helper restore acknowledgement is still pending."
+                )
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Helper reconciliation → no acknowledgement after $attempts attempts"
+                )
+                Log.w(
+                    TAG,
+                    "Helper restore acknowledgement retries exhausted for cycle=${cycle.cycleId}"
+                )
+                finishDisableRestoreIfRequested(forceStop = true)
+                return
+            }
+
+            HelperRestoreRetryDecision.RETRY -> Unit
+        }
+
+        val sent =
+            if (disableRestoreState.isRequested) {
+                HelperController.restoreNow(this, cycle.cycleId)
+            } else {
+                HelperController.sendWake(this, cycle.cycleId)
+            }
+
+        if (!sent) {
+            helperRestoreRetryState.clear()
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "Compatibility Helper is unavailable, so Wi-Fi / Bluetooth restore is still pending."
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Helper reconciliation → replay could not be sent"
+            )
+            finishDisableRestoreIfRequested(forceStop = true)
+            return
+        }
+
+        helperRestoreRetryState.recordRetrySent()
+        DiagnosticsStateStore.recordEvent(
+            this,
+            "Helper reconciliation → replayed cycle ${cycle.cycleId} " +
+                "attempt ${helperRestoreRetryState.attempts}"
+        )
+        handler.postDelayed(
+            helperRestoreRetryRunnable,
+            HELPER_RESTORE_RETRY_DELAY_MS
+        )
     }
 
     private fun raOfflineProxyCoordinator(): RaOfflineProxyCoordinator =
@@ -436,6 +542,10 @@ class SleepManagerService : Service() {
                 }
 
                 HelperResultCorrelation.CURRENT -> Unit
+            }
+
+            if (phase == HelperController.PHASE_WAKE) {
+                clearHelperRestoreRetry(resultCycleId)
             }
 
             val wifiManaged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_MANAGED, false)
@@ -1106,9 +1216,16 @@ class SleepManagerService : Service() {
 
         if (helperRestoreNeeded) {
             val sent = HelperController.restoreNow(this, cycle.cycleId)
+            armHelperRestoreRetry(
+                cycleId = cycle.cycleId,
+                requestSent = sent
+            )
             if (sent) {
                 disableRestoreState.markInitializationComplete()
-                Log.i(TAG, "Disable requested -> waiting for Helper restore result")
+                Log.i(
+                    TAG,
+                    "Disable requested -> waiting for Helper restore result"
+                )
                 return
             }
 
@@ -3406,6 +3523,15 @@ class SleepManagerService : Service() {
         } else {
             false
         }
+        if (helperRestoreNeeded) {
+            armHelperRestoreRetry(
+                cycleId = cycle.cycleId,
+                requestSent = helperSent
+            )
+        } else {
+            helperRestoreRetryState.clear()
+            handler.removeCallbacks(helperRestoreRetryRunnable)
+        }
 
         if (!helperSent) {
             helperWakeResultState.markHelperUnavailable()
@@ -4303,7 +4429,26 @@ class SleepManagerService : Service() {
         syncthingPreSleepState.invalidate()
 
         if (isEffectivelySleepingNow()) {
-            HelperController.setTemporaryWifi(this, enabled = false)
+            val cycle = SleepCycleStore.current(this)
+            when {
+                cycle.active &&
+                    DirectRadioStore.isPendingForCycle(
+                        this,
+                        cycle.cycleId
+                    ) ->
+                    RadioController.reapplyDirectSleepState(
+                        this,
+                        cycle.cycleId
+                    )
+
+                cycle.active &&
+                    cycle.helperExpected &&
+                    !cycle.helperRestored ->
+                    HelperController.setTemporaryWifi(
+                        this,
+                        enabled = false
+                    )
+            }
         }
 
         cancelSyncMaintenance(restoreSleepWifi = false)
@@ -4324,6 +4469,8 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(dockDisconnectRunnable)
         handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
         handler.removeCallbacks(ownedDeviceControlRestoreRunnable)
+        handler.removeCallbacks(helperRestoreRetryRunnable)
+        helperRestoreRetryState.clear()
         basicSyncRestoreRetryState.clearPending()
         deviceControlRestoreRetryState.clearPending()
         disableRestoreState.clearTransientFlags()
