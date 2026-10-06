@@ -689,8 +689,24 @@ class MainActivity : ComponentActivity() {
                         manageJamesDspEnabledState = enabled
                     },
                     onManageBasicSyncChange = { enabled ->
-                        AppPreferences.setManageBasicSync(this@MainActivity, enabled)
-                        manageBasicSyncEnabledState = enabled
+                        if (
+                            enabled &&
+                            BasicSyncController.lastObservedState() == null
+                        ) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                getString(
+                                    R.string.home_basicsync_remote_control_required
+                                ),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            AppPreferences.setManageBasicSync(
+                                this@MainActivity,
+                                enabled
+                            )
+                            manageBasicSyncEnabledState = enabled
+                        }
                     },
                     onManageRaOfflineProxyChange = { enabled ->
                         AppPreferences.setManageRaOfflineProxy(
@@ -819,6 +835,9 @@ class MainActivity : ComponentActivity() {
                     onOpenBatteryOptimizationRequested = {
                         openBatteryOptimizationSettings()
                     },
+                    onOpenHelperBatteryOptimizationRequested = {
+                        openHelperBatteryOptimizationSettings()
+                    },
                     onOpenHelperWifiControlSettingsRequested = {
                         openHelperWifiControlSettings()
                     },
@@ -889,7 +908,10 @@ class MainActivity : ComponentActivity() {
         pendingExternalNavigation = false
         // Re-check the explicit REQUEST_STATE/STATE_CHANGED contract after
         // returning from BasicSync settings; this is the authoritative remote
-        // control readiness signal.
+        // control readiness signal. Never render a stale state from before the
+        // user disabled BasicSync remote control.
+        BasicSyncController.clearObservedState()
+        currentBasicSyncState = null
         basicSyncReadinessProbeComplete = false
 
         if (pendingPackageInstallerReturn) {
@@ -1155,6 +1177,23 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        val helperNeeded =
+            (AppPreferences.manageWifi(this) ||
+                AppPreferences.manageBluetooth(this)) &&
+                !RadioController.directAvailable()
+
+        if (
+            helperNeeded &&
+            !HelperController.isBatteryUnrestricted(this)
+        ) {
+            Toast.makeText(
+                this,
+                "Allow SleepManager Helper background operation first",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         AppPreferences.setSetupComplete(this, true)
         DiagnosticsStateStore.recordEvent(this, "Setup finished • background automation active")
         finishAndRemoveTask()
@@ -1183,6 +1222,18 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(
                 this,
                 "Install the SleepManager compatibility helper first",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (
+            helperNeeded &&
+            !HelperController.isBatteryUnrestricted(this)
+        ) {
+            Toast.makeText(
+                this,
+                "Allow SleepManager Helper background operation first",
                 Toast.LENGTH_LONG
             ).show()
             return
@@ -1379,6 +1430,36 @@ class MainActivity : ComponentActivity() {
         launchExternalActivity(
             intent = intent,
             failureMessage = "Unable to open battery optimization settings"
+        )
+    }
+
+    internal fun openHelperBatteryOptimizationSettings() {
+        if (!HelperController.isInstalled(this)) {
+            Toast.makeText(
+                this,
+                "Install the SleepManager compatibility helper first",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return
+        }
+
+        val intent =
+            if (HelperController.isBatteryUnrestricted(this)) {
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            } else {
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:${HelperController.PACKAGE}")
+                )
+            }
+
+        launchExternalActivity(
+            intent = intent,
+            failureMessage = "Unable to open Helper battery optimization settings"
         )
     }
 
