@@ -163,7 +163,8 @@
     <string name="about_main_apk_verified">APK verified. Opening Android installer…</string>
     <string name="about_helper_name">SleepManager Helper</string>
     <string name="about_helper_version">SleepManager Helper %1$s</string>
-    <string name="about_download_verify_install_helper_wifi_bluetooth">Download, verify and install the signed Helper for Wi-Fi and Bluetooth.</string>
+    <string name="about_download_verify_install_helper_wifi_bluetooth">Download, verify and install the signed Helper for Wi-Fi and Bluetooth. On newer Android versions, the older-app warning is expected: choose More info → Install anyway if Android requires it.</string>
+    <string name="about_helper_install_anyway_reminder">Compatibility Helper is still not installed. If Android showed the older-app warning, choose More info → Install anyway.</string>
     <string name="about_download_verify_install_helper">Download, verify and install the signed Helper APK.</string>
     <string name="about_preparing_helper">Preparing SleepManager Helper…</string>
     <string name="about_downloading_helper">Downloading SleepManager Helper %1$s…</string>
