@@ -508,7 +508,12 @@ class SleepManagerService : Service() {
 
     private val helperResultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != HelperController.ACTION_RESULT) return
+            if (
+                intent?.action != HelperController.ACTION_RESULT &&
+                intent?.action != HelperController.ACTION_RESULT_V2
+            ) {
+                return
+            }
 
             val phase = intent.getStringExtra(HelperController.EXTRA_PHASE) ?: return
             val resultCycleId =
@@ -719,6 +724,12 @@ class SleepManagerService : Service() {
                     }
                 }
             }
+        }
+    }
+
+    private val helperResultReceiverV2 = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            helperResultReceiver.onReceive(context, intent)
         }
     }
 
@@ -4313,12 +4324,19 @@ class SleepManagerService : Service() {
     private fun registerHelperResultReceiver() {
         if (helperResultReceiverRegistered) return
 
-        val filter = IntentFilter(HelperController.ACTION_RESULT)
         ContextCompat.registerReceiver(
             this,
             helperResultReceiver,
-            filter,
+            IntentFilter(HelperController.ACTION_RESULT),
             HelperController.PERMISSION,
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        ContextCompat.registerReceiver(
+            this,
+            helperResultReceiverV2,
+            IntentFilter(HelperController.ACTION_RESULT_V2),
+            HelperController.PERMISSION_V2,
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
@@ -4495,6 +4513,10 @@ class SleepManagerService : Service() {
         if (helperResultReceiverRegistered) {
             try {
                 unregisterReceiver(helperResultReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            try {
+                unregisterReceiver(helperResultReceiverV2)
             } catch (_: IllegalArgumentException) {
             }
             helperResultReceiverRegistered = false
