@@ -1683,9 +1683,7 @@ class SleepManagerService : Service() {
             )
         }
 
-        if (transitionSyncAvailable) {
-            SyncTransitionStore.armWakeSync(this)
-        } else {
+        if (!transitionSyncAvailable) {
             SyncTransitionStore.clear(this)
         }
 
@@ -1700,16 +1698,24 @@ class SleepManagerService : Service() {
                     )
 
                     val stillSleeping = isEffectivelySleepingNow()
+                    val shouldContinueSleep =
+                        SyncMaintenancePolicy
+                            .shouldContinueSleepAfterPreSleepMaintenance(
+                                stillSleeping = stillSleeping,
+                                managerEnabled = AppPreferences.isEnabled(this),
+                                actionsApplied =
+                                    sleepCycleRuntimeState.actionsApplied
+                            )
 
-                    if (
-                        stillSleeping &&
-                        AppPreferences.isEnabled(this) &&
-                        sleepCycleRuntimeState.actionsApplied
-                    ) {
+                    if (shouldContinueSleep) {
+                        // A wake sync is earned only once pre-sleep maintenance
+                        // finished while this sleep transition is still valid.
+                        SyncTransitionStore.armWakeSync(this)
                         prepareSyncthingAndApplyFreshSleepActions(
                             keepBasicSyncStopped = true
                         )
                     } else {
+                        SyncTransitionStore.clear(this)
                         Log.i(
                             TAG,
                             "Pre-sleep sync finished after wake; sleep actions not continued"
@@ -2000,7 +2006,7 @@ class SleepManagerService : Service() {
             SleepWakePolicy
                 .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                     wifiManaged = wifi,
-                    helperAvailable = radioControlAvailable,
+                    radioControlAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     syncthingStopRequested = syncthingStopRequested,
                     basicSyncStopRequested = basicSyncStopRequested
@@ -2008,7 +2014,7 @@ class SleepManagerService : Service() {
         val waitForTailscale =
             SleepWakePolicy
                 .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                    helperAvailable = radioControlAvailable,
+                    radioControlAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     tailscaleVerificationPending =
                         tailscaleVerificationPending
@@ -2048,7 +2054,14 @@ class SleepManagerService : Service() {
             )
         }
 
-        SleepCycleStore.completeIfRestored(this)
+        if (
+            SleepWakePolicy.shouldCompleteSleepCycleAfterFreshActions(
+                postStopActionsPending =
+                    sleepStopWaitState.pendingPostStopActions
+            )
+        ) {
+            SleepCycleStore.completeIfRestored(this)
+        }
 
         SyncMaintenanceScheduler.scheduleNext(this)
     }
