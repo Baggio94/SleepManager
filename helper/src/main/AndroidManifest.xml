@@ -12,6 +12,15 @@
         android:label="SleepManager Helper"
         android:hasCode="true">
 
+        <activity
+            android:name=".HelperActivationActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:permission="com.med.sleepmanager.permission.CONTROL_HELPER"
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <receiver
             android:name=".SleepManagerHelperReceiver"
             android:enabled="true"
