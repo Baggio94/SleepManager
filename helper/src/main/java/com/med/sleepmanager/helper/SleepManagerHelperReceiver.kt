@@ -95,17 +95,17 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
                 cycleId
             )
         ) {
-            HelperCyclePolicy.SleepDecision.CYCLE_MISMATCH -> {
+            HelperCyclePolicy.SleepDecision.RECONCILE_STALE_ACTIVE -> {
                 Log.w(
                     TAG,
-                    "Sleep cycle mismatch: requested=$cycleId active=$activeCycleId; " +
-                        "reconciling stale Helper ownership first"
+                    "Newer sleep cycle=$cycleId arrived while stale Helper cycle=" +
+                        "$activeCycleId is active; reconciling stale ownership first"
                 )
 
                 // A previous Main/Helper acknowledgement can be lost even after
                 // the radios have physically returned to their pre-sleep state.
-                // Reconcile the Helper-owned cycle before accepting a new one.
-                // The old wake result is cycle-correlated, so a newer Main
+                // Reconcile only when the incoming correlated cycle is newer.
+                // The old wake result is cycle-correlated, so the newer Main
                 // transaction safely ignores it as stale.
                 restore(
                     context = context,
@@ -146,6 +146,27 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
                     manageWifi = manageWifi,
                     manageBluetooth = manageBluetooth,
                     cycleId = cycleId
+                )
+                return
+            }
+
+            HelperCyclePolicy.SleepDecision.CYCLE_MISMATCH -> {
+                Log.w(
+                    TAG,
+                    "Rejecting stale sleep cycle=$cycleId because newer Helper " +
+                        "cycle=$activeCycleId is active"
+                )
+                sendResult(
+                    context = context,
+                    phase = HelperProtocol.PHASE_SLEEP,
+                    cycleId = cycleId,
+                    wifiManaged = false,
+                    wifiPrevious = false,
+                    wifiChanged = false,
+                    bluetoothManaged = false,
+                    bluetoothPrevious = false,
+                    bluetoothChanged = false,
+                    status = HelperProtocol.STATUS_CYCLE_MISMATCH
                 )
                 return
             }
@@ -385,10 +406,70 @@ open class SleepManagerHelperReceiver : BroadcastReceiver() {
                 return
             }
 
+            HelperCyclePolicy.RestoreDecision.RECONCILE_STALE_ACTIVE -> {
+                Log.w(
+                    TAG,
+                    "Newer restore cycle=$requestedCycleId arrived while stale Helper " +
+                        "cycle=$activeCycleId is active; reconciling stale ownership first"
+                )
+
+                restore(
+                    context = context,
+                    requestedCycleId = activeCycleId
+                )
+
+                val staleStillActive =
+                    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                        .getBoolean(KEY_CYCLE_ACTIVE, false)
+
+                if (staleStillActive) {
+                    Log.w(
+                        TAG,
+                        "Stale Helper cycle=$activeCycleId could not be restored; " +
+                            "preserving ownership"
+                    )
+                    sendResult(
+                        context = context,
+                        phase = HelperProtocol.PHASE_WAKE,
+                        cycleId = requestedCycleId,
+                        wifiManaged = false,
+                        wifiPrevious = false,
+                        wifiChanged = false,
+                        bluetoothManaged = false,
+                        bluetoothPrevious = false,
+                        bluetoothChanged = false,
+                        restoreSuccess = false,
+                        status = HelperProtocol.STATUS_CYCLE_MISMATCH
+                    )
+                    return
+                }
+
+                Log.i(
+                    TAG,
+                    "Stale Helper cycle=$activeCycleId reconciled; newer Main cycle=" +
+                        "$requestedCycleId has no remaining Helper-owned radio state"
+                )
+                sendResult(
+                    context = context,
+                    phase = HelperProtocol.PHASE_WAKE,
+                    cycleId = requestedCycleId,
+                    wifiManaged = false,
+                    wifiPrevious = false,
+                    wifiChanged = false,
+                    bluetoothManaged = false,
+                    bluetoothPrevious = false,
+                    bluetoothChanged = false,
+                    restoreSuccess = true,
+                    status = HelperProtocol.STATUS_ALREADY_RESTORED
+                )
+                return
+            }
+
             HelperCyclePolicy.RestoreDecision.CYCLE_MISMATCH -> {
                 Log.w(
                     TAG,
-                    "Restore cycle mismatch: requested=$requestedCycleId active=$activeCycleId"
+                    "Rejecting stale restore cycle=$requestedCycleId because newer " +
+                        "Helper cycle=$activeCycleId is active"
                 )
                 sendResult(
                     context = context,
