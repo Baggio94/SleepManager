@@ -521,17 +521,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleHelperState(intent: Intent?) {
+        if (
+            intent?.action != HelperController.ACTION_STATE &&
+            intent?.action != HelperController.ACTION_STATE_V2
+        ) {
+            return
+        }
+
+        currentWifiState = intent.getBooleanExtra(
+            HelperController.EXTRA_WIFI_STATE,
+            false
+        )
+        currentBluetoothState = intent.getBooleanExtra(
+            HelperController.EXTRA_BLUETOOTH_STATE,
+            false
+        )
+    }
+
     private val helperStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != HelperController.ACTION_STATE) return
-            currentWifiState = intent.getBooleanExtra(
-                HelperController.EXTRA_WIFI_STATE,
-                false
-            )
-            currentBluetoothState = intent.getBooleanExtra(
-                HelperController.EXTRA_BLUETOOTH_STATE,
-                false
-            )
+            handleHelperState(intent)
+        }
+    }
+
+    private val helperStateReceiverV2 = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            handleHelperState(intent)
         }
     }
 
@@ -1018,6 +1034,10 @@ class MainActivity : ComponentActivity() {
                 unregisterReceiver(helperStateReceiver)
             } catch (_: IllegalArgumentException) {
             }
+            try {
+                unregisterReceiver(helperStateReceiverV2)
+            } catch (_: IllegalArgumentException) {
+            }
             helperStateReceiverRegistered = false
         }
 
@@ -1046,12 +1066,19 @@ class MainActivity : ComponentActivity() {
     private fun registerHelperStateReceiver() {
         if (helperStateReceiverRegistered) return
 
-        val filter = IntentFilter(HelperController.ACTION_STATE)
         ContextCompat.registerReceiver(
             this,
             helperStateReceiver,
-            filter,
+            IntentFilter(HelperController.ACTION_STATE),
             HelperController.PERMISSION,
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        ContextCompat.registerReceiver(
+            this,
+            helperStateReceiverV2,
+            IntentFilter(HelperController.ACTION_STATE_V2),
+            HelperController.PERMISSION_V2,
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
