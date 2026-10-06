@@ -1383,7 +1383,7 @@ class SleepManagerService : Service() {
                 SleepWakePolicy
                     .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                         wifiManaged = existingCycle.wifiManaged,
-                        helperAvailable = radioSleepPending,
+                        radioControlAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         syncthingStopRequested = syncthingStopPending,
                         basicSyncStopRequested = basicSyncStopPending
@@ -1391,7 +1391,7 @@ class SleepManagerService : Service() {
             val waitForTailscale =
                 SleepWakePolicy
                     .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                        helperAvailable = radioSleepPending,
+                        radioControlAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         tailscaleVerificationPending =
                             tailscaleVerificationPending
