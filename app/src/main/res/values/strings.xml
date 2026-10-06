@@ -267,6 +267,13 @@
     <string name="stats_forget_pending_restore">Forget pending restore</string>
 
     <string name="activity_copy_log">Copy log</string>
+    <string name="activity_timeline_description">A simple timeline of what SleepManager did. Copy log keeps the full technical details.</string>
+    <string name="activity_timeline_sleep">Sleep</string>
+    <string name="activity_timeline_wake">Wake</string>
+    <string name="activity_timeline_maintenance">Sleep maintenance</string>
+    <string name="activity_timeline_protection">Protection</string>
+    <string name="activity_timeline_recovery">Recovery</string>
+    <string name="activity_timeline_system">System</string>
     <string name="activity_no_recent_activity">No recent activity</string>
     <string name="activity_advanced_diagnostics">Advanced diagnostics</string>
     <string name="activity_advanced_diagnostics_description">Collect detailed multi-cycle system snapshots for troubleshooting. Uses extra CPU and storage during sleep/wake; leave off unless needed.</string>
