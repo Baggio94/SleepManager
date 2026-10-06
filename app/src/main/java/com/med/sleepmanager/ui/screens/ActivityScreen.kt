@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.EventHistoryStore
+import com.med.sleepmanager.ui.activity.ActivityTimelineBuilder
+import com.med.sleepmanager.ui.activity.ActivityTimelineGroup
+import com.med.sleepmanager.ui.activity.ActivityTimelineKind
 import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.feedbackChange
 import com.med.sleepmanager.ui.feedbackClick
@@ -36,6 +39,7 @@ internal fun ActivityLogPage(
     onCopyLog: () -> Unit
 ) {
     val events = EventHistoryStore.recent(context)
+    val timeline = ActivityTimelineBuilder.build(events)
     var advancedDiagnostics by remember(context) {
         mutableStateOf(AppPreferences.advancedDiagnosticsEnabled(context))
     }
@@ -45,50 +49,35 @@ internal fun ActivityLogPage(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedButton(onClick = feedbackClick(onCopyLog)) {
+            Text(
+                stringResource(R.string.activity_timeline_description),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedButton(
+                onClick = feedbackClick(onCopyLog),
+                modifier = Modifier.padding(start = 12.dp)
+            ) {
                 Text(stringResource(R.string.activity_copy_log))
             }
         }
 
-        if (events.isEmpty()) {
+        if (timeline.isEmpty()) {
             InfoCard(
                 title = stringResource(R.string.nav_activity_log),
                 text = stringResource(R.string.activity_no_recent_activity)
             )
         } else {
-            SettingsCard {
-                events.forEachIndexed { index, event ->
-                    val date = Date(event.timestamp)
-                    val timestamp =
-                        DateFormat.getMediumDateFormat(context).format(date) +
-                            " • " +
-                            DateFormat.getTimeFormat(context).format(date)
-
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        Text(
-                            event.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            timestamp,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    if (index != events.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
-                    }
-                }
+            timeline.forEach { group ->
+                ActivityTimelineCard(
+                    context = context,
+                    group = group
+                )
             }
         }
 
@@ -128,3 +117,100 @@ internal fun ActivityLogPage(
         }
     }
 }
+
+@Composable
+private fun ActivityTimelineCard(
+    context: Context,
+    group: ActivityTimelineGroup
+) {
+    val started = Date(group.startedAt)
+    val dateTime =
+        DateFormat.getMediumDateFormat(context).format(started) +
+            " • " +
+            DateFormat.getTimeFormat(context).format(started)
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = activityTimelineTitle(group.kind),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = dateTime,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        SettingsCard {
+            group.steps.forEachIndexed { index, step ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = "\${index + 1}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = step.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text =
+                                DateFormat.getTimeFormat(context)
+                                    .format(Date(step.timestamp)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (index != group.steps.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun activityTimelineTitle(
+    kind: ActivityTimelineKind
+): String =
+    stringResource(
+        when (kind) {
+            ActivityTimelineKind.SLEEP -> R.string.activity_timeline_sleep
+            ActivityTimelineKind.WAKE -> R.string.activity_timeline_wake
+            ActivityTimelineKind.MAINTENANCE ->
+                R.string.activity_timeline_maintenance
+            ActivityTimelineKind.PROTECTION ->
+                R.string.activity_timeline_protection
+            ActivityTimelineKind.RECOVERY ->
+                R.string.activity_timeline_recovery
+            ActivityTimelineKind.SYSTEM ->
+                R.string.activity_timeline_system
+        }
+    )
