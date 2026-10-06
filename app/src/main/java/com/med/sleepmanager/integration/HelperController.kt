@@ -253,7 +253,7 @@ object HelperController {
             .putExtra(EXTRA_WIFI, wifi)
             .putExtra(EXTRA_BLUETOOTH, bluetooth)
             .putExtra(EXTRA_CYCLE_ID, cycleId)
-        context.sendBroadcast(intent, PERMISSION)
+        context.sendBroadcast(intent, responsePermission(context))
         Log.i("SleepManager", "Helper sleep request: wifi=$wifi bluetooth=$bluetooth")
         return true
     }
