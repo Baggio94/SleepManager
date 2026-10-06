@@ -211,7 +211,10 @@ class BatteryCapacityPolicyTest {
         assertEquals(5_000_000L, result.effectiveDesignUah)
         assertTrue(result.learnedFullSuspect)
         assertEquals(5_000_000L, result.selectedFullUah)
-        assertEquals(BatteryCurrentSource.PERCENT_DERIVED, result.currentSource)
+        // The design value itself must stay untouched, but the counter can
+        // still be normalized from the suspect learned-capacity scale.
+        assertEquals(4_000_000L, result.displayedCurrentUah)
+        assertEquals(BatteryCurrentSource.NORMALIZED_COUNTER, result.currentSource)
     }
 
     @Test
