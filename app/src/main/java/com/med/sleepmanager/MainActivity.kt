@@ -40,6 +40,7 @@ import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.device.BackgroundReliability
 import com.med.sleepmanager.device.DeviceControlController
+import com.med.sleepmanager.device.RadioController
 import com.med.sleepmanager.diagnostics.DiagnosticsBuilder
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.RaOfflineProxyController
@@ -345,8 +346,11 @@ class MainActivity : ComponentActivity() {
     private val statusRefreshRunnable = object : Runnable {
         override fun run() {
             if (!isFinishing && !isDestroyed) {
-                // Refresh the real radio states through the compatibility helper.
-                HelperController.requestState(this@MainActivity)
+                // Direct PServer devices read radio state locally. Only the
+                // fallback backend needs the Compatibility Helper query.
+                if (!RadioController.directAvailable()) {
+                    HelperController.requestState(this@MainActivity)
+                }
                 refreshIntegrationRuntimeStates()
                 refreshManagerEnabledState()
                 refreshManagedRadioSettingsState()
@@ -370,6 +374,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshIntegrationRuntimeStates() {
+        if (RadioController.directAvailable()) {
+            currentWifiState = RadioController.currentWifiEnabled(this)
+            currentBluetoothState =
+                RadioController.currentBluetoothEnabled(this)
+        }
+
         currentTailscaleConnected =
             if (TailscaleController.isInstalled(this)) {
                 TailscaleController.isConnected(this)
@@ -825,9 +835,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        registerHelperStateReceiver()
+        if (!RadioController.directAvailable()) {
+            registerHelperStateReceiver()
+            HelperController.requestState(this)
+        }
         registerBatterySaverStateReceiver()
-        HelperController.requestState(this)
         refreshBatterySaverState()
     }
 
@@ -1103,7 +1115,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val helperNeeded =
-            AppPreferences.manageWifi(this) || AppPreferences.manageBluetooth(this)
+            (AppPreferences.manageWifi(this) ||
+                AppPreferences.manageBluetooth(this)) &&
+                !RadioController.directAvailable()
 
         if (helperNeeded && !HelperController.isInstalled(this)) {
             Toast.makeText(
