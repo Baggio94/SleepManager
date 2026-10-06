@@ -87,7 +87,6 @@ import com.med.sleepmanager.ui.components.ClamshellOptionsCard
 import com.med.sleepmanager.ui.components.CompactIntegrationRow
 import com.med.sleepmanager.ui.components.CompactSupportedAppRow
 import com.med.sleepmanager.ui.components.CompactSideRail
-import com.med.sleepmanager.ui.components.LastActivityCard
 import com.med.sleepmanager.ui.components.OnboardingCard
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingRow
@@ -224,13 +223,6 @@ private class IntegrationUiRow(
             advancedScrollTarget = target
             advancedScrollRequestId++
             currentSection = AppSection.ADVANCED
-        }
-
-        fun navigateToActivityLog() {
-            currentSection = AppSection.ACTIVITY_LOG
-            drawerScope.launch {
-                activityListState.animateScrollToItem(0)
-            }
         }
 
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
@@ -1445,13 +1437,6 @@ private class IntegrationUiRow(
                     }
                 }
 
-                item {
-                    LastActivityCard(
-                        context = context,
-                        onViewLog = { navigateToActivityLog() },
-                        onCopyLog = { onCopyDiagnosticsRequested() }
-                    )
-                }
                     }
 
                     AppSection.ADVANCED -> {
