@@ -819,6 +819,9 @@ class MainActivity : ComponentActivity() {
                     onOpenBatteryOptimizationRequested = {
                         openBatteryOptimizationSettings()
                     },
+                    onOpenHelperWifiControlSettingsRequested = {
+                        openHelperWifiControlSettings()
+                    },
                     onOpenRaOfflineProxySettingsRequested = {
                         if (
                             !RaOfflineProxyController
@@ -1377,6 +1380,40 @@ class MainActivity : ComponentActivity() {
             intent = intent,
             failureMessage = "Unable to open battery optimization settings"
         )
+    }
+
+    private fun openHelperWifiControlSettings() {
+        pendingExternalNavigation = true
+
+        val specialAccess =
+            Intent("android.settings.MANAGE_SPECIAL_APP_ACCESSES")
+        runCatching {
+            startActivity(specialAccess)
+        }.onSuccess {
+            Toast.makeText(
+                this,
+                "Open Wi-Fi control, then allow SleepManager Helper.",
+                Toast.LENGTH_LONG
+            ).show()
+        }.onFailure {
+            val fallback =
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.parse(
+                        "package:${HelperController.PACKAGE}"
+                    )
+                )
+            runCatching {
+                startActivity(fallback)
+            }.onFailure {
+                pendingExternalNavigation = false
+                Toast.makeText(
+                    this,
+                    "Open Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     internal fun openUnusedAppRestrictionsSettings() {
