@@ -329,6 +329,7 @@ class MainActivity : ComponentActivity() {
     private var pendingExternalNavigation = false
     private var pendingUpdateInstallPath: String? = null
     private var pendingPackageInstallerReturn = false
+    private var pendingHelperInstallerReturn = false
     internal var installerReturnToken: Int
         get() = uiState.installerReturnToken
         set(value) {
@@ -889,8 +890,24 @@ class MainActivity : ComponentActivity() {
         basicSyncReadinessProbeComplete = false
 
         if (pendingPackageInstallerReturn) {
+            val helperInstallAttempt = pendingHelperInstallerReturn
             pendingPackageInstallerReturn = false
+            pendingHelperInstallerReturn = false
             installerReturnToken++
+
+            if (
+                helperInstallAttempt &&
+                !RadioController.directAvailable() &&
+                !HelperController.isInstalled(this)
+            ) {
+                Toast.makeText(
+                    this,
+                    getString(
+                        R.string.about_helper_install_anyway_reminder
+                    ),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
 
         pendingUpdateInstallPath?.let { apkPath ->
@@ -1420,6 +1437,15 @@ class MainActivity : ComponentActivity() {
         }
 
         pendingPackageInstallerReturn = true
+        pendingHelperInstallerReturn =
+            apk.name.startsWith("SleepManager-Helper-")
+        if (pendingHelperInstallerReturn) {
+            Toast.makeText(
+                this,
+                "If Android warns that the Helper was built for an older Android version, choose More info → Install anyway.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
         launchExternalActivity(
             intent = UpdateInstaller.installIntent(this, apk),
             failureMessage = "Unable to open Android's package installer"
