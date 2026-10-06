@@ -290,6 +290,9 @@ internal object ActivityTimelineBuilder {
                     )
                 )
 
+            message.startsWith("Wake → BasicSync restored") ->
+                return listOf("BasicSync restored")
+
             message.startsWith("Wake →") ->
                 return message.substringAfter("→")
                     .split(" · ")
@@ -364,6 +367,8 @@ internal object ActivityTimelineBuilder {
             action == "Syncthing STOP sent" -> "Pausing Syncthing"
             action.startsWith("Syncthing STOP sent") ->
                 "Syncthing pause requested"
+            action == "state unverified" ->
+                "Syncthing state could not be confirmed"
             action.startsWith("Syncthing STOP not") ->
                 "Syncthing pause could not be confirmed"
             action == "Syncthing FOLLOW sent" -> "Syncthing resumed"
