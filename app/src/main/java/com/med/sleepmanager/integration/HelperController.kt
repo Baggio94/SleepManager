@@ -1,10 +1,19 @@
 package com.med.sleepmanager.integration
 
+import android.Manifest
+import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import com.med.sleepmanager.protocol.HelperProtocol
+
+data class HelperWifiControlAccess(
+    val permissionGranted: Boolean,
+    val appOpMode: Int?,
+    val appOpModeName: String,
+    val effectivelyAllowed: Boolean?
+)
 
 object HelperController {
     @JvmField val PACKAGE = HelperProtocol.HELPER_PACKAGE
@@ -55,6 +64,79 @@ object HelperController {
         } catch (_: PackageManager.NameNotFoundException) {
             false
         }
+    }
+
+    /**
+     * Android 9+ exposes Wi-Fi control as the OP_CHANGE_WIFI_STATE app-op in
+     * addition to the normal CHANGE_WIFI_STATE manifest permission. OEMs may
+     * still impose an extra legacy confirmation even when this reports allowed,
+     * so diagnostics keep the raw app-op mode instead of treating it as proof
+     * that no OEM prompt can appear.
+     */
+    fun wifiControlAccess(context: Context): HelperWifiControlAccess {
+        val packageManager = context.packageManager
+        val permissionGranted =
+            packageManager.checkPermission(
+                Manifest.permission.CHANGE_WIFI_STATE,
+                PACKAGE
+            ) == PackageManager.PERMISSION_GRANTED
+
+        if (!isInstalled(context)) {
+            return HelperWifiControlAccess(
+                permissionGranted = false,
+                appOpMode = null,
+                appOpModeName = "helper_not_installed",
+                effectivelyAllowed = false
+            )
+        }
+
+        val uid =
+            runCatching {
+                packageManager.getApplicationInfo(PACKAGE, 0).uid
+            }.getOrNull()
+        val appOps =
+            context.getSystemService(Context.APP_OPS_SERVICE)
+                as? AppOpsManager
+        val mode =
+            if (uid != null && appOps != null) {
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    appOps.checkOpNoThrow(
+                        "android:change_wifi_state",
+                        uid,
+                        PACKAGE
+                    )
+                }.getOrNull()
+            } else {
+                null
+            }
+
+        val allowed =
+            when (mode) {
+                AppOpsManager.MODE_ALLOWED,
+                AppOpsManager.MODE_DEFAULT ->
+                    permissionGranted
+                AppOpsManager.MODE_IGNORED,
+                AppOpsManager.MODE_ERRORED ->
+                    false
+                else ->
+                    null
+            }
+
+        return HelperWifiControlAccess(
+            permissionGranted = permissionGranted,
+            appOpMode = mode,
+            appOpModeName =
+                when (mode) {
+                    AppOpsManager.MODE_ALLOWED -> "allowed"
+                    AppOpsManager.MODE_DEFAULT -> "default"
+                    AppOpsManager.MODE_IGNORED -> "ignored"
+                    AppOpsManager.MODE_ERRORED -> "errored"
+                    null -> "unknown"
+                    else -> "mode_$mode"
+                },
+            effectivelyAllowed = allowed
+        )
     }
 
     fun sendSleep(
