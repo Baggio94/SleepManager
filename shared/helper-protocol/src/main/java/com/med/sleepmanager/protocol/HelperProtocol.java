@@ -1,7 +1,7 @@
 package com.med.sleepmanager.protocol;
 
 /**
- * Single source of truth for the broadcast protocol shared by the main
+ * Single source of truth for the command/reply protocol shared by the main
  * SleepManager APK and the compatibility Helper APK.
  *
  * Keep AndroidManifest intent-filter literals aligned with these values.
@@ -19,11 +19,14 @@ public final class HelperProtocol {
             "com.med.sleepmanager.helper.SleepManagerHelperReceiverV2";
     public static final String HELPER_ACTIVATION_ACTIVITY_V2_CLASS =
             "com.med.sleepmanager.helper.HelperActivationActivityV2";
+    public static final String HELPER_COMMAND_SERVICE_V2_CLASS =
+            "com.med.sleepmanager.helper.HelperCommandServiceV2";
     public static final String PERMISSION =
             "com.med.sleepmanager.permission.CONTROL_HELPER";
     public static final String PERMISSION_V2 =
             "com.med.sleepmanager.helper.permission.CONTROL";
     public static final long HELPER_PROTOCOL_V2_MIN_VERSION_CODE = 1117L;
+    public static final long HELPER_SERVICE_V2_MIN_VERSION_CODE = 1118L;
 
     public static final String ACTION_SLEEP =
             "com.med.sleepmanager.helper.action.SLEEP";
