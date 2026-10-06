@@ -51,7 +51,7 @@ class HelperProtocolIntegrationTest {
     }
 
     @Test
-    fun helperReceiver_rejectsMismatchedCycles_andKeepsDuplicatesIdempotent() {
+    fun helperReceiver_rejectsOlderMismatchedCycles_andKeepsDuplicatesIdempotent() {
         assertTrue(
             "Helper APK must be installed for protocol integration",
             HelperController.isInstalled(context)
@@ -78,7 +78,7 @@ class HelperProtocolIntegrationTest {
 
         try {
             val cycleId = 7_001L
-            val otherCycleId = 7_002L
+            val otherCycleId = 7_000L
 
             assertTrue(
                 HelperController.sendSleep(
