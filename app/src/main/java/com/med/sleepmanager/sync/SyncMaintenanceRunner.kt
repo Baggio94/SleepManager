@@ -89,7 +89,12 @@ class SyncMaintenanceRunner(
 
     private val helperResultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != HelperController.ACTION_RESULT) return
+            if (
+                intent?.action != HelperController.ACTION_RESULT &&
+                intent?.action != HelperController.ACTION_RESULT_V2
+            ) {
+                return
+            }
             if (
                 intent.getStringExtra(HelperController.EXTRA_PHASE) !=
                 HelperController.PHASE_MAINTENANCE_WIFI
@@ -117,6 +122,12 @@ class SyncMaintenanceRunner(
                 val snapshot = cleanupState.pendingFinalSnapshot ?: return
                 finishNow(snapshot)
             }
+        }
+    }
+
+    private val helperResultReceiverV2 = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            helperResultReceiver.onReceive(context, intent)
         }
     }
 
@@ -389,12 +400,19 @@ class SyncMaintenanceRunner(
     private fun registerHelperReceiver() {
         if (helperReceiverRegistered) return
 
-        val filter = IntentFilter(HelperController.ACTION_RESULT)
         ContextCompat.registerReceiver(
             appContext,
             helperResultReceiver,
-            filter,
+            IntentFilter(HelperController.ACTION_RESULT),
             HelperController.PERMISSION,
+            handler,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        ContextCompat.registerReceiver(
+            appContext,
+            helperResultReceiverV2,
+            IntentFilter(HelperController.ACTION_RESULT_V2),
+            HelperController.PERMISSION_V2,
             handler,
             ContextCompat.RECEIVER_EXPORTED
         )
@@ -406,6 +424,9 @@ class SyncMaintenanceRunner(
         helperReceiverRegistered = false
         runCatching {
             appContext.unregisterReceiver(helperResultReceiver)
+        }
+        runCatching {
+            appContext.unregisterReceiver(helperResultReceiverV2)
         }
     }
 
