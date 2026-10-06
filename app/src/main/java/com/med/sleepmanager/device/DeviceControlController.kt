@@ -17,6 +17,9 @@ object DeviceControlController {
     private const val PSERVER_SERVICE = "PServerBinder"
     private const val CHARGING_SEPARATION_KEY = "is_charging_separation"
 
+    @Volatile
+    private var directRadioControlCached: Boolean? = null
+
     data class ControlCapabilities(
         val pServerAvailable: Boolean,
         val batterySaverControl: Boolean,
@@ -64,12 +67,19 @@ object DeviceControlController {
      * are intentionally not used: if the binder can execute as uid 0, the
      * documented radio commands validated by SleepManager are available.
      */
-    fun supportsDirectRadioControl(): Boolean =
-        executePrivileged("id -u")
-            .getOrNull()
-            ?.lineSequence()
-            ?.map(String::trim)
-            ?.any { it == "0" } == true
+    fun supportsDirectRadioControl(): Boolean {
+        directRadioControlCached?.let { return it }
+
+        val ready =
+            executePrivileged("id -u")
+                .getOrNull()
+                ?.lineSequence()
+                ?.map(String::trim)
+                ?.any { it == "0" } == true
+
+        directRadioControlCached = ready
+        return ready
+    }
 
     internal fun setWifiEnabledPrivileged(enabled: Boolean): Boolean =
         executePrivileged(
