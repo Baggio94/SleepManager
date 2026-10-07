@@ -259,13 +259,13 @@ class ActivityTimelineBuilderTest {
                 )
             )
 
+        assertEquals(1, groups.size)
         assertEquals(
-            "Android requested memory trim · level 15",
-            groups[1].steps.single().text
-        )
-        assertEquals(
-            "Android reported low memory",
-            groups[0].steps.single().text
+            listOf(
+                "Android requested memory trim · level 15",
+                "Android reported low memory"
+            ),
+            groups.single().steps.map { it.text }
         )
     }
 
