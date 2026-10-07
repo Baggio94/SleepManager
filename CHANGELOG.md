@@ -2,42 +2,51 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
-## 0.7.2-rc2 — 2026-10-07 — Release candidate
+## 0.7.2 — 2026-10-07
 
-### Radio backend and Helper migration
+### Direct radio control and Compatibility Helper
 
-- Direct PServer Wi-Fi/Bluetooth control is selected automatically when available; Compatibility Helper remains the fallback.
-- PServer-capable devices no longer surface Helper updates as required.
-- Helper-required devices now gate Wi-Fi/Bluetooth on the Helper battery-optimization exemption; Wi-Fi additionally respects an explicitly denied Wi-Fi-control app-op.
-- Existing radio-management preferences remain stored while a prerequisite is unavailable and become effective again when readiness returns.
-- Runtime sleep actions use the same prerequisite rules as the UI, so disabled controls cannot still act in the background.
+- SleepManager now uses direct Wi-Fi/Bluetooth control automatically when compatible system radio control is available.
+- Supported recent AYN and Retroid devices no longer require the Compatibility Helper.
+- On other devices, the Compatibility Helper remains the fallback for Wi-Fi/Bluetooth control.
+- Helper battery-optimization exemption is required on Helper-based devices; Wi-Fi control special access is requested only when Android explicitly reports it as denied.
+- Direct-radio devices no longer surface unnecessary Helper installation or update prompts.
+- Radio ownership and restoration remain state-aware so SleepManager restores only what it changed.
 
-### BasicSync readiness
+### Sleep/wake reliability
 
-- Distinguishes Android package STOPPED state from a genuinely unavailable BasicSync remote-control API.
-- Force-stopped BasicSync now shows guidance to open the app instead of the misleading “Allow remote control required” status.
-- Returning from BasicSync automatically re-runs the authoritative REQUEST_STATE / STATE_CHANGED readiness probe.
+- Strengthened recovery after interrupted sleep/wake cycles and process restarts.
+- Improved closed-lid false-wake preservation so pending ownership survives until a real wake.
+- Hardened Syncthing STOP ordering before disruptive radio changes.
+- Added a short external-power disconnect recheck to avoid false Battery Saver failures caused by transient Charging Separation power events.
+- Improved structured diagnostics for direct PServer radio restoration.
+
+### Diagnostics 2.0
+
+- Expanded multi-cycle history with per-cycle sleep/wake timing and false-wake tracking.
+- Added optional system and memory snapshots for diagnostic cycles.
+- Added Android ApplicationExitInfo/process-exit context when available.
+- Improved Activity chronology and transition reporting.
 
 ### RAOfflineProxy
 
-- “Allow” now opens the battery-optimization exemption flow that matches SleepManager's `isIgnoringBatteryOptimizations` prerequisite.
-- Added safe fallback to the system battery-optimization list and then app details.
-- Re-checks readiness after returning to SleepManager.
+- Added Automation API v2 pending-award handling so SleepManager keeps RAOfflineProxy and network access available until cached work and pending RetroAchievements awards are safe.
+- Restored the reliable App info path for setting **Battery usage → Unrestricted**.
+- SleepManager re-checks the prerequisite after returning from Android settings.
 
-### Controller reliability
+### BasicSync and integration readiness
 
-- Hardened L1/R1 tab switching, Start/Menu drawer control, L2/R2 page movement and right-stick free scrolling.
-- Removed focus-clearing behavior that could strand controller navigation.
-- Added vertical auto-scroll fallback when the next focus target is off screen.
-- Persistent side-rail items no longer steal normal page D-pad focus.
-- Controller A now produces explicit SleepManager click/haptic feedback for accepted actions.
-- Full Controller Navigation v2 remains planned for 0.7.3.
+- BasicSync readiness distinguishes Android package STOPPED state from unavailable remote control.
+- Returning from BasicSync triggers a fresh REQUEST_STATE / STATE_CHANGED readiness probe.
+- Existing completion-aware Advanced Sync behavior remains unchanged.
 
 ### Compatibility
 
-- Main app: **0.7.2-rc2 / versionCode 556**.
-- Helper unchanged: **1.1.7-rc1 / versionCode 1121**.
+- Main app: **0.7.2 / versionCode 560**.
+- Helper: **1.1.7 / versionCode 1121**.
+- Android **9 / API 28 or newer**.
 - Existing settings are preserved during update.
+- No root, Shizuku or ADB is required for normal use.
 
 ---
 

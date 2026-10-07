@@ -1,66 +1,41 @@
-# SleepManager 0.7.2-rc2
+# SleepManager 0.7.2
 
-SleepManager 0.7.2-rc2 is the second release candidate for 0.7.2. It keeps the already validated sleep/wake engine while tightening radio-backend migration, integration readiness and handheld controller reliability.
+> **Note**
+>
+> **Recent AYN and Retroid devices:** SleepManager 0.7.2 can now control Wi-Fi and Bluetooth directly, so the **Compatibility Helper is no longer required** on supported recent AYN and Retroid handhelds.
+>
+> **Other devices / brands:** install the new **SleepManager Helper** when prompted and grant its **battery optimization exemption**. If SleepManager reports that Wi-Fi control access is required, enable it in **Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper**.
 
-## Radio control and Compatibility Helper
+## What’s New
 
-SleepManager now treats radio control as one automatic backend:
-
-- On devices where direct **PServer** Wi-Fi/Bluetooth control is available, SleepManager uses it automatically.
-- The Compatibility Helper is only the fallback when direct radio control is unavailable.
-- PServer-capable users are not asked to complete Helper-specific setup and Helper updates are not surfaced as required.
-- Legacy Helper communication remains supported during the migration window so updating the Main app first does not intentionally break existing setups.
-
-On devices that still require the Helper:
-
-- The Helper battery-optimization exemption is now a real prerequisite for managed Wi-Fi and Bluetooth.
-- Wi-Fi additionally requires Android's **Wi-Fi control** access when the platform explicitly reports it as denied.
-- Bluetooth does not depend on the Wi-Fi-control special access.
-- Existing SleepManager Wi-Fi/Bluetooth preferences are preserved if a prerequisite is temporarily missing. The affected controls are disabled until setup is complete, then become effective again automatically.
-
-## BasicSync readiness
-
-BasicSync readiness now distinguishes two different situations:
-
-- If Android has placed BasicSync in the package **STOPPED** state after a force-stop, SleepManager tells you to open BasicSync instead of incorrectly saying that remote control is disabled.
-- If BasicSync is not stopped but still does not answer the bounded `REQUEST_STATE` probes, SleepManager continues to show **Allow remote control required**.
-
-Returning from BasicSync automatically triggers a fresh readiness check. Existing BasicSync sleep/wake, completion-aware sync and periodic-sync behavior is unchanged.
-
-## RAOfflineProxy prerequisite
-
-The RAOfflineProxy setup action now targets the battery-optimization exemption that SleepManager actually checks.
-
-- The UI uses the platform-independent wording **Battery optimization exemption required**.
-- **Allow** opens the Android exemption flow when available.
-- SleepManager falls back to the system battery-optimization screen, then app details if necessary.
-- Readiness is checked again when returning to SleepManager.
-
-## Controller reliability
-
-RC2 includes a focused controller hardening pass without pulling the larger Controller Navigation v2 refactor into 0.7.2.
-
-- **L1 / R1** switch tabs more reliably and no longer clear focus first.
-- **Start / Menu** opens or closes the navigation drawer.
-- Normal D-pad/left-stick page navigation no longer enters the persistent side rail.
-- Up/down navigation gets a small auto-scroll fallback when Compose cannot find the next off-screen focus target.
-- **L2 / R2** move by page.
-- The right stick scrolls freely without intentionally clearing the current focus.
-- Controller **A** produces explicit SleepManager click/haptic feedback when an action is accepted.
-- Touch input keeps the existing touch experience and hides the controller highlight until controller input resumes.
-
-The full card registry, per-tab focus memory and horizontal sub-focus for multi-action cards remain planned for 0.7.3.
+- **Direct Wi-Fi & Bluetooth control** on supported recent AYN and Retroid devices — no Helper required.
+- **Improved sleep/wake reliability**, including safer radio restoration, recovery after interrupted cycles and stronger closed-lid handling.
+- **Diagnostics 2.0** with improved Activity history, multi-cycle diagnostics, false-wake tracking, system/memory snapshots and Android process-exit information.
+- **RAOfflineProxy improvements**, including pending-award handling and safer coordination before sleep.
+- Numerous reliability, compatibility and UI fixes.
 
 ## Compatibility
 
-- Main app: **0.7.2-rc2 / versionCode 556**
-- Compatibility Helper: **1.1.7-rc1 / versionCode 1121** (unchanged in RC2)
+- SleepManager **0.7.2 / versionCode 560**
+- SleepManager Helper **1.1.7 / versionCode 1121**
 - Android **9 / API 28 or newer**
-- Existing SleepManager settings are preserved when updating
-- Direct PServer control and Helper fallback are selected automatically
+- Recent compatible **AYN and Retroid** devices can control Wi-Fi and Bluetooth directly and **do not require the Helper**
+- Other devices use the **SleepManager Compatibility Helper** for Wi-Fi and Bluetooth control
+- RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration
+- Existing settings are preserved when updating
+- No root, Shizuku or ADB is required for normal use
 
-## Testing status
+## First Install
 
-The RC1 software matrix already validated core sleep/wake, BasicSync normal and advanced sync, periodic sync, RAOfflineProxy smoke, Tailscale/JamesDSP, process recovery and rapid wake/sleep behavior.
+1. Install **SleepManager 0.7.2** from the release assets below.
+2. Open SleepManager and choose what you want it to manage.
+3. If needed, SleepManager will guide you through installing and setting up the **Compatibility Helper**.
+4. Enable **SleepManager**, then tap **Finish setup**.
 
-RC2 adds targeted changes around prerequisites and controller input. Before stable 0.7.2, run the targeted RC2 emulator checks followed by the physical release gate on AYN Thor, Retroid Pocket Classic and KONKR Pocket Advance.
+## Updating
+
+Install **SleepManager 0.7.2** over your existing version or use the built-in updater from **About → Updates**. Your existing SleepManager settings are preserved.
+
+On recent compatible **AYN and Retroid** devices, the Helper is no longer required and SleepManager will use direct Wi-Fi/Bluetooth control automatically.
+
+On other devices, update to **SleepManager Helper 1.1.7** when prompted and grant its battery optimization exemption.
