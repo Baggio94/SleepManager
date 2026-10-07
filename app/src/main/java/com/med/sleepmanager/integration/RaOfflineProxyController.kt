@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -72,14 +73,47 @@ object RaOfflineProxyController {
         }.getOrDefault(false)
     }
 
-    fun openAppSettings(context: Context): Boolean {
-        val intent =
+    fun openBatteryOptimizationSettings(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+
+        val primary =
+            if (isBatteryUnrestricted(context)) {
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            } else {
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:$PACKAGE")
+                )
+            }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        if (
+            runCatching {
+                context.startActivity(primary)
+                true
+            }.getOrDefault(false)
+        ) {
+            return true
+        }
+
+        val fallback =
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (
+            runCatching {
+                context.startActivity(fallback)
+                true
+            }.getOrDefault(false)
+        ) {
+            return true
+        }
+
+        val appSettings =
             Intent(
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:" + PACKAGE)
+                Uri.parse("package:$PACKAGE")
             ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return runCatching {
-            context.startActivity(intent)
+            context.startActivity(appSettings)
             true
         }.getOrDefault(false)
     }
