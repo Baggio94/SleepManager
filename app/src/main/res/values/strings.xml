@@ -36,7 +36,7 @@
     <string name="raofflineproxy_queue_waiting">Waiting · %1$d queued</string>
     <string name="raofflineproxy_queue_blocked">Queue blocked</string>
     <string name="raofflineproxy_app_settings">Allow</string>
-    <string name="raofflineproxy_unrestricted_hint">Allow RAOfflineProxy to ignore battery optimizations.</string>
+    <string name="raofflineproxy_unrestricted_hint">Set Battery usage to Unrestricted</string>
     <string name="quick_setup_integration_detected">✓ %1$s detected</string>
     <string name="quick_setup_named_integration_detected">✓ %1$s detected</string>
     <string name="quick_setup_named_integration_detected_with_version">✓ %1$s • %2$s detected</string>
