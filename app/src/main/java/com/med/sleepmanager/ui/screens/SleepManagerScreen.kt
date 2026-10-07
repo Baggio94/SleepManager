@@ -278,7 +278,7 @@ private class IntegrationUiRow(
         val helperInstalled = remember(refreshToken) {
             HelperController.isInstalled(context)
         }
-        val radioControlReady =
+        val radioBackendAvailable =
             directRadioControlAvailable || helperInstalled
         val helperBatteryUnrestricted =
             remember(refreshToken) {
@@ -302,6 +302,16 @@ private class IntegrationUiRow(
                     null
                 }
             }
+        val helperRadioReady =
+            helperInstalled && helperBatteryUnrestricted
+        val wifiControlReady =
+            directRadioControlAvailable ||
+                (
+                    helperRadioReady &&
+                        helperWifiControlAccess?.effectivelyAllowed != false
+                )
+        val bluetoothControlReady =
+            directRadioControlAvailable || helperRadioReady
         val helperVersion = remember(refreshToken) {
             runCatching {
                 context.packageManager.getPackageInfo(HelperController.PACKAGE, 0).versionName
@@ -328,10 +338,14 @@ private class IntegrationUiRow(
         val basicSyncVersion = remember(refreshToken) {
             BasicSyncController.versionName(context)
         }
+        val basicSyncStopped = remember(refreshToken) {
+            basicSyncInstalled && BasicSyncController.isStopped(context)
+        }
         val basicSyncStateApi =
             BasicSyncController.supportsStateApi(context)
         val basicSyncReady =
             basicSyncInstalled &&
+                !basicSyncStopped &&
                 basicSyncStateApi &&
                 uiState.basicSyncReadinessProbeComplete &&
                 uiState.currentBasicSyncState != null
@@ -729,13 +743,16 @@ private class IntegrationUiRow(
                             icon = R.drawable.ic_wifi,
                             title = stringResource(R.string.wifi),
                             subtitle = stringResource(
-                                if (radioControlReady) {
-                                    R.string.home_radio_sleep_description
-                                } else {
-                                    R.string.home_helper_required
+                                when {
+                                    wifiControlReady ->
+                                        R.string.home_radio_sleep_description
+                                    !radioBackendAvailable ->
+                                        R.string.home_helper_required
+                                    else ->
+                                        R.string.home_helper_setup_required
                                 }
                             ),
-                            status = if (radioControlReady) {
+                            status = if (wifiControlReady) {
                                 uiState.currentWifiState?.let {
                                     stringResource(
                                         if (it) {
@@ -749,7 +766,7 @@ private class IntegrationUiRow(
                                 null
                             },
                             checked = wifiEnabled,
-                            enabled = radioControlReady,
+                            enabled = wifiControlReady,
                             onCheckedChange = {
                                 onManageWifiChange(it)
                             }
@@ -764,13 +781,16 @@ private class IntegrationUiRow(
                             icon = R.drawable.ic_bluetooth,
                             title = stringResource(R.string.bluetooth),
                             subtitle = stringResource(
-                                if (radioControlReady) {
-                                    R.string.home_radio_sleep_description
-                                } else {
-                                    R.string.home_helper_required
+                                when {
+                                    bluetoothControlReady ->
+                                        R.string.home_radio_sleep_description
+                                    !radioBackendAvailable ->
+                                        R.string.home_helper_required
+                                    else ->
+                                        R.string.home_helper_setup_required
                                 }
                             ),
-                            status = if (radioControlReady) {
+                            status = if (bluetoothControlReady) {
                                 uiState.currentBluetoothState?.let {
                                     stringResource(
                                         if (it) {
@@ -784,7 +804,7 @@ private class IntegrationUiRow(
                                 null
                             },
                             checked = bluetoothEnabled,
-                            enabled = radioControlReady,
+                            enabled = bluetoothControlReady,
                             onCheckedChange = {
                                 onManageBluetoothChange(it)
                             }
@@ -827,7 +847,11 @@ private class IntegrationUiRow(
                 }
 
                 item {
-                    AnimatedVisibility(visible = !radioControlReady) {
+                    AnimatedVisibility(
+                        visible =
+                            !directRadioControlAvailable &&
+                                !helperInstalled
+                    ) {
                         InfoCard(
                             title = stringResource(
                                 R.string.home_helper_not_installed_title
@@ -848,7 +872,6 @@ private class IntegrationUiRow(
                         visible =
                             !directRadioControlAvailable &&
                                 helperInstalled &&
-                                (wifiEnabled || bluetoothEnabled) &&
                                 !helperBatteryUnrestricted
                     ) {
                         InfoCard(
@@ -873,7 +896,6 @@ private class IntegrationUiRow(
                             !directRadioControlAvailable &&
                                 helperInstalled &&
                                 helperBatteryUnrestricted &&
-                                wifiEnabled &&
                                 helperWifiControlAccess
                                     ?.effectivelyAllowed == false
                     ) {
@@ -1192,7 +1214,11 @@ private class IntegrationUiRow(
                                             basicSyncVersion
                                                 ?: stringResource(R.string.installed),
                                         status =
-                                            if (basicSyncStateApi) {
+                                            if (basicSyncStopped) {
+                                                stringResource(
+                                                    R.string.home_basicsync_stopped
+                                                )
+                                            } else if (basicSyncStateApi) {
                                                 uiState.currentBasicSyncState?.let { state ->
                                                     val mode =
                                                         stringResource(
