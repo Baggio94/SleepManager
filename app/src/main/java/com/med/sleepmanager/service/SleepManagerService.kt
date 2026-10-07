@@ -1,6 +1,7 @@
 package com.med.sleepmanager.service
 
 import androidx.core.content.ContextCompat
+import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -29,12 +30,15 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.DiagnosticsStateStore
+import com.med.sleepmanager.data.DirectRadioStore
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.ClamshellStateStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.data.RaOfflineProxySleepStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
+import com.med.sleepmanager.device.RadioBackend
+import com.med.sleepmanager.device.RadioController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.SyncthingController
@@ -89,6 +93,8 @@ class SleepManagerService : Service() {
         private const val SYNC_STOP_POLL_INTERVAL_MS = 250L
         private const val SYNC_STOP_TIMEOUT_MS = 5_000L
         private const val BASIC_SYNC_FRESH_STATE_TIMEOUT_MS = 1_500L
+        private const val BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS = 250L
+        private const val BASIC_SYNC_WAKE_RESTORE_CONFIRM_TIMEOUT_MS = 5_000L
         private const val BASIC_SYNC_ACTIVE_FINISH_TIMEOUT_MS = 120_000L
         private const val BASIC_SYNC_ACTIVE_FINISH_POLL_MS = 500L
         private const val BASIC_SYNC_IDLE_STABILITY_MS = 3_000L
@@ -102,9 +108,12 @@ class SleepManagerService : Service() {
         private const val SYNCTHING_PRE_SLEEP_PROBE_TIMEOUT_MS = 1_500L
         private const val OWNED_BASIC_SYNC_RESTORE_INTERVAL_MS = 250L
         private const val OWNED_BASIC_SYNC_RESTORE_MAX_ATTEMPTS = 8
+        private const val HELPER_RESTORE_RETRY_DELAY_MS = 2_000L
+        private const val HELPER_RESTORE_MAX_ATTEMPTS = 3
         private const val CLOSED_LID_GUARD_DELAY_MS = 1500L
         private const val CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val DOCK_DISCONNECT_DEBOUNCE_MS = 500L
+        private const val EXTERNAL_POWER_DISCONNECT_RECHECK_MS = 2_000L
         private const val CLOSED_LID_LOCK_COOLDOWN_MS = 900L
         const val ACTION_DISABLE_AND_RESTORE =
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
@@ -143,6 +152,20 @@ class SleepManagerService : Service() {
         pollActiveBasicSyncBeforeSleep()
     }
 
+    private val externalPowerDisconnectRecheckRunnable = Runnable {
+        val stillConnected =
+            DeviceControlController.externalPowerConnected(this)
+        if (stillConnected) {
+            Log.i(
+                TAG,
+                "Ignoring transient power disconnect; external power is still connected"
+            )
+            handleExternalPowerChanged(connected = true)
+        } else {
+            handleExternalPowerChanged(connected = false)
+        }
+    }
+
     private val sleepStopWaitState = SleepStopWaitState()
     private val syncStopProbeExecutor = Executors.newSingleThreadExecutor()
     private val diagnosticsExecutor = Executors.newSingleThreadExecutor()
@@ -153,6 +176,11 @@ class SleepManagerService : Service() {
     private var networkReadyGate: NetworkReadyGate? = null
     private val helperNetworkRestoreHandoffState =
         HelperNetworkRestoreHandoffState()
+    private val helperRestoreRetryState =
+        HelperRestoreRetryState()
+    private val helperRestoreRetryRunnable = Runnable {
+        retryPendingHelperRestoreAcknowledgement()
+    }
     private val tailscaleVerificationState =
         TailscaleVerificationRuntimeState()
     private var initialScreenStateApplied = false
@@ -164,12 +192,116 @@ class SleepManagerService : Service() {
         DeviceControlRestoreRetryState()
     private val disableRestoreState = DisableRestoreRuntimeState()
 
+    private var basicSyncWakeRestoreStartedAt = 0L
+    private val basicSyncWakeRestoreRunnable = Runnable {
+        verifyPendingBasicSyncRestore()
+    }
+
     private val ownedBasicSyncRestoreRunnable = Runnable {
         maybeRestoreOwnedBasicSyncState()
     }
 
     private val ownedDeviceControlRestoreRunnable = Runnable {
         continueOwnedDeviceControlRestoreForDisable()
+    }
+
+    private fun armHelperRestoreRetry(
+        cycleId: Long,
+        requestSent: Boolean
+    ) {
+        handler.removeCallbacks(helperRestoreRetryRunnable)
+        helperRestoreRetryState.begin(
+            cycleId = cycleId,
+            requestSent = requestSent
+        )
+        if (helperRestoreRetryState.pending) {
+            handler.postDelayed(
+                helperRestoreRetryRunnable,
+                HELPER_RESTORE_RETRY_DELAY_MS
+            )
+        }
+    }
+
+    private fun clearHelperRestoreRetry(resultCycleId: Long = 0L) {
+        helperRestoreRetryState.acknowledge(resultCycleId)
+        if (!helperRestoreRetryState.pending) {
+            handler.removeCallbacks(helperRestoreRetryRunnable)
+        }
+    }
+
+    private fun retryPendingHelperRestoreAcknowledgement() {
+        val cycle = SleepCycleStore.current(this)
+        val stillNeedsRestore =
+            cycle.active &&
+                cycle.helperExpected &&
+                cycle.helperSleepRequested &&
+                !cycle.helperRestored
+
+        when (
+            helperRestoreRetryState.decision(
+                activeCycleId = cycle.cycleId,
+                stillNeedsRestore = stillNeedsRestore,
+                maxAttempts = HELPER_RESTORE_MAX_ATTEMPTS
+            )
+        ) {
+            HelperRestoreRetryDecision.STALE -> {
+                helperRestoreRetryState.clear()
+                return
+            }
+
+            HelperRestoreRetryDecision.EXHAUSTED -> {
+                val attempts = helperRestoreRetryState.attempts
+                helperRestoreRetryState.clear()
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Compatibility Helper restore acknowledgement is still pending."
+                )
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Helper reconciliation → no acknowledgement after $attempts attempts"
+                )
+                Log.w(
+                    TAG,
+                    "Helper restore acknowledgement retries exhausted for cycle=${cycle.cycleId}"
+                )
+                finishDisableRestoreIfRequested(forceStop = true)
+                return
+            }
+
+            HelperRestoreRetryDecision.RETRY -> Unit
+        }
+
+        val sent =
+            if (disableRestoreState.isRequested) {
+                HelperController.restoreNow(this, cycle.cycleId)
+            } else {
+                HelperController.sendWake(this, cycle.cycleId)
+            }
+
+        if (!sent) {
+            helperRestoreRetryState.clear()
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "Compatibility Helper is unavailable, so Wi-Fi / Bluetooth restore is still pending."
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Helper reconciliation → replay could not be sent"
+            )
+            finishDisableRestoreIfRequested(forceStop = true)
+            return
+        }
+
+        helperRestoreRetryState.recordRetrySent()
+        DiagnosticsStateStore.recordEvent(
+            this,
+            "Helper reconciliation → replayed cycle ${cycle.cycleId} " +
+                "attempt ${helperRestoreRetryState.attempts}"
+        )
+        handler.postDelayed(
+            helperRestoreRetryRunnable,
+            HELPER_RESTORE_RETRY_DELAY_MS
+        )
     }
 
     private fun raOfflineProxyCoordinator(): RaOfflineProxyCoordinator =
@@ -388,18 +520,33 @@ class SleepManagerService : Service() {
                 Intent.ACTION_SCREEN_OFF -> onScreenOff()
                 Intent.ACTION_SCREEN_ON -> onScreenOn()
                 Intent.ACTION_POWER_CONNECTED -> {
+                    handler.removeCallbacks(
+                        externalPowerDisconnectRecheckRunnable
+                    )
                     BatterySleepStore.noteCharging(this@SleepManagerService)
                     handleExternalPowerChanged(connected = true)
                 }
-                Intent.ACTION_POWER_DISCONNECTED ->
-                    handleExternalPowerChanged(connected = false)
+                Intent.ACTION_POWER_DISCONNECTED -> {
+                    handler.removeCallbacks(
+                        externalPowerDisconnectRecheckRunnable
+                    )
+                    handler.postDelayed(
+                        externalPowerDisconnectRecheckRunnable,
+                        EXTERNAL_POWER_DISCONNECT_RECHECK_MS
+                    )
+                }
             }
         }
     }
 
     private val helperResultReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action != HelperController.ACTION_RESULT) return
+            if (
+                intent?.action != HelperController.ACTION_RESULT &&
+                intent?.action != HelperController.ACTION_RESULT_V2
+            ) {
+                return
+            }
 
             val phase = intent.getStringExtra(HelperController.EXTRA_PHASE) ?: return
             val resultCycleId =
@@ -433,6 +580,10 @@ class SleepManagerService : Service() {
                 }
 
                 HelperResultCorrelation.CURRENT -> Unit
+            }
+
+            if (phase == HelperController.PHASE_WAKE) {
+                clearHelperRestoreRetry(resultCycleId)
             }
 
             val wifiManaged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_MANAGED, false)
@@ -497,8 +648,7 @@ class SleepManagerService : Service() {
                             wifiToggleSuccess = wifiToggleSuccess,
                             wifiAirplaneMode = airplaneMode,
                             bluetoothManaged = bluetoothManaged,
-                            bluetoothChanged = bluetoothChanged,
-                            syncthingState = syncthingSleepSummaryState
+                            bluetoothChanged = bluetoothChanged
                         )
                     )
                 }
@@ -579,12 +729,10 @@ class SleepManagerService : Service() {
                         waitForNetworkAndRestorePendingConnectors()
                         maybeStartWakeTransitionSync()
                     } else {
-                        if (
-                            !disableRestoreState.isRequested &&
-                            !SleepCycleStore.hasPendingConnectorChanges(
-                                this@SleepManagerService
-                            )
-                        ) {
+                        if (!disableRestoreState.isRequested) {
+                            // The Helper result is authoritative for radio restoration.
+                            // Log it immediately even while independent connector restores
+                            // (for example BasicSync or RAOfflineProxy) are still pending.
                             DiagnosticsStateStore.recordEvent(
                                 this@SleepManagerService,
                                 buildWakeSummary(
@@ -606,6 +754,12 @@ class SleepManagerService : Service() {
                     }
                 }
             }
+        }
+    }
+
+    private val helperResultReceiverV2 = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            helperResultReceiver.onReceive(context, intent)
         }
     }
 
@@ -784,6 +938,22 @@ class SleepManagerService : Service() {
                 "Service recovery -> resuming RAOfflineProxy pre-sleep gate"
             )
             raOfflineProxyCoordinator().resumeSleepGate(cycle.cycleId)
+            return
+        }
+        if (
+            cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val reapplied =
+                RadioController.reapplyDirectSleepState(
+                    this,
+                    cycle.cycleId
+                )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Recovery → PServer sleep radio state " +
+                    if (reapplied) "re-applied" else "re-apply failed"
+            )
             return
         }
         if (
@@ -1046,6 +1216,25 @@ class SleepManagerService : Service() {
         var cycle = SleepCycleStore.current(this)
         if (
             cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val restored =
+                RadioController.restoreDirect(this, cycle.cycleId)
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Disable → PServer radios " +
+                    if (restored) "restored" else "restore pending"
+            )
+            if (!restored) {
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Direct Wi-Fi / Bluetooth restore is still pending."
+                )
+            }
+            cycle = SleepCycleStore.current(this)
+        }
+        if (
+            cycle.active &&
             cycle.helperExpected &&
             !cycle.helperSleepRequested &&
             !cycle.helperRestored
@@ -1068,9 +1257,16 @@ class SleepManagerService : Service() {
 
         if (helperRestoreNeeded) {
             val sent = HelperController.restoreNow(this, cycle.cycleId)
+            armHelperRestoreRetry(
+                cycleId = cycle.cycleId,
+                requestSent = sent
+            )
             if (sent) {
                 disableRestoreState.markInitializationComplete()
-                Log.i(TAG, "Disable requested -> waiting for Helper restore result")
+                Log.i(
+                    TAG,
+                    "Disable requested -> waiting for Helper restore result"
+                )
                 return
             }
 
@@ -1128,6 +1324,7 @@ class SleepManagerService : Service() {
     }
 
     private fun onScreenOff() {
+        resetBasicSyncWakeRestoreConfirmation()
         closedLidState.clearSleepRequestPending()
 
         if (sleepCycleRuntimeState.consumeFalseWakeResleepPending()) {
@@ -1166,6 +1363,17 @@ class SleepManagerService : Service() {
                 existingCycle.active &&
                     existingCycle.helperExpected &&
                     !existingCycle.helperSleepRequested
+            val directRadioSleepPending =
+                existingCycle.active &&
+                    !existingCycle.helperExpected &&
+                    (existingCycle.wifiManaged || existingCycle.bluetoothManaged) &&
+                    RadioController.backend(this) == RadioBackend.PSERVER &&
+                    !DirectRadioStore.isPendingForCycle(
+                        this,
+                        existingCycle.cycleId
+                    )
+            val radioSleepPending =
+                helperSleepPending || directRadioSleepPending
             val batterySaverWillEnable =
                 batterySaverWillEnableForSleep()
             val syncthingStopPending =
@@ -1200,7 +1408,7 @@ class SleepManagerService : Service() {
                 SleepWakePolicy
                     .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                         wifiManaged = existingCycle.wifiManaged,
-                        helperAvailable = helperSleepPending,
+                        radioControlAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         syncthingStopRequested = syncthingStopPending,
                         basicSyncStopRequested = basicSyncStopPending
@@ -1208,7 +1416,7 @@ class SleepManagerService : Service() {
             val waitForTailscale =
                 SleepWakePolicy
                     .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                        helperAvailable = helperSleepPending,
+                        radioControlAvailable = radioSleepPending,
                         batterySaverWillEnable = batterySaverWillEnable,
                         tailscaleVerificationPending =
                             tailscaleVerificationPending
@@ -1219,7 +1427,7 @@ class SleepManagerService : Service() {
                     (
                         waitForManagedStops ||
                             waitForTailscale ||
-                            helperSleepPending ||
+                            radioSleepPending ||
                             batterySaverWillEnable
                     )
 
@@ -1230,9 +1438,9 @@ class SleepManagerService : Service() {
 
                 sleepStopWaitState.pendingPostStopActions = true
                 sleepStopWaitState.pendingWifi =
-                    helperSleepPending && existingCycle.wifiManaged
+                    radioSleepPending && existingCycle.wifiManaged
                 sleepStopWaitState.pendingBluetooth =
-                    helperSleepPending && existingCycle.bluetoothManaged
+                    radioSleepPending && existingCycle.bluetoothManaged
                 sleepStopWaitState.pendingSyncthing =
                     waitForManagedStops && syncthingStopPending
                 sleepStopWaitState.pendingBasicSync =
@@ -1500,9 +1708,7 @@ class SleepManagerService : Service() {
             )
         }
 
-        if (transitionSyncAvailable) {
-            SyncTransitionStore.armWakeSync(this)
-        } else {
+        if (!transitionSyncAvailable) {
             SyncTransitionStore.clear(this)
         }
 
@@ -1517,16 +1723,24 @@ class SleepManagerService : Service() {
                     )
 
                     val stillSleeping = isEffectivelySleepingNow()
+                    val shouldContinueSleep =
+                        SyncMaintenancePolicy
+                            .shouldContinueSleepAfterPreSleepMaintenance(
+                                stillSleeping = stillSleeping,
+                                managerEnabled = AppPreferences.isEnabled(this),
+                                actionsApplied =
+                                    sleepCycleRuntimeState.actionsApplied
+                            )
 
-                    if (
-                        stillSleeping &&
-                        AppPreferences.isEnabled(this) &&
-                        sleepCycleRuntimeState.actionsApplied
-                    ) {
+                    if (shouldContinueSleep) {
+                        // A wake sync is earned only once pre-sleep maintenance
+                        // finished while this sleep transition is still valid.
+                        SyncTransitionStore.armWakeSync(this)
                         prepareSyncthingAndApplyFreshSleepActions(
                             keepBasicSyncStopped = true
                         )
                     } else {
+                        SyncTransitionStore.clear(this)
                         Log.i(
                             TAG,
                             "Pre-sleep sync finished after wake; sleep actions not continued"
@@ -1635,8 +1849,12 @@ class SleepManagerService : Service() {
         keepBasicSyncStopped: Boolean,
         syncthingPreSleepProbe: SyncthingConnector.PreSleepProbe?
     ) {
-        val wifi = AppPreferences.manageWifi(this)
-        val bluetooth = AppPreferences.manageBluetooth(this)
+        val requestedWifi = AppPreferences.manageWifi(this)
+        val requestedBluetooth = AppPreferences.manageBluetooth(this)
+        val wifi =
+            requestedWifi && RadioController.canManageWifi(this)
+        val bluetooth =
+            requestedBluetooth && RadioController.canManageBluetooth(this)
         val syncthing = AppPreferences.manageSyncthing(this)
         val tailscale =
             AppPreferences.manageTailscale(this) &&
@@ -1651,7 +1869,13 @@ class SleepManagerService : Service() {
             BasicSyncController.startStateObserver(this)
         }
         val radiosManaged = wifi || bluetooth
-        val helperAvailable = radiosManaged && HelperController.isInstalled(this)
+        val radioBackend =
+            if (radiosManaged) RadioController.backend(this)
+            else RadioBackend.NONE
+        val radioControlAvailable =
+            radiosManaged && radioBackend != RadioBackend.NONE
+        val helperAvailable =
+            radiosManaged && radioBackend == RadioBackend.HELPER
         val batterySaverWillEnable =
             batterySaverWillEnableForSleep()
 
@@ -1663,9 +1887,11 @@ class SleepManagerService : Service() {
         )
         Log.i(
             TAG,
-            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
+            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi/$requestedWifi " +
+                "bluetooth=$bluetooth/$requestedBluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
-                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped"
+                "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped " +
+                "radioBackend=$radioBackend"
         )
 
         // Syncthing always keeps its normal STOP/FOLLOW ownership. Advanced
@@ -1810,7 +2036,7 @@ class SleepManagerService : Service() {
             SleepWakePolicy
                 .shouldWaitForManagedStopsBeforeDisruptiveSleepAction(
                     wifiManaged = wifi,
-                    helperAvailable = helperAvailable,
+                    radioControlAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     syncthingStopRequested = syncthingStopRequested,
                     basicSyncStopRequested = basicSyncStopRequested
@@ -1818,11 +2044,31 @@ class SleepManagerService : Service() {
         val waitForTailscale =
             SleepWakePolicy
                 .shouldWaitForTailscaleBeforeDisruptiveSleepAction(
-                    helperAvailable = helperAvailable,
+                    radioControlAvailable = radioControlAvailable,
                     batterySaverWillEnable = batterySaverWillEnable,
                     tailscaleVerificationPending =
                         tailscaleVerificationPending
                 )
+
+        if (syncthing) {
+            when {
+                !syncthingStopRequested ->
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        "Sleep → Syncthing STOP not sent"
+                    )
+                !waitForManagedStops ->
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        when (syncthingSleepSummaryState) {
+                            SyncthingSleepSummaryState.STOP_UNVERIFIED ->
+                                "Sleep → Syncthing STOP sent · state unverified"
+                            else ->
+                                "Sleep → Syncthing STOP sent"
+                        }
+                    )
+            }
+        }
 
         if (waitForManagedStops || waitForTailscale) {
             sleepStopWaitState.pendingPostStopActions = true
@@ -1859,10 +2105,12 @@ class SleepManagerService : Service() {
         }
 
         if (
-            !helperAvailable &&
-            !SleepCycleStore.hasPendingConnectorChanges(this)
+            SleepWakePolicy.shouldCompleteSleepCycleAfterFreshActions(
+                postStopActionsPending =
+                    sleepStopWaitState.pendingPostStopActions
+            )
         ) {
-            SleepCycleStore.clear(this)
+            SleepCycleStore.completeIfRestored(this)
         }
 
         SyncMaintenanceScheduler.scheduleNext(this)
@@ -2016,6 +2264,10 @@ class SleepManagerService : Service() {
                                         TAG,
                                         "Syncthing STOP confirmed before disruptive sleep actions"
                                     )
+                                    DiagnosticsStateStore.recordEvent(
+                                        this@SleepManagerService,
+                                        "Sleep → Syncthing STOP confirmed"
+                                    )
                                 }
 
                                 false -> {
@@ -2040,6 +2292,10 @@ class SleepManagerService : Service() {
                                         Log.i(
                                             TAG,
                                             "Syncthing STOP state unavailable; fallback grace elapsed before disruptive sleep actions"
+                                        )
+                                        DiagnosticsStateStore.recordEvent(
+                                            this@SleepManagerService,
+                                            "Sleep → Syncthing STOP sent · state unverified"
                                         )
                                     }
                                 }
@@ -2200,18 +2456,8 @@ class SleepManagerService : Service() {
     ) {
         applyBatterySaverForSleep()
 
-        val helperSent = if (wifi || bluetooth) {
-            HelperController.sendSleep(this, wifi, bluetooth, SleepCycleStore.current(this).cycleId)
-        } else {
-            false
-        }
-
-        if (helperSent) {
-            SleepCycleStore.markHelperSleepRequested(this)
-        } else {
-            if (SleepCycleStore.isActive(this)) {
-                SleepCycleStore.markHelperRestored(this)
-            }
+        val cycle = SleepCycleStore.current(this)
+        if (!(wifi || bluetooth) || !cycle.active) {
             releaseSleepTransitionWakeLock()
             DiagnosticsStateStore.recordEvent(
                 this,
@@ -2219,10 +2465,68 @@ class SleepManagerService : Service() {
                     wifiManaged = false,
                     wifiChanged = false,
                     bluetoothManaged = false,
-                    bluetoothChanged = false,
-                    syncthingState = syncthingSleepSummaryState
+                    bluetoothChanged = false
                 )
             )
+            SleepCycleStore.completeIfRestored(this)
+            return
+        }
+
+        when (RadioController.backend(this)) {
+            RadioBackend.PSERVER -> {
+                val result =
+                    RadioController.applyDirectSleep(
+                        context = this,
+                        wifi = wifi,
+                        bluetooth = bluetooth,
+                        cycleId = cycle.cycleId
+                    )
+                releaseSleepTransitionWakeLock()
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    buildSleepSummary(
+                        wifiManaged = result.wifiManaged,
+                        wifiChanged = result.wifiChanged,
+                        bluetoothManaged = result.bluetoothManaged,
+                        bluetoothChanged = result.bluetoothChanged
+                    ) + " · radio=PServer" +
+                        if (result.success) "" else " · radioError"
+                )
+                SleepCycleStore.completeIfRestored(this)
+            }
+
+            RadioBackend.HELPER -> {
+                val helperSent =
+                    HelperController.sendSleep(
+                        this,
+                        wifi,
+                        bluetooth,
+                        cycle.cycleId
+                    )
+                if (helperSent) {
+                    SleepCycleStore.markHelperSleepRequested(this)
+                } else {
+                    if (cycle.helperExpected) {
+                        SleepCycleStore.markRestoreProblem(
+                            this,
+                            "Compatibility Helper could not receive the sleep radio request."
+                        )
+                    }
+                    releaseSleepTransitionWakeLock()
+                }
+            }
+
+            RadioBackend.NONE -> {
+                if (cycle.helperExpected) {
+                    SleepCycleStore.markHelperRestored(this)
+                }
+                releaseSleepTransitionWakeLock()
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Sleep → radio control unavailable; Wi-Fi / Bluetooth left unchanged"
+                )
+                SleepCycleStore.completeIfRestored(this)
+            }
         }
     }
 
@@ -2821,26 +3125,24 @@ class SleepManagerService : Service() {
         }
     }
 
+    private fun resetBasicSyncWakeRestoreConfirmation() {
+        handler.removeCallbacks(basicSyncWakeRestoreRunnable)
+        basicSyncWakeRestoreStartedAt = 0L
+    }
+
     private fun restorePendingBasicSync() {
         val change =
             SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
-                ?: return
+                ?: run {
+                    resetBasicSyncWakeRestoreConfirmation()
+                    return
+                }
 
         val wakeResult =
             BasicSyncConnector.wake(this, change.restoreToken)
 
-        if (wakeResult.success) {
-            val restoreTarget =
-                BasicSyncConnector.restoreTargetName(change.restoreToken)
-            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
-            if (!disableRestoreState.isRequested) {
-                DiagnosticsStateStore.recordEvent(
-                    this,
-                    "Wake → BasicSync restored · $restoreTarget"
-                )
-            }
-            Log.i(TAG, "BasicSync restore sent: $restoreTarget")
-        } else {
+        if (!wakeResult.success) {
+            resetBasicSyncWakeRestoreConfirmation()
             SleepCycleStore.markRestoreProblem(
                 this,
                 "BasicSync restore is still pending: ${wakeResult.detail}."
@@ -2854,7 +3156,115 @@ class SleepManagerService : Service() {
                 }
             )
             Log.w(TAG, "BasicSync restore failed; preserving transaction")
+            return
         }
+
+        val restoreTarget =
+            BasicSyncConnector.restoreTargetName(change.restoreToken)
+
+        if (!BasicSyncController.supportsStateApi(this)) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+            if (!disableRestoreState.isRequested) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Wake → BasicSync restored · $restoreTarget"
+                )
+            }
+            Log.i(
+                TAG,
+                "BasicSync restore sent without state API confirmation: $restoreTarget"
+            )
+            return
+        }
+
+        BasicSyncController.startStateObserver(this)
+        resetBasicSyncWakeRestoreConfirmation()
+        basicSyncWakeRestoreStartedAt = System.currentTimeMillis()
+        BasicSyncController.requestStateBroadcast(this)
+        handler.postDelayed(
+            basicSyncWakeRestoreRunnable,
+            BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS
+        )
+        Log.i(
+            TAG,
+            "BasicSync restore sent: $restoreTarget; awaiting state confirmation"
+        )
+    }
+
+    private fun verifyPendingBasicSyncRestore() {
+        val change =
+            SleepCycleStore.connectorChange(this, BasicSyncConnector.id)
+                ?: run {
+                    resetBasicSyncWakeRestoreConfirmation()
+                    return
+                }
+
+        val restoreTarget =
+            BasicSyncConnector.restoreTargetName(change.restoreToken)
+        val state = BasicSyncController.lastObservedState()
+
+        if (
+            BasicSyncConnector.restoreConfirmed(
+                change.restoreToken,
+                state
+            )
+        ) {
+            SleepCycleStore.clearConnectorChange(this, BasicSyncConnector.id)
+            resetBasicSyncWakeRestoreConfirmation()
+
+            if (!disableRestoreState.isRequested) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Wake → BasicSync restored · $restoreTarget"
+                )
+            }
+            Log.i(
+                TAG,
+                "BasicSync restore confirmed: $restoreTarget " +
+                    "runState=${state?.runState}"
+            )
+            SleepCycleStore.completeIfRestored(this)
+            finishDisableRestoreIfRequested()
+            return
+        }
+
+        val startedAt =
+            basicSyncWakeRestoreStartedAt.takeIf { it > 0L }
+                ?: System.currentTimeMillis().also {
+                    basicSyncWakeRestoreStartedAt = it
+                }
+        val elapsed = System.currentTimeMillis() - startedAt
+
+        if (elapsed >= BASIC_SYNC_WAKE_RESTORE_CONFIRM_TIMEOUT_MS) {
+            resetBasicSyncWakeRestoreConfirmation()
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "BasicSync restore is still pending: $restoreTarget was not confirmed."
+            )
+            DiagnosticsStateStore.recordEvent(
+                this,
+                if (disableRestoreState.isRequested) {
+                    "Disable → BasicSync restore pending · $restoreTarget not confirmed"
+                } else {
+                    "Wake → BasicSync restore pending · $restoreTarget not confirmed"
+                }
+            )
+            Log.w(
+                TAG,
+                "BasicSync restore not confirmed; preserving transaction " +
+                    "target=$restoreTarget state=$state"
+            )
+            finishDisableRestoreIfRequested(
+                forceStop = disableRestoreState.isRequested
+            )
+            return
+        }
+
+        BasicSyncController.requestStateBroadcast(this)
+        handler.postDelayed(
+            basicSyncWakeRestoreRunnable,
+            BASIC_SYNC_WAKE_RESTORE_CONFIRM_INTERVAL_MS
+        )
     }
 
     private fun hasPendingNetworkConnectorRestore(): Boolean {
@@ -3252,6 +3662,25 @@ class SleepManagerService : Service() {
         var cycle = SleepCycleStore.current(this)
         if (
             cycle.active &&
+            DirectRadioStore.isPendingForCycle(this, cycle.cycleId)
+        ) {
+            val restored =
+                RadioController.restoreDirect(this, cycle.cycleId)
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Wake → PServer radios " +
+                    if (restored) "restored" else "restore pending"
+            )
+            if (!restored) {
+                SleepCycleStore.markRestoreProblem(
+                    this,
+                    "Direct Wi-Fi / Bluetooth restore is still pending."
+                )
+            }
+            cycle = SleepCycleStore.current(this)
+        }
+        if (
+            cycle.active &&
             cycle.helperExpected &&
             !cycle.helperSleepRequested &&
             !cycle.helperRestored
@@ -3285,6 +3714,15 @@ class SleepManagerService : Service() {
             HelperController.sendWake(this, cycle.cycleId)
         } else {
             false
+        }
+        if (helperRestoreNeeded) {
+            armHelperRestoreRetry(
+                cycleId = cycle.cycleId,
+                requestSent = helperSent
+            )
+        } else {
+            helperRestoreRetryState.clear()
+            handler.removeCallbacks(helperRestoreRetryRunnable)
         }
 
         if (!helperSent) {
@@ -3990,8 +4428,7 @@ class SleepManagerService : Service() {
         wifiToggleSuccess: Boolean = true,
         wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
-        bluetoothChanged: Boolean,
-        syncthingState: SyncthingSleepSummaryState
+        bluetoothChanged: Boolean
     ): String {
         val actions = buildList {
             if (wifiManaged) {
@@ -4010,19 +4447,6 @@ class SleepManagerService : Service() {
                 )
             }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth off" else "Bluetooth unchanged")
-            when (syncthingState) {
-                SyncthingSleepSummaryState.NOT_MANAGED -> Unit
-                SyncthingSleepSummaryState.STOP_NOT_SENT ->
-                    add("Syncthing STOP not sent")
-                SyncthingSleepSummaryState.STOP_SENT ->
-                    add("Syncthing STOP sent")
-                SyncthingSleepSummaryState.STOP_CONFIRMED ->
-                    add("Syncthing STOP confirmed")
-                SyncthingSleepSummaryState.STOP_UNVERIFIED ->
-                    add("Syncthing STOP sent · state unverified")
-                SyncthingSleepSummaryState.STOP_NOT_CONFIRMED ->
-                    add("Syncthing STOP not confirmed")
-            }
         }
         return if (actions.isEmpty()) "Sleep" else "Sleep → " + actions.joinToString(" · ")
     }
@@ -4067,12 +4491,19 @@ class SleepManagerService : Service() {
     private fun registerHelperResultReceiver() {
         if (helperResultReceiverRegistered) return
 
-        val filter = IntentFilter(HelperController.ACTION_RESULT)
         ContextCompat.registerReceiver(
             this,
             helperResultReceiver,
-            filter,
+            IntentFilter(HelperController.ACTION_RESULT),
             HelperController.PERMISSION,
+            null,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        ContextCompat.registerReceiver(
+            this,
+            helperResultReceiverV2,
+            IntentFilter(HelperController.ACTION_RESULT_V2),
+            HelperController.PERMISSION_V2,
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
@@ -4087,11 +4518,15 @@ class SleepManagerService : Service() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         }
+        // SCREEN_ON/OFF and power connection changes are framework broadcasts.
+        // Android 13+ requires an exported context receiver for broadcasts that
+        // originate outside this app. These actions are system-defined and the
+        // receiver still ignores every action outside the explicit filter above.
         ContextCompat.registerReceiver(
             this,
             screenReceiver,
             filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            ContextCompat.RECEIVER_EXPORTED
         )
         receiverRegistered = true
     }
@@ -4149,6 +4584,17 @@ class SleepManagerService : Service() {
             .build()
     }
 
+    private fun androidReportsLowMemory(): Boolean {
+        val manager =
+            getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return false
+        return runCatching {
+            ActivityManager.MemoryInfo()
+                .also(manager::getMemoryInfo)
+                .lowMemory
+        }.getOrDefault(false)
+    }
+
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
 
@@ -4158,9 +4604,14 @@ class SleepManagerService : Service() {
             level == TRIM_MEMORY_MODERATE ||
             level == TRIM_MEMORY_COMPLETE
         ) {
+            val lowMemory = androidReportsLowMemory()
             DiagnosticsStateStore.recordEvent(
                 this,
-                "Memory pressure → onTrimMemory level=$level"
+                if (lowMemory) {
+                    "Memory pressure → Android lowMemory=true · onTrimMemory level=$level"
+                } else {
+                    "Memory trim → onTrimMemory level=$level"
+                }
             )
             captureAdvancedDiagnostics(
                 phase = DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE,
@@ -4171,9 +4622,14 @@ class SleepManagerService : Service() {
 
     override fun onLowMemory() {
         super.onLowMemory()
+        val lowMemory = androidReportsLowMemory()
         DiagnosticsStateStore.recordEvent(
             this,
-            "Memory pressure → onLowMemory"
+            if (lowMemory) {
+                "Memory pressure → Android lowMemory=true · onLowMemory"
+            } else {
+                "Memory trim → onLowMemory"
+            }
         )
         captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE)
     }
@@ -4183,7 +4639,26 @@ class SleepManagerService : Service() {
         syncthingPreSleepState.invalidate()
 
         if (isEffectivelySleepingNow()) {
-            HelperController.setTemporaryWifi(this, enabled = false)
+            val cycle = SleepCycleStore.current(this)
+            when {
+                cycle.active &&
+                    DirectRadioStore.isPendingForCycle(
+                        this,
+                        cycle.cycleId
+                    ) ->
+                    RadioController.reapplyDirectSleepState(
+                        this,
+                        cycle.cycleId
+                    )
+
+                cycle.active &&
+                    cycle.helperExpected &&
+                    !cycle.helperRestored ->
+                    HelperController.setTemporaryWifi(
+                        this,
+                        enabled = false
+                    )
+            }
         }
 
         cancelSyncMaintenance(restoreSleepWifi = false)
@@ -4202,8 +4677,12 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(closedLidGuardRunnable)
         handler.removeCallbacks(closedLidScreenOnRecheckRunnable)
         handler.removeCallbacks(dockDisconnectRunnable)
+        handler.removeCallbacks(externalPowerDisconnectRecheckRunnable)
+        resetBasicSyncWakeRestoreConfirmation()
         handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
         handler.removeCallbacks(ownedDeviceControlRestoreRunnable)
+        handler.removeCallbacks(helperRestoreRetryRunnable)
+        helperRestoreRetryState.clear()
         basicSyncRestoreRetryState.clearPending()
         deviceControlRestoreRetryState.clearPending()
         disableRestoreState.clearTransientFlags()
@@ -4228,6 +4707,10 @@ class SleepManagerService : Service() {
         if (helperResultReceiverRegistered) {
             try {
                 unregisterReceiver(helperResultReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            try {
+                unregisterReceiver(helperResultReceiverV2)
             } catch (_: IllegalArgumentException) {
             }
             helperResultReceiverRegistered = false

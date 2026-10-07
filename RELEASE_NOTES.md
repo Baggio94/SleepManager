@@ -1,59 +1,41 @@
-# SleepManager 0.7.1
+# SleepManager 0.7.2
 
-SleepManager 0.7.1 adds **RAOfflineProxy integration**, improves battery measurement on devices with unreliable capacity reporting, and introduces **Battery Health**. It also includes several smaller reliability and diagnostics improvements.
+> **Note**
+>
+> **Recent AYN and Retroid devices:** SleepManager 0.7.2 can now control Wi-Fi and Bluetooth directly, so the **Compatibility Helper is no longer required** on supported recent AYN and Retroid handhelds.
+>
+> **Other devices / brands:** install the new **SleepManager Helper** when prompted and grant its **battery optimization exemption**. If SleepManager reports that Wi-Fi control access is required, enable it in **Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper**.
 
-## RAOfflineProxy Integration
+## What’s New
 
-SleepManager can now manage **RAOfflineProxy** as part of the normal sleep/wake cycle.
-
-- SleepManager checks the real RAOfflineProxy state before changing it.
-- When the cache queue is empty or in a safe state, SleepManager can stop RAOfflineProxy before managed Wi-Fi is turned off.
-- If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state.
-- Queue waiting is event-driven and does not use permanent polling.
-- RAOfflineProxy is restored on a real wake only when SleepManager performed the stop.
-- Closed-lid false wakes do not incorrectly restart the proxy.
-- Pending queue, stop and restore ownership are preserved across SleepManager service recovery.
-- Diagnostics now include RAOfflineProxy state, queue and restore information.
-
-For reliable background restart on Android 12+, set RAOfflineProxy battery usage to **Unrestricted**:
-
-**Settings → Apps → RAOfflineProxy → App battery usage → Unrestricted**
-
-RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
-
-## Better Battery Precision
-
-Some devices can report an unrealistic full-charge capacity while also scaling the battery charge counter by the same incorrect amount. SleepManager can now detect this situation and normalize the charge counter against the trusted design capacity instead of immediately falling back to Android's whole-number battery percentage. This preserves sub-percent battery movement, so long sleep sessions can still report **measured mAh and precise drain** even when Android itself remains on the same displayed percentage.
-
-## Battery Health
-
-The Stats page now shows **Battery Health** when Android provides trustworthy battery-capacity values. Battery Health compares the reported full-charge capacity with the battery design capacity. If Android reports an implausible full-charge value, SleepManager shows **Unavailable** instead of displaying a misleading health percentage.
-
-## Reliability and Diagnostics
-
-- Improved handling of battery-capacity data that is clearly outside a realistic range.
-- Diagnostics expose the raw and selected battery-capacity values used by SleepManager, making battery-reporting problems easier to identify.
-- Sleep/wake ownership remains state-aware so SleepManager restores only what it actually changed.
-- RAOfflineProxy queue and restore ownership are preserved safely across service recovery.
+- **Direct Wi-Fi & Bluetooth control** on supported recent AYN and Retroid devices — no Helper required.
+- **Improved sleep/wake reliability**, including safer radio restoration, recovery after interrupted cycles and stronger closed-lid handling.
+- **Diagnostics 2.0** with improved Activity history, multi-cycle diagnostics, false-wake tracking, system/memory snapshots and Android process-exit information.
+- **RAOfflineProxy improvements**, including pending-award handling and safer coordination before sleep.
+- Numerous reliability, compatibility and UI fixes.
 
 ## Compatibility
 
-- SleepManager **0.7.1 / versionCode 552**
-- SleepManager Helper remains **1.1.2 / versionCode 1115**
+- SleepManager **0.7.2 / versionCode 560**
+- SleepManager Helper **1.1.7 / versionCode 1121**
 - Android **9 / API 28 or newer**
+- Recent compatible **AYN and Retroid** devices can control Wi-Fi and Bluetooth directly and **do not require the Helper**
+- Other devices use the **SleepManager Compatibility Helper** for Wi-Fi and Bluetooth control
 - RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration
 - Existing settings are preserved when updating
 - No root, Shizuku or ADB is required for normal use
 
 ## First Install
 
-1. Download and install **SleepManager 0.7.1** from the release assets below.
-2. If you use Wi-Fi or Bluetooth management, install **SleepManager Helper 1.1.2** as well.
-3. Open SleepManager and choose what you want it to manage during sleep.
+1. Install **SleepManager 0.7.2** from the release assets below.
+2. Open SleepManager and choose what you want it to manage.
+3. If needed, SleepManager will guide you through installing and setting up the **Compatibility Helper**.
 4. Enable **SleepManager**, then tap **Finish setup**.
 
 ## Updating
 
-Install SleepManager 0.7.1 over your existing version or use the built-in updater from **About → Updates**. Your existing SleepManager settings are preserved.
+Install **SleepManager 0.7.2** over your existing version or use the built-in updater from **About → Updates**. Your existing SleepManager settings are preserved.
 
-If SleepManager Helper **1.1.2** is already installed, there is no Helper update required for this release.
+On recent compatible **AYN and Retroid** devices, the Helper is no longer required and SleepManager will use direct Wi-Fi/Bluetooth control automatically.
+
+On other devices, update to **SleepManager Helper 1.1.7** when prompted and grant its battery optimization exemption.

@@ -3,11 +3,13 @@ package com.med.sleepmanager.diagnostics
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
+import com.med.sleepmanager.device.SysfsAccessCache
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.data.DiagnosticsCycleStore
 import com.med.sleepmanager.data.DiagnosticsStateStore
 import com.med.sleepmanager.data.DiagnosticsTransitionStore
+import com.med.sleepmanager.data.DirectRadioStore
 import com.med.sleepmanager.data.EventHistoryStore
 import com.med.sleepmanager.data.SleepCycleStore
 import com.med.sleepmanager.data.RaOfflineProxySleepStore
@@ -15,6 +17,7 @@ import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.RaOfflineProxyController
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.device.DeviceControlStore
+import com.med.sleepmanager.device.RadioController
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
@@ -92,7 +95,14 @@ object DiagnosticsBuilder {
             )
         val raOfflineProxyGate =
             RaOfflineProxySleepStore.current(context)
-        val wifiDiagnostic = DiagnosticsStateStore.lastWifiToggleDiagnostic(context)
+        val wifiDiagnostic =
+            DiagnosticsStateStore.lastWifiToggleDiagnostic(context)
+        val helperWifiControl =
+            HelperController.wifiControlAccess(context)
+        val directRadioState =
+            DirectRadioStore.current(context)
+        val radioBackend =
+            RadioController.backend(context)
         val processExitHistory = ProcessExitHistoryReader.read(context)
         val deviceCapabilities = DeviceControlController.capabilities(context)
         val batterySaverOwned = DeviceControlStore.batterySaver(context)
@@ -121,6 +131,15 @@ object DiagnosticsBuilder {
             buildList {
                 if (cycle.active && cycle.helperExpected && !cycle.helperRestored) {
                     add("Helper")
+                }
+                if (
+                    cycle.active &&
+                    DirectRadioStore.isPendingForCycle(
+                        context,
+                        cycle.cycleId
+                    )
+                ) {
+                    add("PServer radios")
                 }
                 if (syncthingPending) add("Syncthing-Fork")
                 if (tailscalePending != null) add("Tailscale")
@@ -299,6 +318,14 @@ object DiagnosticsBuilder {
             appendLine("- Raw charge_full: ${batterySnapshot.fullChargeUah?.let { "$it uAh" } ?: "unavailable"}")
             appendLine("- Raw charge_full_design: ${batterySnapshot.designChargeUah?.let { "$it uAh" } ?: "unavailable"}")
             appendLine(
+                "- Battery capacity sysfs access: " +
+                    SysfsAccessCache.batteryCapacityAccessSummary()
+            )
+            appendLine(
+                "- Input sysfs access: " +
+                    SysfsAccessCache.inputAccessSummary()
+            )
+            appendLine(
                 "- Selected full capacity: " +
                     (
                         batterySelection.selectedFullUah
@@ -316,6 +343,34 @@ object DiagnosticsBuilder {
             )
             appendLine("- Capacity source: ${batteryCapacitySource(batterySelection)}")
             appendLine("- Current-charge source: ${batteryCurrentSource(batterySelection)}")
+            appendLine(
+                "- Effective charge_full_design: " +
+                    (
+                        batterySelection.effectiveDesignUah
+                            ?.let { "$it uAh" }
+                            ?: "unavailable"
+                    )
+            )
+            appendLine(
+                "- Design decimal-scale adjustment: " +
+                    batterySelection.designScaleAdjusted
+            )
+            appendLine(
+                "- Battery Health raw ratio: " +
+                    (
+                        batterySnapshot.rawBatteryHealthPercent
+                            ?.let { "%.2f%%".format(Locale.US, it) }
+                            ?: "unavailable"
+                    )
+            )
+            appendLine(
+                "- Battery Health UI value: " +
+                    (
+                        batterySnapshot.batteryHealthPercent
+                            ?.let { "%.2f%%".format(Locale.US, it) }
+                            ?: "unavailable"
+                    )
+            )
             appendLine("- Learned full capacity suspect: ${batterySelection.learnedFullSuspect}")
             if (batterySelection.learnedFullSuspect) {
                 appendLine(
@@ -330,6 +385,38 @@ object DiagnosticsBuilder {
                 appendLine(
                     "- Last sleep duration: " +
                         "${formatDurationMs(session.durationMs)} (${session.durationMs} ms)"
+                )
+                appendLine(
+                    "- Last sleep battery: " +
+                        "${session.startPercent}% → ${session.endPercent}%"
+                )
+                appendLine(
+                    "- Last sleep charge counter: " +
+                        (
+                            session.startChargeUah
+                                ?.let { "$it uAh" }
+                                ?: "unavailable"
+                        ) +
+                        " → " +
+                        (
+                            session.endChargeUah
+                                ?.let { "$it uAh" }
+                                ?: "unavailable"
+                        )
+                )
+                appendLine(
+                    "- Last sleep session analytics eligible: " +
+                        BatterySleepStore.sessionAnalyticsEligible(session)
+                )
+                val drainExclusion =
+                    BatterySleepStore.drainSampleExclusionReason(session)
+                appendLine(
+                    "- Last sleep drain sample eligible: " +
+                        (drainExclusion == null)
+                )
+                appendLine(
+                    "- Last sleep drain exclusion: " +
+                        (drainExclusion ?: "none")
                 )
                 appendLine("- Last sleep drain: ${session.drainPerHour?.let { "%.3f%%/h".format(Locale.US, it) } ?: "unavailable"}")
                 appendLine("- Last sleep false wakes: ${session.falseWakeCount}")
@@ -360,6 +447,11 @@ object DiagnosticsBuilder {
                 )
             }
             appendLine("- PServer: ${if (deviceCapabilities.pServerAvailable) "available" else "unavailable"}")
+            appendLine(
+                "- PServer radio readiness: " +
+                    deviceCapabilities.pServerRadioControl
+            )
+            appendLine("- Radio backend: $radioBackend")
             appendLine("- Battery Saver control: ${deviceCapabilities.batterySaverControl}")
             appendLine("- Charging Separation control: ${deviceCapabilities.chargingSeparationControl}")
             appendLine()
@@ -414,6 +506,43 @@ object DiagnosticsBuilder {
                         "not installed"
                     }
             )
+            appendLine(
+                "- Helper battery optimization: " +
+                    if (helperVersion == null) {
+                        "not installed"
+                    } else if (HelperController.isBatteryUnrestricted(context)) {
+                        "unrestricted"
+                    } else {
+                        "optimized"
+                    }
+            )
+            appendLine(
+                "- Helper Wi-Fi control permission: " +
+                    helperWifiControl.permissionGranted
+            )
+            appendLine(
+                "- Helper Wi-Fi control AppOp: " +
+                    helperWifiControl.appOpModeName +
+                    (
+                        helperWifiControl.appOpMode
+                            ?.let { " ($it)" }
+                            ?: ""
+                    )
+            )
+            appendLine(
+                "- Helper Wi-Fi control effectively allowed: " +
+                    (helperWifiControl.effectivelyAllowed ?: "unknown")
+            )
+            if (
+                helperWifiControl.effectivelyAllowed == true &&
+                wifiDiagnostic?.attempted == true &&
+                !wifiDiagnostic.success
+            ) {
+                appendLine(
+                    "- Helper Wi-Fi control note: access is allowed but the last " +
+                        "toggle failed; OEM legacy-enable confirmation may still be involved"
+                )
+            }
             appendLine(
                 "- Syncthing target: " +
                     if (syncthing != null) "${syncthing.displayName} • ${syncthing.packageName}"
@@ -507,7 +636,15 @@ object DiagnosticsBuilder {
                             " · online=" + raOfflineProxyStatus.online +
                             " · queue=" +
                             raOfflineProxyStatus.queue.state +
-                            "/" + raOfflineProxyStatus.queue.count
+                            "/" + raOfflineProxyStatus.queue.count +
+                            (
+                                raOfflineProxyStatus.pendingAwards?.let {
+                                    " · pendingAwards=" +
+                                        it.state + "/" + it.count +
+                                        " · pendingError=" +
+                                        (it.error ?: "none")
+                                } ?: " · pendingAwards=unavailable(API v1)"
+                            )
                     }
             )
             appendLine(
@@ -559,6 +696,12 @@ object DiagnosticsBuilder {
             appendLine("- Helper expected: ${cycle.helperExpected}")
             appendLine("- Helper sleep requested: ${cycle.helperSleepRequested}")
             appendLine("- Helper restored: ${cycle.helperRestored}")
+            appendLine(
+                "- Direct radio ownership: active=${directRadioState.active} " +
+                    "cycle=${directRadioState.cycleId} " +
+                    "wifiChanged=${directRadioState.wifiChanged} " +
+                    "bluetoothChanged=${directRadioState.bluetoothChanged}"
+            )
             appendLine("- Wi-Fi managed: ${cycle.wifiManaged}")
             appendLine("- Bluetooth managed: ${cycle.bluetoothManaged}")
             appendLine("- Battery Saver restore owned: ${batterySaverOwned.owned} · previous=${batterySaverOwned.previous}")
