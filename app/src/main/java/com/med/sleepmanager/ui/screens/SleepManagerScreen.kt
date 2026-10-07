@@ -52,6 +52,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -469,7 +470,16 @@ private class IntegrationUiRow(
                     listState = currentListState,
                     enabled = drawerState.isClosed,
                     onPreviousSection = { navigateSection(-1) },
-                    onNextSection = { navigateSection(1) }
+                    onNextSection = { navigateSection(1) },
+                    onMenuRequested = {
+                        drawerScope.launch {
+                            if (drawerState.isClosed) {
+                                drawerState.open()
+                            } else {
+                                drawerState.close()
+                            }
+                        }
+                    }
                 ),
             drawerState = drawerState,
             drawerContent = {
@@ -595,7 +605,9 @@ private class IntegrationUiRow(
                                     onClick = feedbackClick {
                                         drawerScope.launch { drawerState.open() }
                                     },
-                                    modifier = Modifier.offset(y = (-4).dp)
+                                    modifier = Modifier
+                                        .offset(y = (-4).dp)
+                                        .focusProperties { canFocus = false }
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_menu),
