@@ -1824,8 +1824,12 @@ class SleepManagerService : Service() {
         keepBasicSyncStopped: Boolean,
         syncthingPreSleepProbe: SyncthingConnector.PreSleepProbe?
     ) {
-        val wifi = AppPreferences.manageWifi(this)
-        val bluetooth = AppPreferences.manageBluetooth(this)
+        val requestedWifi = AppPreferences.manageWifi(this)
+        val requestedBluetooth = AppPreferences.manageBluetooth(this)
+        val wifi =
+            requestedWifi && RadioController.canManageWifi(this)
+        val bluetooth =
+            requestedBluetooth && RadioController.canManageBluetooth(this)
         val syncthing = AppPreferences.manageSyncthing(this)
         val tailscale =
             AppPreferences.manageTailscale(this) &&
@@ -1858,7 +1862,8 @@ class SleepManagerService : Service() {
         )
         Log.i(
             TAG,
-            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi bluetooth=$bluetooth " +
+            "Screen OFF -> cycle=${cycle.cycleId} wifi=$wifi/$requestedWifi " +
+                "bluetooth=$bluetooth/$requestedBluetooth " +
                 "syncthing=$syncthing tailscale=$tailscale jamesDsp=$jamesDsp " +
                 "basicSync=$basicSync keepBasicSyncStopped=$keepBasicSyncStopped " +
                 "radioBackend=$radioBackend"
