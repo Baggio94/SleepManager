@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import com.med.sleepmanager.BuildConfig
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.data.UpdateStateStore
+import com.med.sleepmanager.device.RadioController
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -291,6 +292,7 @@ object UpdateChecker {
         context: Context,
         helper: HelperUpdateInfo?
     ): HelperUpdateInfo? {
+        if (RadioController.directAvailable()) return null
         helper ?: return null
         val installed = runCatching {
             context.packageManager.getPackageInfo(HELPER_PACKAGE, 0)
