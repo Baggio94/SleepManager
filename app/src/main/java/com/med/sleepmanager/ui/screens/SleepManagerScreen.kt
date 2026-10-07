@@ -1451,8 +1451,8 @@ private class IntegrationUiRow(
                         )
 
                     BehaviorCard(
-                        wifi = wifiEnabled && radioControlReady,
-                        bluetooth = bluetoothEnabled && radioControlReady,
+                        wifi = wifiEnabled && wifiControlReady,
+                        bluetooth = bluetoothEnabled && bluetoothControlReady,
                         batterySaver =
                             batterySaverActionEnabled && batterySaverControlSupported,
                         syncthing = syncthingEnabled && selectedTarget != null,
