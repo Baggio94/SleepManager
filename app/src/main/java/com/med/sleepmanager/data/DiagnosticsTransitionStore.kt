@@ -457,10 +457,16 @@ object DiagnosticsTransitionStore {
             )
         }
 
-        if ("wi-fi" in lower || "bluetooth" in lower) {
+        if (
+            "wi-fi" in lower ||
+            "bluetooth" in lower ||
+            "pserver radios" in lower
+        ) {
             val restoring = event.startsWith("Wake") || event.startsWith("Disable")
             val directPServerSleep =
                 !restoring && "radio=pserver" in lower
+            val directPServerRestore =
+                restoring && "pserver radios" in lower
             record(
                 context,
                 COMPONENT_HELPER,
@@ -487,10 +493,13 @@ object DiagnosticsTransitionStore {
                 restoreTarget = "previous Wi-Fi / Bluetooth state",
                 restoreResult = if (restoring) event else null,
                 finalState =
-                    if (restoring && "restored" in lower) {
-                        "previous radio state requested"
-                    } else {
-                        null
+                    when {
+                        directPServerRestore && "restored" in lower ->
+                            "previous radio state restored"
+                        restoring && "restored" in lower ->
+                            "previous radio state requested"
+                        else ->
+                            null
                     },
                 note = event
             )

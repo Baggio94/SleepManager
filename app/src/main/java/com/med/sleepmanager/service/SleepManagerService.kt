@@ -113,6 +113,7 @@ class SleepManagerService : Service() {
         private const val CLOSED_LID_GUARD_DELAY_MS = 1500L
         private const val CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val DOCK_DISCONNECT_DEBOUNCE_MS = 500L
+        private const val EXTERNAL_POWER_DISCONNECT_RECHECK_MS = 2_000L
         private const val CLOSED_LID_LOCK_COOLDOWN_MS = 900L
         const val ACTION_DISABLE_AND_RESTORE =
             "com.med.sleepmanager.action.DISABLE_AND_RESTORE"
@@ -149,6 +150,20 @@ class SleepManagerService : Service() {
 
     private val activeBasicSyncFinishRunnable = Runnable {
         pollActiveBasicSyncBeforeSleep()
+    }
+
+    private val externalPowerDisconnectRecheckRunnable = Runnable {
+        val stillConnected =
+            DeviceControlController.externalPowerConnected(this)
+        if (stillConnected) {
+            Log.i(
+                TAG,
+                "Ignoring transient power disconnect; external power is still connected"
+            )
+            handleExternalPowerChanged(connected = true)
+        } else {
+            handleExternalPowerChanged(connected = false)
+        }
     }
 
     private val sleepStopWaitState = SleepStopWaitState()
@@ -505,11 +520,21 @@ class SleepManagerService : Service() {
                 Intent.ACTION_SCREEN_OFF -> onScreenOff()
                 Intent.ACTION_SCREEN_ON -> onScreenOn()
                 Intent.ACTION_POWER_CONNECTED -> {
+                    handler.removeCallbacks(
+                        externalPowerDisconnectRecheckRunnable
+                    )
                     BatterySleepStore.noteCharging(this@SleepManagerService)
                     handleExternalPowerChanged(connected = true)
                 }
-                Intent.ACTION_POWER_DISCONNECTED ->
-                    handleExternalPowerChanged(connected = false)
+                Intent.ACTION_POWER_DISCONNECTED -> {
+                    handler.removeCallbacks(
+                        externalPowerDisconnectRecheckRunnable
+                    )
+                    handler.postDelayed(
+                        externalPowerDisconnectRecheckRunnable,
+                        EXTERNAL_POWER_DISCONNECT_RECHECK_MS
+                    )
+                }
             }
         }
     }
@@ -4652,6 +4677,7 @@ class SleepManagerService : Service() {
         handler.removeCallbacks(closedLidGuardRunnable)
         handler.removeCallbacks(closedLidScreenOnRecheckRunnable)
         handler.removeCallbacks(dockDisconnectRunnable)
+        handler.removeCallbacks(externalPowerDisconnectRecheckRunnable)
         resetBasicSyncWakeRestoreConfirmation()
         handler.removeCallbacks(ownedBasicSyncRestoreRunnable)
         handler.removeCallbacks(ownedDeviceControlRestoreRunnable)
