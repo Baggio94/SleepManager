@@ -58,6 +58,22 @@ object RadioController {
     fun helperRequired(context: Context): Boolean =
         !directAvailable() && !HelperController.isInstalled(context)
 
+    fun canManageWifi(context: Context): Boolean =
+        when {
+            directAvailable() -> true
+            !HelperController.isInstalled(context) -> false
+            !HelperController.isBatteryUnrestricted(context) -> false
+            HelperController.wifiControlAccess(context).effectivelyAllowed == false -> false
+            else -> true
+        }
+
+    fun canManageBluetooth(context: Context): Boolean =
+        directAvailable() ||
+            (
+                HelperController.isInstalled(context) &&
+                    HelperController.isBatteryUnrestricted(context)
+            )
+
     fun currentWifiEnabled(context: Context): Boolean? =
         if (directAvailable()) {
             DeviceControlController.wifiEnabledPrivileged()
