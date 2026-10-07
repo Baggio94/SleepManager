@@ -30,7 +30,7 @@
     "name": "SleepManager",
     "applicationCategory": "UtilitiesApplication",
     "operatingSystem": "Android 9+",
-    "softwareVersion": "0.7.1",
+    "softwareVersion": "0.7.2",
     "description": "Open-source Android sleep and wake manager for gaming handhelds, phones and tablets.",
     "url": "https://baggio94.github.io/SleepManager/",
     "downloadUrl": "https://github.com/Baggio94/SleepManager/releases/latest",
@@ -51,7 +51,7 @@
         "name": "Does SleepManager require root, Shizuku or ADB?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. Normal use does not require root, Shizuku or ADB. Wi-Fi and Bluetooth control use the optional SleepManager Helper."
+          "text": "No. Normal use does not require root, Shizuku or ADB. Recent compatible AYN and Retroid devices use direct Wi-Fi and Bluetooth control; other devices use the SleepManager Compatibility Helper when needed."
         }
       },
       {
@@ -60,6 +60,14 @@
         "acceptedAnswer": {
           "@type": "Answer",
           "text": "SleepManager works on Android 9 / API 28 or newer. It is mainly designed for Android gaming handhelds from brands such as AYN, Retroid, ANBERNIC, AYANEO and KONKR, but it also works on phones and tablets."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need the SleepManager Helper?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Not on recent compatible AYN and Retroid handhelds. SleepManager uses direct Wi-Fi and Bluetooth control automatically when available. On other devices, SleepManager prompts you to install the Compatibility Helper when needed."
         }
       },
       {
@@ -1009,7 +1017,7 @@
       <section class="hero">
         <div class="hero-identity">
           <span class="hero-name">SleepManager</span>
-          <a class="release-chip" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.1" target="_blank" rel="noopener noreferrer">Version 0.7.1 is out</a>
+          <a class="release-chip" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.2" target="_blank" rel="noopener noreferrer">Version 0.7.2 is out</a>
         </div>
 
         <h1><span class="hero-accent">Better standby</span><br>for Android handhelds.</h1>
@@ -1073,8 +1081,8 @@
           </article>
 
           <article class="feature">
-            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13,3a9,9 0,1 0,8.45 5.9l-1.9,0.62A7,7 0,1 1,13 5a6.96,6.96 0,0 1,4.95 2.05L15,10h7V3l-2.63,2.63A8.95,8.95 0,0 0,13 3z" fill="currentColor"/><path d="M12,7h2v5.17l3.24,1.87 -1,1.73L12,13.32z" fill="currentColor"/></svg></span>Activity, diagnostics & updates</h3>
-            <p>Keep a detailed activity log, generate copyable diagnostics for troubleshooting, and check, verify and install stable SleepManager and Helper updates.</p>
+            <h3><span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M13,3a9,9 0,1 0,8.45 5.9l-1.9,0.62A7,7 0,1 1,13 5a6.96,6.96 0,0 1,4.95 2.05L15,10h7V3l-2.63,2.63A8.95,8.95 0,0 0,13 3z" fill="currentColor"/><path d="M12,7h2v5.17l3.24,1.87 -1,1.73L12,13.32z" fill="currentColor"/></svg></span>Activity, Diagnostics 2.0 & updates</h3>
+            <p>Track recent sleep/wake activity, inspect multi-cycle diagnostics, false wakes, system and memory snapshots, and Android process exits, then securely install stable updates.</p>
           </article>
         </div>
 
@@ -1164,29 +1172,25 @@
         <div class="release-panel">
           <div>
             <div class="release-version">Latest stable release</div>
-            <h2>0.7.1</h2>
+            <h2>0.7.2</h2>
             <p class="release-copy">
-              SleepManager 0.7.1 adds RAOfflineProxy integration, better battery precision, Battery Health, and several reliability and diagnostics improvements.
+              SleepManager 0.7.2 adds direct Wi-Fi and Bluetooth control on supported recent AYN and Retroid handhelds, expands Diagnostics 2.0, and improves sleep/wake reliability.
             </p>
-            <a class="text-link" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.1" target="_blank" rel="noopener noreferrer">Read the full release notes ↗</a>
+            <a class="text-link" href="https://github.com/Baggio94/SleepManager/releases/tag/v0.7.2" target="_blank" rel="noopener noreferrer">Read the full release notes ↗</a>
           </div>
 
           <ul class="release-list">
             <li>
-              <strong>RAOfflineProxy integration</strong>
-              <span>SleepManager can now manage RAOfflineProxy during sleep and wake, while keeping the proxy and Wi-Fi available if a cache operation still needs to finish.</span>
+              <strong>Direct radio control</strong>
+              <span>Recent compatible AYN and Retroid handhelds no longer need the Compatibility Helper for Wi-Fi and Bluetooth.</span>
             </li>
             <li>
-              <strong>Better battery precision</strong>
-              <span>SleepManager can now handle incorrect battery capacity data on some devices, keeping measured mAh and precise drain useful even when the Android battery percentage does not change.</span>
+              <strong>Diagnostics 2.0</strong>
+              <span>Improved multi-cycle history, false-wake tracking, system and memory snapshots, and Android process-exit information.</span>
             </li>
             <li>
-              <strong>Battery Health</strong>
-              <span>The Stats page can now show battery health when Android provides reliable capacity data, and shows Unavailable instead of a misleading value when it does not.</span>
-            </li>
-            <li>
-              <strong>Reliability and diagnostics</strong>
-              <span>Battery reporting and RAOfflineProxy diagnostics have been improved, with safer state restoration across sleep, wake and service recovery.</span>
+              <strong>Sleep & integration reliability</strong>
+              <span>Stronger sleep/wake recovery and safer coordination across managed radios and integrations.</span>
             </li>
           </ul>
         </div>
@@ -1307,13 +1311,13 @@
           </article>
 
           <article class="step">
-            <h3>Install the Helper if needed</h3>
-            <p>If you want Wi-Fi or Bluetooth control, install the optional SleepManager Helper. It has no launcher icon or separate interface.</p>
+            <h3>Compatibility Helper, if needed</h3>
+            <p>If your device requires it, SleepManager will guide you through installing and setting up the Compatibility Helper.</p>
           </article>
 
           <article class="step">
             <h3>Finish setup</h3>
-            <p>Open SleepManager, choose what you want it to manage, enable SleepManager, then tap <strong>Finish setup</strong>.</p>
+            <p>Choose what you want SleepManager to manage, enable SleepManager, then tap <strong>Finish setup</strong>.</p>
           </article>
         </div>
 
@@ -1331,7 +1335,12 @@
         <div class="faq">
           <details>
             <summary>Does SleepManager require root, Shizuku or ADB?</summary>
-            <p>No. Normal use does not require root, Shizuku or ADB. Wi-Fi and Bluetooth control use the optional SleepManager Helper.</p>
+            <p>No. Normal use does not require root, Shizuku or ADB. Recent compatible AYN and Retroid devices use direct Wi-Fi and Bluetooth control; other devices use the Compatibility Helper when needed.</p>
+          </details>
+
+          <details>
+            <summary>Do I need the SleepManager Helper?</summary>
+            <p>Not on recent compatible AYN and Retroid handhelds. SleepManager uses direct Wi-Fi and Bluetooth control automatically when available. On other devices, SleepManager will prompt you to install the Compatibility Helper when needed.</p>
           </details>
 
           <details>
