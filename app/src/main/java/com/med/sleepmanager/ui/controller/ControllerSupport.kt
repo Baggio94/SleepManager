@@ -32,6 +32,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import com.med.sleepmanager.ui.SleepManagerFeedbackGate
+import com.med.sleepmanager.ui.performSleepManagerFeedback
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
@@ -64,7 +66,8 @@ internal fun Modifier.controllerNavigation(
     listState: LazyListState,
     enabled: Boolean = true,
     onPreviousSection: () -> Unit,
-    onNextSection: () -> Unit
+    onNextSection: () -> Unit,
+    onMenuRequested: () -> Unit
 ): Modifier {
     val focusManager = LocalFocusManager.current
     val view = LocalView.current
@@ -92,7 +95,6 @@ internal fun Modifier.controllerNavigation(
     ) {
         if (eventTime - lastPageScrollAt < PAGE_SCROLL_DEBOUNCE_MS) return
         lastPageScrollAt = eventTime
-        focusManager.clearFocus(force = true)
 
         val viewport =
             listState.layoutInfo.viewportSize.height
@@ -121,11 +123,81 @@ internal fun Modifier.controllerNavigation(
                 4 -> FocusDirection.Right
                 else -> return false
             }
-        focusManager.moveFocus(focusDirection)
+        val moved = focusManager.moveFocus(focusDirection)
+        if (!moved && direction in 1..2) {
+            val viewport =
+                listState.layoutInfo.viewportSize.height
+                    .takeIf { it > 0 }
+                    ?: view.height
+            if (viewport > 0) {
+                scope.launch {
+                    listState.animateScrollBy(
+                        viewport * 0.36f * if (direction == 1) -1f else 1f
+                    )
+                    focusManager.moveFocus(focusDirection)
+                }
+            }
+        }
         return true
     }
 
     DisposableEffect(view, listState, enabled) {
+        val keyListener =
+            View.OnKeyListener { _, keyCode, event ->
+                if (
+                    event.action != AndroidKeyEvent.ACTION_DOWN ||
+                    event.repeatCount != 0
+                ) {
+                    return@OnKeyListener false
+                }
+
+                when (keyCode) {
+                    AndroidKeyEvent.KEYCODE_BUTTON_START,
+                    AndroidKeyEvent.KEYCODE_MENU -> {
+                        ControllerInputMode.active = true
+                        onMenuRequested()
+                        true
+                    }
+
+                    AndroidKeyEvent.KEYCODE_BUTTON_B -> {
+                        ControllerInputMode.active = true
+                        backDispatcher?.onBackPressed()
+                        true
+                    }
+
+                    AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
+                        if (!enabled) return@OnKeyListener false
+                        ControllerInputMode.active = true
+                        onPreviousSection()
+                        true
+                    }
+
+                    AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
+                        if (!enabled) return@OnKeyListener false
+                        ControllerInputMode.active = true
+                        onNextSection()
+                        true
+                    }
+
+                    AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
+                        if (!enabled) return@OnKeyListener false
+                        ControllerInputMode.active = true
+                        pageScroll(-1, event.eventTime)
+                        true
+                    }
+
+                    AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
+                        if (!enabled) return@OnKeyListener false
+                        ControllerInputMode.active = true
+                        pageScroll(1, event.eventTime)
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+        view.setOnKeyListener(keyListener)
+
         val listener =
             View.OnGenericMotionListener { _, event ->
                 if (
@@ -143,7 +215,6 @@ internal fun Modifier.controllerNavigation(
                 val ry = event.getAxisValue(MotionEvent.AXIS_RY)
                 val rightY = if (abs(rz) > 0.01f) rz else ry
                 if (abs(rightY) >= RIGHT_STICK_DEAD_ZONE) {
-                    focusManager.clearFocus(force = true)
                     lastStickDirection = 0
                     scope.launch {
                         listState.scrollBy(
@@ -200,6 +271,7 @@ internal fun Modifier.controllerNavigation(
 
         view.setOnGenericMotionListener(listener)
         onDispose {
+            view.setOnKeyListener(null)
             view.setOnGenericMotionListener(null)
         }
     }
@@ -223,7 +295,18 @@ internal fun Modifier.controllerNavigation(
                         native.flags,
                         native.source
                     )
-                return@onPreviewKeyEvent view.dispatchKeyEvent(mapped)
+                val handled =
+                    SleepManagerFeedbackGate.withoutWrappedFeedback {
+                        view.dispatchKeyEvent(mapped)
+                    }
+                if (
+                    handled &&
+                    native.action == AndroidKeyEvent.ACTION_DOWN &&
+                    native.repeatCount == 0
+                ) {
+                    view.performSleepManagerFeedback()
+                }
+                return@onPreviewKeyEvent handled
             }
 
             if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_B) {
@@ -253,7 +336,9 @@ internal fun Modifier.controllerNavigation(
                     AndroidKeyEvent.KEYCODE_BUTTON_L1,
                     AndroidKeyEvent.KEYCODE_BUTTON_R1,
                     AndroidKeyEvent.KEYCODE_BUTTON_L2,
-                    AndroidKeyEvent.KEYCODE_BUTTON_R2
+                    AndroidKeyEvent.KEYCODE_BUTTON_R2,
+                    AndroidKeyEvent.KEYCODE_BUTTON_START,
+                    AndroidKeyEvent.KEYCODE_MENU
                 )
             if (controllerKey) {
                 ControllerInputMode.active = true
@@ -265,17 +350,16 @@ internal fun Modifier.controllerNavigation(
 
             when (keyCode) {
                 AndroidKeyEvent.KEYCODE_DPAD_UP ->
-                    focusManager.moveFocus(FocusDirection.Up)
+                    moveFocus(1, native.eventTime)
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN ->
-                    focusManager.moveFocus(FocusDirection.Down)
+                    moveFocus(2, native.eventTime)
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT ->
-                    focusManager.moveFocus(FocusDirection.Left)
+                    moveFocus(3, native.eventTime)
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT ->
-                    focusManager.moveFocus(FocusDirection.Right)
+                    moveFocus(4, native.eventTime)
 
                 AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
                     if (native.repeatCount == 0) {
-                        focusManager.clearFocus(force = true)
                         onPreviousSection()
                     }
                     true
@@ -283,7 +367,6 @@ internal fun Modifier.controllerNavigation(
 
                 AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
                     if (native.repeatCount == 0) {
-                        focusManager.clearFocus(force = true)
                         onNextSection()
                     }
                     true
