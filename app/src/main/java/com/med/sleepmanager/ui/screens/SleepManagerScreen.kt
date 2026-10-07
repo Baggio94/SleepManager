@@ -469,6 +469,7 @@ private class IntegrationUiRow(
                 Modifier.controllerNavigation(
                     listState = currentListState,
                     enabled = drawerState.isClosed,
+                    focusResetKey = currentSection,
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {

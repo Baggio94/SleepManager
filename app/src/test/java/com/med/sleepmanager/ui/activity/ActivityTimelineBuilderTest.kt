@@ -185,4 +185,88 @@ class ActivityTimelineBuilderTest {
             )
         )
     }
+    @Test
+    fun confirmedSyncthingIsShownBeforeDisruptiveSleepActions() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Sleep → RAOfflineProxy STOP accepted · restore owned"
+                    ),
+                    EventHistoryStore.Event(
+                        110L,
+                        "Sleep → Syncthing STOP confirmed"
+                    ),
+                    EventHistoryStore.Event(
+                        120L,
+                        "Sleep → Battery Saver deferred · external power"
+                    ),
+                    EventHistoryStore.Event(
+                        130L,
+                        "Sleep → Wi-Fi off · Bluetooth off · Syncthing STOP confirmed · radio=PServer"
+                    )
+                )
+            )
+
+        assertEquals(
+            listOf(
+                "RAOfflineProxy stopped",
+                "Syncthing paused",
+                "Battery Saver not used while charging",
+                "Wi-Fi turned off",
+                "Bluetooth turned off"
+            ),
+            groups.single().steps.map { it.text }
+        )
+    }
+
+    @Test
+    fun legacyCombinedSleepSummaryMovesSyncthingAheadOfRadios() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Sleep → Wi-Fi off · Bluetooth off · Syncthing STOP confirmed · radio=PServer"
+                    )
+                )
+            )
+
+        assertEquals(
+            listOf(
+                "Syncthing paused",
+                "Wi-Fi turned off",
+                "Bluetooth turned off"
+            ),
+            groups.single().steps.map { it.text }
+        )
+    }
+
+    @Test
+    fun trimCallbackIsNotPresentedAsLowMemory() {
+        val groups =
+            ActivityTimelineBuilder.build(
+                listOf(
+                    EventHistoryStore.Event(
+                        100L,
+                        "Memory trim → onTrimMemory level=15"
+                    ),
+                    EventHistoryStore.Event(
+                        200L,
+                        "Memory pressure → Android lowMemory=true · onLowMemory"
+                    )
+                )
+            )
+
+        assertEquals(
+            "Android requested memory trim · level 15",
+            groups[1].steps.single().text
+        )
+        assertEquals(
+            "Android reported low memory",
+            groups[0].steps.single().text
+        )
+    }
+
 }

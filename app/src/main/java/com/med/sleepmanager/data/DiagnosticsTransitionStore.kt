@@ -459,9 +459,24 @@ object DiagnosticsTransitionStore {
 
         if ("wi-fi" in lower || "bluetooth" in lower) {
             val restoring = event.startsWith("Wake") || event.startsWith("Disable")
+            val directPServerSleep =
+                !restoring && "radio=pserver" in lower
             record(
                 context,
                 COMPONENT_HELPER,
+                reset = directPServerSleep,
+                initialState =
+                    if (directPServerSleep) {
+                        "reported by PServer"
+                    } else {
+                        null
+                    },
+                sleepRequest =
+                    if (directPServerSleep) {
+                        "OFF"
+                    } else {
+                        null
+                    },
                 sleepResult = if (!restoring) event else null,
                 sleepState =
                     if (!restoring && ("wi-fi off" in lower || "bluetooth off" in lower)) {
@@ -591,7 +606,7 @@ object DiagnosticsTransitionStore {
 
     fun label(componentId: String): String =
         when (componentId) {
-            COMPONENT_HELPER -> "Helper Wi-Fi / Bluetooth"
+            COMPONENT_HELPER -> "Wi-Fi / Bluetooth"
             COMPONENT_SYNCTHING -> "Syncthing-Fork"
             COMPONENT_BASIC_SYNC -> "BasicSync"
             COMPONENT_RA_OFFLINE_PROXY -> "RAOfflineProxy"

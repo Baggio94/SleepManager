@@ -72,7 +72,7 @@ internal object ActivityTimelineBuilder {
 
                 group.endedAt = event.timestamp
                 texts.forEach { text ->
-                    if (group.steps.lastOrNull()?.text != text) {
+                    if (group.steps.none { it.text == text }) {
                         group.steps +=
                             ActivityTimelineStep(
                                 timestamp = event.timestamp,
@@ -358,9 +358,12 @@ internal object ActivityTimelineBuilder {
                     .filter { it.isNotBlank() }
 
             message.startsWith("Sleep →") ->
-                return message.substringAfter("→")
-                    .split(" · ")
-                    .map { friendlyAction(it.trim(), ActivityTimelineKind.SLEEP) }
+                return orderedSleepActions(
+                    message.substringAfter("→")
+                        .split(" · ")
+                        .map(String::trim)
+                )
+                    .map { friendlyAction(it, ActivityTimelineKind.SLEEP) }
                     .filter { it.isNotBlank() }
 
             message.startsWith("Disable → Battery Saver restore retries exhausted") ->
@@ -419,14 +422,48 @@ internal object ActivityTimelineBuilder {
             message == "BasicSync restore pending" ->
                 return listOf("BasicSync could not be restored yet")
 
-            message.startsWith("Memory pressure →") ->
+            message.startsWith("Memory pressure → Android lowMemory=true") ->
                 return listOf("Android reported low memory")
+
+            message.startsWith("Memory trim →") ||
+                message.startsWith("Memory pressure → onTrimMemory") ||
+                message.startsWith("Memory pressure → onLowMemory") ->
+                return listOf(memoryTrimText(message))
 
             message.startsWith("Closed-lid monitoring unavailable") ->
                 return listOf("Lid monitoring is unavailable")
         }
 
         return listOf(message)
+    }
+
+    private fun orderedSleepActions(actions: List<String>): List<String> {
+        val syncthing =
+            actions.filter {
+                it.startsWith("Syncthing STOP") ||
+                    it == "state unverified"
+            }
+        if (syncthing.isEmpty()) return actions
+
+        val remaining =
+            actions.filterNot {
+                it.startsWith("Syncthing STOP") ||
+                    it == "state unverified"
+            }
+        return syncthing + remaining
+    }
+
+    private fun memoryTrimText(message: String): String {
+        val level =
+            Regex("""level=(\\d+)""")
+                .find(message)
+                ?.groupValues
+                ?.getOrNull(1)
+        return if (level != null) {
+            "Android requested memory trim · level $level"
+        } else {
+            "Android requested memory trim"
+        }
     }
 
     private fun friendlyAction(

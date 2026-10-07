@@ -1,6 +1,7 @@
 package com.med.sleepmanager.service
 
 import androidx.core.content.ContextCompat
+import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -2025,6 +2026,26 @@ class SleepManagerService : Service() {
                         tailscaleVerificationPending
                 )
 
+        if (syncthing) {
+            when {
+                !syncthingStopRequested ->
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        "Sleep → Syncthing STOP not sent"
+                    )
+                !waitForManagedStops ->
+                    DiagnosticsStateStore.recordEvent(
+                        this,
+                        when (syncthingSleepSummaryState) {
+                            SyncthingSleepSummaryState.STOP_UNVERIFIED ->
+                                "Sleep → Syncthing STOP sent · state unverified"
+                            else ->
+                                "Sleep → Syncthing STOP sent"
+                        }
+                    )
+            }
+        }
+
         if (waitForManagedStops || waitForTailscale) {
             sleepStopWaitState.pendingPostStopActions = true
             sleepStopWaitState.pendingWifi = wifi
@@ -2219,6 +2240,10 @@ class SleepManagerService : Service() {
                                         TAG,
                                         "Syncthing STOP confirmed before disruptive sleep actions"
                                     )
+                                    DiagnosticsStateStore.recordEvent(
+                                        this@SleepManagerService,
+                                        "Sleep → Syncthing STOP confirmed"
+                                    )
                                 }
 
                                 false -> {
@@ -2243,6 +2268,10 @@ class SleepManagerService : Service() {
                                         Log.i(
                                             TAG,
                                             "Syncthing STOP state unavailable; fallback grace elapsed before disruptive sleep actions"
+                                        )
+                                        DiagnosticsStateStore.recordEvent(
+                                            this@SleepManagerService,
+                                            "Sleep → Syncthing STOP sent · state unverified"
                                         )
                                     }
                                 }
@@ -4397,19 +4426,11 @@ class SleepManagerService : Service() {
                 )
             }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth off" else "Bluetooth unchanged")
-            when (syncthingState) {
-                SyncthingSleepSummaryState.NOT_MANAGED -> Unit
-                SyncthingSleepSummaryState.STOP_NOT_SENT ->
-                    add("Syncthing STOP not sent")
-                SyncthingSleepSummaryState.STOP_SENT ->
-                    add("Syncthing STOP sent")
-                SyncthingSleepSummaryState.STOP_CONFIRMED ->
-                    add("Syncthing STOP confirmed")
-                SyncthingSleepSummaryState.STOP_UNVERIFIED ->
-                    add("Syncthing STOP sent · state unverified")
-                SyncthingSleepSummaryState.STOP_NOT_CONFIRMED ->
-                    add("Syncthing STOP not confirmed")
-            }
+            // Syncthing gets its own timestamped diagnostics event when its
+            // STOP state becomes known. Do not repeat it here after the radio
+            // actions, otherwise Activity Log would imply the wrong order.
+            @Suppress("UNUSED_VARIABLE")
+            val syncthingStateForDiagnosticsCompatibility = syncthingState
         }
         return if (actions.isEmpty()) "Sleep" else "Sleep → " + actions.joinToString(" · ")
     }
@@ -4547,6 +4568,17 @@ class SleepManagerService : Service() {
             .build()
     }
 
+    private fun androidReportsLowMemory(): Boolean {
+        val manager =
+            getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return false
+        return runCatching {
+            ActivityManager.MemoryInfo()
+                .also(manager::getMemoryInfo)
+                .lowMemory
+        }.getOrDefault(false)
+    }
+
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
 
@@ -4556,9 +4588,14 @@ class SleepManagerService : Service() {
             level == TRIM_MEMORY_MODERATE ||
             level == TRIM_MEMORY_COMPLETE
         ) {
+            val lowMemory = androidReportsLowMemory()
             DiagnosticsStateStore.recordEvent(
                 this,
-                "Memory pressure → onTrimMemory level=$level"
+                if (lowMemory) {
+                    "Memory pressure → Android lowMemory=true · onTrimMemory level=$level"
+                } else {
+                    "Memory trim → onTrimMemory level=$level"
+                }
             )
             captureAdvancedDiagnostics(
                 phase = DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE,
@@ -4569,9 +4606,14 @@ class SleepManagerService : Service() {
 
     override fun onLowMemory() {
         super.onLowMemory()
+        val lowMemory = androidReportsLowMemory()
         DiagnosticsStateStore.recordEvent(
             this,
-            "Memory pressure → onLowMemory"
+            if (lowMemory) {
+                "Memory pressure → Android lowMemory=true · onLowMemory"
+            } else {
+                "Memory trim → onLowMemory"
+            }
         )
         captureAdvancedDiagnostics(DiagnosticsCycleStore.PHASE_MEMORY_PRESSURE)
     }
