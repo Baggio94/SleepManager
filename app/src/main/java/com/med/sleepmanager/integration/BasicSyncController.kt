@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -197,6 +198,12 @@ object BasicSyncController {
         runCatching {
             context.packageManager.getPackageInfo(PACKAGE, 0)
         }.isSuccess
+
+    fun isStopped(context: Context): Boolean =
+        runCatching {
+            val info = context.packageManager.getApplicationInfo(PACKAGE, 0)
+            info.flags and ApplicationInfo.FLAG_STOPPED != 0
+        }.getOrDefault(false)
 
     fun versionName(context: Context): String? =
         runCatching {
