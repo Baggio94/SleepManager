@@ -623,8 +623,7 @@ class SleepManagerService : Service() {
                             wifiToggleSuccess = wifiToggleSuccess,
                             wifiAirplaneMode = airplaneMode,
                             bluetoothManaged = bluetoothManaged,
-                            bluetoothChanged = bluetoothChanged,
-                            syncthingState = syncthingSleepSummaryState
+                            bluetoothChanged = bluetoothChanged
                         )
                     )
                 }
@@ -2441,8 +2440,7 @@ class SleepManagerService : Service() {
                     wifiManaged = false,
                     wifiChanged = false,
                     bluetoothManaged = false,
-                    bluetoothChanged = false,
-                    syncthingState = syncthingSleepSummaryState
+                    bluetoothChanged = false
                 )
             )
             SleepCycleStore.completeIfRestored(this)
@@ -2465,8 +2463,7 @@ class SleepManagerService : Service() {
                         wifiManaged = result.wifiManaged,
                         wifiChanged = result.wifiChanged,
                         bluetoothManaged = result.bluetoothManaged,
-                        bluetoothChanged = result.bluetoothChanged,
-                        syncthingState = syncthingSleepSummaryState
+                        bluetoothChanged = result.bluetoothChanged
                     ) + " · radio=PServer" +
                         if (result.success) "" else " · radioError"
                 )
@@ -4406,8 +4403,7 @@ class SleepManagerService : Service() {
         wifiToggleSuccess: Boolean = true,
         wifiAirplaneMode: Boolean = false,
         bluetoothManaged: Boolean,
-        bluetoothChanged: Boolean,
-        syncthingState: SyncthingSleepSummaryState
+        bluetoothChanged: Boolean
     ): String {
         val actions = buildList {
             if (wifiManaged) {
@@ -4426,11 +4422,6 @@ class SleepManagerService : Service() {
                 )
             }
             if (bluetoothManaged) add(if (bluetoothChanged) "Bluetooth off" else "Bluetooth unchanged")
-            // Syncthing gets its own timestamped diagnostics event when its
-            // STOP state becomes known. Do not repeat it here after the radio
-            // actions, otherwise Activity Log would imply the wrong order.
-            @Suppress("UNUSED_VARIABLE")
-            val syncthingStateForDiagnosticsCompatibility = syncthingState
         }
         return if (actions.isEmpty()) "Sleep" else "Sleep → " + actions.joinToString(" · ")
     }

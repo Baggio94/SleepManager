@@ -455,7 +455,7 @@ internal object ActivityTimelineBuilder {
 
     private fun memoryTrimText(message: String): String {
         val level =
-            Regex("""level=(\\d+)""")
+            Regex("""level=(\d+)""")
                 .find(message)
                 ?.groupValues
                 ?.getOrNull(1)
