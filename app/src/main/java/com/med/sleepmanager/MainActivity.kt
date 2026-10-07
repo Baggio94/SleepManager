@@ -860,13 +860,15 @@ class MainActivity : ComponentActivity() {
                         openHelperWifiControlSettings()
                     },
                     onOpenRaOfflineProxySettingsRequested = {
+                        pendingExternalNavigation = true
                         if (
                             !RaOfflineProxyController
-                                .openAppSettings(this@MainActivity)
+                                .openBatteryOptimizationSettings(this@MainActivity)
                         ) {
+                            pendingExternalNavigation = false
                             Toast.makeText(
                                 this@MainActivity,
-                                "Unable to open RAOfflineProxy app settings",
+                                "Unable to open RAOfflineProxy battery optimization settings",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
