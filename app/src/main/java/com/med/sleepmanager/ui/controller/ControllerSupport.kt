@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -23,7 +22,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Shape
@@ -67,7 +65,6 @@ internal fun Modifier.controllerFocusHighlight(
 internal fun Modifier.controllerNavigation(
     listState: LazyListState,
     enabled: Boolean = true,
-    focusResetKey: Any? = null,
     onPreviousSection: () -> Unit,
     onNextSection: () -> Unit,
     onMenuRequested: () -> Unit
@@ -90,20 +87,6 @@ internal fun Modifier.controllerNavigation(
     }
     var lastPageScrollAt by remember(listState) {
         mutableLongStateOf(0L)
-    }
-
-    LaunchedEffect(view, listState, focusResetKey, enabled) {
-        if (!enabled) return@LaunchedEffect
-
-        // Prime the Compose host so shoulder/menu keys work before the user
-        // presses a D-pad direction, then seed the new section with a valid
-        // content focus target. The visual highlight still stays hidden until
-        // a controller input activates ControllerInputMode.
-        focusManager.clearFocus(force = true)
-        withFrameNanos { }
-        view.requestFocus()
-        withFrameNanos { }
-        focusManager.moveFocus(FocusDirection.Next)
     }
 
     fun pageScroll(
