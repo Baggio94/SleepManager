@@ -292,7 +292,12 @@ object UpdateChecker {
         context: Context,
         helper: HelperUpdateInfo?
     ): HelperUpdateInfo? {
-        if (RadioController.directAvailable()) return null
+        if (
+            runCatching { RadioController.directAvailable() }
+                .getOrDefault(false)
+        ) {
+            return null
+        }
         helper ?: return null
         val installed = runCatching {
             context.packageManager.getPackageInfo(HELPER_PACKAGE, 0)
