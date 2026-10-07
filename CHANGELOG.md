@@ -2,6 +2,45 @@
 
 Release notes are organized by version and focus on user-visible behavior first.
 
+## 0.7.2-rc2 — 2026-10-07 — Release candidate
+
+### Radio backend and Helper migration
+
+- Direct PServer Wi-Fi/Bluetooth control is selected automatically when available; Compatibility Helper remains the fallback.
+- PServer-capable devices no longer surface Helper updates as required.
+- Helper-required devices now gate Wi-Fi/Bluetooth on the Helper battery-optimization exemption; Wi-Fi additionally respects an explicitly denied Wi-Fi-control app-op.
+- Existing radio-management preferences remain stored while a prerequisite is unavailable and become effective again when readiness returns.
+- Runtime sleep actions use the same prerequisite rules as the UI, so disabled controls cannot still act in the background.
+
+### BasicSync readiness
+
+- Distinguishes Android package STOPPED state from a genuinely unavailable BasicSync remote-control API.
+- Force-stopped BasicSync now shows guidance to open the app instead of the misleading “Allow remote control required” status.
+- Returning from BasicSync automatically re-runs the authoritative REQUEST_STATE / STATE_CHANGED readiness probe.
+
+### RAOfflineProxy
+
+- “Allow” now opens the battery-optimization exemption flow that matches SleepManager's `isIgnoringBatteryOptimizations` prerequisite.
+- Added safe fallback to the system battery-optimization list and then app details.
+- Re-checks readiness after returning to SleepManager.
+
+### Controller reliability
+
+- Hardened L1/R1 tab switching, Start/Menu drawer control, L2/R2 page movement and right-stick free scrolling.
+- Removed focus-clearing behavior that could strand controller navigation.
+- Added vertical auto-scroll fallback when the next focus target is off screen.
+- Persistent side-rail items no longer steal normal page D-pad focus.
+- Controller A now produces explicit SleepManager click/haptic feedback for accepted actions.
+- Full Controller Navigation v2 remains planned for 0.7.3.
+
+### Compatibility
+
+- Main app: **0.7.2-rc2 / versionCode 556**.
+- Helper unchanged: **1.1.7-rc1 / versionCode 1121**.
+- Existing settings are preserved during update.
+
+---
+
 ## 0.7.1 — 2026-10-04
 
 ### RAOfflineProxy integration

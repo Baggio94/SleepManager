@@ -1,59 +1,66 @@
-# SleepManager 0.7.1
+# SleepManager 0.7.2-rc2
 
-SleepManager 0.7.1 adds **RAOfflineProxy integration**, improves battery measurement on devices with unreliable capacity reporting, and introduces **Battery Health**. It also includes several smaller reliability and diagnostics improvements.
+SleepManager 0.7.2-rc2 is the second release candidate for 0.7.2. It keeps the already validated sleep/wake engine while tightening radio-backend migration, integration readiness and handheld controller reliability.
 
-## RAOfflineProxy Integration
+## Radio control and Compatibility Helper
 
-SleepManager can now manage **RAOfflineProxy** as part of the normal sleep/wake cycle.
+SleepManager now treats radio control as one automatic backend:
 
-- SleepManager checks the real RAOfflineProxy state before changing it.
-- When the cache queue is empty or in a safe state, SleepManager can stop RAOfflineProxy before managed Wi-Fi is turned off.
-- If RAOfflineProxy is actively **caching** or **waiting** for its next cache window, SleepManager keeps the proxy and Wi-Fi available until the queue reaches a safe state.
-- Queue waiting is event-driven and does not use permanent polling.
-- RAOfflineProxy is restored on a real wake only when SleepManager performed the stop.
-- Closed-lid false wakes do not incorrectly restart the proxy.
-- Pending queue, stop and restore ownership are preserved across SleepManager service recovery.
-- Diagnostics now include RAOfflineProxy state, queue and restore information.
+- On devices where direct **PServer** Wi-Fi/Bluetooth control is available, SleepManager uses it automatically.
+- The Compatibility Helper is only the fallback when direct radio control is unavailable.
+- PServer-capable users are not asked to complete Helper-specific setup and Helper updates are not surfaced as required.
+- Legacy Helper communication remains supported during the migration window so updating the Main app first does not intentionally break existing setups.
 
-For reliable background restart on Android 12+, set RAOfflineProxy battery usage to **Unrestricted**:
+On devices that still require the Helper:
 
-**Settings → Apps → RAOfflineProxy → App battery usage → Unrestricted**
+- The Helper battery-optimization exemption is now a real prerequisite for managed Wi-Fi and Bluetooth.
+- Wi-Fi additionally requires Android's **Wi-Fi control** access when the platform explicitly reports it as denied.
+- Bluetooth does not depend on the Wi-Fi-control special access.
+- Existing SleepManager Wi-Fi/Bluetooth preferences are preserved if a prerequisite is temporarily missing. The affected controls are disabled until setup is complete, then become effective again automatically.
 
-RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
+## BasicSync readiness
 
-## Better Battery Precision
+BasicSync readiness now distinguishes two different situations:
 
-Some devices can report an unrealistic full-charge capacity while also scaling the battery charge counter by the same incorrect amount. SleepManager can now detect this situation and normalize the charge counter against the trusted design capacity instead of immediately falling back to Android's whole-number battery percentage. This preserves sub-percent battery movement, so long sleep sessions can still report **measured mAh and precise drain** even when Android itself remains on the same displayed percentage.
+- If Android has placed BasicSync in the package **STOPPED** state after a force-stop, SleepManager tells you to open BasicSync instead of incorrectly saying that remote control is disabled.
+- If BasicSync is not stopped but still does not answer the bounded `REQUEST_STATE` probes, SleepManager continues to show **Allow remote control required**.
 
-## Battery Health
+Returning from BasicSync automatically triggers a fresh readiness check. Existing BasicSync sleep/wake, completion-aware sync and periodic-sync behavior is unchanged.
 
-The Stats page now shows **Battery Health** when Android provides trustworthy battery-capacity values. Battery Health compares the reported full-charge capacity with the battery design capacity. If Android reports an implausible full-charge value, SleepManager shows **Unavailable** instead of displaying a misleading health percentage.
+## RAOfflineProxy prerequisite
 
-## Reliability and Diagnostics
+The RAOfflineProxy setup action now targets the battery-optimization exemption that SleepManager actually checks.
 
-- Improved handling of battery-capacity data that is clearly outside a realistic range.
-- Diagnostics expose the raw and selected battery-capacity values used by SleepManager, making battery-reporting problems easier to identify.
-- Sleep/wake ownership remains state-aware so SleepManager restores only what it actually changed.
-- RAOfflineProxy queue and restore ownership are preserved safely across service recovery.
+- The UI uses the platform-independent wording **Battery optimization exemption required**.
+- **Allow** opens the Android exemption flow when available.
+- SleepManager falls back to the system battery-optimization screen, then app details if necessary.
+- Readiness is checked again when returning to SleepManager.
+
+## Controller reliability
+
+RC2 includes a focused controller hardening pass without pulling the larger Controller Navigation v2 refactor into 0.7.2.
+
+- **L1 / R1** switch tabs more reliably and no longer clear focus first.
+- **Start / Menu** opens or closes the navigation drawer.
+- Normal D-pad/left-stick page navigation no longer enters the persistent side rail.
+- Up/down navigation gets a small auto-scroll fallback when Compose cannot find the next off-screen focus target.
+- **L2 / R2** move by page.
+- The right stick scrolls freely without intentionally clearing the current focus.
+- Controller **A** produces explicit SleepManager click/haptic feedback when an action is accepted.
+- Touch input keeps the existing touch experience and hides the controller highlight until controller input resumes.
+
+The full card registry, per-tab focus memory and horizontal sub-focus for multi-action cards remain planned for 0.7.3.
 
 ## Compatibility
 
-- SleepManager **0.7.1 / versionCode 552**
-- SleepManager Helper remains **1.1.2 / versionCode 1115**
+- Main app: **0.7.2-rc2 / versionCode 556**
+- Compatibility Helper: **1.1.7-rc1 / versionCode 1121** (unchanged in RC2)
 - Android **9 / API 28 or newer**
-- RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration
-- Existing settings are preserved when updating
-- No root, Shizuku or ADB is required for normal use
+- Existing SleepManager settings are preserved when updating
+- Direct PServer control and Helper fallback are selected automatically
 
-## First Install
+## Testing status
 
-1. Download and install **SleepManager 0.7.1** from the release assets below.
-2. If you use Wi-Fi or Bluetooth management, install **SleepManager Helper 1.1.2** as well.
-3. Open SleepManager and choose what you want it to manage during sleep.
-4. Enable **SleepManager**, then tap **Finish setup**.
+The RC1 software matrix already validated core sleep/wake, BasicSync normal and advanced sync, periodic sync, RAOfflineProxy smoke, Tailscale/JamesDSP, process recovery and rapid wake/sleep behavior.
 
-## Updating
-
-Install SleepManager 0.7.1 over your existing version or use the built-in updater from **About → Updates**. Your existing SleepManager settings are preserved.
-
-If SleepManager Helper **1.1.2** is already installed, there is no Helper update required for this release.
+RC2 adds targeted changes around prerequisites and controller input. Before stable 0.7.2, run the targeted RC2 emulator checks followed by the physical release gate on AYN Thor, Retroid Pocket Classic and KONKR Pocket Advance.
