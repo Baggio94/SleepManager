@@ -43,6 +43,9 @@ class WakeTransitionSyncStateTest {
                 networkRestorePending = false
             )
         )
+        // Eligibility is a pure check: only the caller may consume the
+        // pending sync, so no wake sync gets lost during a delayed retry.
+        assertTrue(state.isPending)
     }
 
     @Test
