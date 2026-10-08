@@ -16,6 +16,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.display.DisplayManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -111,6 +113,9 @@ class SleepManagerService : Service() {
         private const val HELPER_RESTORE_RETRY_DELAY_MS = 2_000L
         private const val HELPER_RESTORE_MAX_ATTEMPTS = 3
         private const val WAKE_SYNC_HELPER_FALLBACK_DELAY_MS = 5_000L
+        private const val WAKE_SYNC_HELPER_FALLBACK_RECHECK_MS = 3_000L
+        // First check at +5s; then bounded checks until roughly +62s.
+        private const val WAKE_SYNC_HELPER_FALLBACK_MAX_CHECKS = 20
         private const val CLOSED_LID_GUARD_DELAY_MS = 1500L
         private const val CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val DOCK_DISCONNECT_DEBOUNCE_MS = 500L
@@ -187,26 +192,81 @@ class SleepManagerService : Service() {
     private var initialScreenStateApplied = false
     private var syncMaintenanceRunner: SyncMaintenanceRunner? = null
     private val wakeTransitionSyncState = WakeTransitionSyncState()
-    private val wakeSyncHelperFallbackRunnable = Runnable {
-        val cycle = SleepCycleStore.current(this)
-        if (
-            cycle.active &&
-            cycle.helperExpected &&
-            !cycle.helperRestored &&
-            wakeTransitionSyncState.mayStartWithHelperPending(
+    private var wakeSyncFallbackCycleId: Long = 0L
+    private var wakeSyncFallbackChecks = 0
+    private val wakeSyncHelperFallbackRunnable = object : Runnable {
+        override fun run() {
+            val cycle = SleepCycleStore.current(this@SleepManagerService)
+            val wifiReportedEnabled = RadioController.currentWifiEnabled(this@SleepManagerService)
+            val wifiNetworkPresent = isActiveWifiNetworkPresent()
+            val networkRestorePending = hasPendingNetworkConnectorRestore()
+            val decision = WakeSyncFallbackPolicy.evaluate(
+                pending = wakeTransitionSyncState.isPending,
+                cycleMatches = cycle.active &&
+                    cycle.cycleId == wakeSyncFallbackCycleId &&
+                    cycle.helperExpected,
                 realWake = isRealWakeNow(),
-                wifiEnabled = RadioController.currentWifiEnabled(this),
-                networkRestorePending = hasPendingNetworkConnectorRestore()
+                wifiReportedEnabled = wifiReportedEnabled,
+                wifiNetworkPresent = wifiNetworkPresent,
+                networkRestorePending = networkRestorePending
             )
-        ) {
-            DiagnosticsStateStore.recordEvent(
-                this,
-                "Wake sync → started with Helper acknowledgement pending"
+
+            ++wakeSyncFallbackChecks
+            Log.i(
+                TAG,
+                "Wake sync fallback check=$wakeSyncFallbackChecks " +
+                    "cycle=${cycle.cycleId}/$wakeSyncFallbackCycleId " +
+                    "decision=$decision wifiEnabled=$wifiReportedEnabled " +
+                    "wifiNetwork=$wifiNetworkPresent " +
+                    "networkRestorePending=$networkRestorePending " +
+                    "helperRestored=${cycle.helperRestored}"
             )
-            Log.i(TAG, "Wake sync fallback: Wi-Fi already on; awaiting validated network")
-            maybeStartWakeTransitionSync()
+
+            when (decision) {
+                WakeSyncFallbackDecision.READY -> {
+                    Log.i(TAG, "Wake sync fallback: Wi-Fi available; awaiting validated network")
+                    maybeStartWakeTransitionSync()
+                    if (!wakeTransitionSyncState.isPending) {
+                        DiagnosticsStateStore.recordEvent(
+                            this@SleepManagerService,
+                            "Wake sync → started with Helper acknowledgement pending"
+                        )
+                        return
+                    }
+                }
+                WakeSyncFallbackDecision.CANCEL -> return
+                WakeSyncFallbackDecision.WAIT_FOR_WIFI,
+                WakeSyncFallbackDecision.WAIT_FOR_REAL_WAKE,
+                WakeSyncFallbackDecision.WAIT_FOR_CONNECTOR -> Unit
+            }
+
+            if (
+                WakeSyncFallbackPolicy.canRetry(
+                    checksCompleted = wakeSyncFallbackChecks,
+                    maxChecks = WAKE_SYNC_HELPER_FALLBACK_MAX_CHECKS
+                )
+            ) {
+                handler.postDelayed(this, WAKE_SYNC_HELPER_FALLBACK_RECHECK_MS)
+            } else {
+                Log.w(TAG, "Wake sync fallback timed out: decision=$decision")
+                DiagnosticsStateStore.recordEvent(
+                    this@SleepManagerService,
+                    "Wake sync → fallback timed out ($decision); still pending"
+                )
+                // Keep the persisted sync arm and Helper-owned radio transaction.
+                // Opening the Activity may provide a later recovery opportunity.
+            }
         }
     }
+
+    private fun isActiveWifiNetworkPresent(): Boolean =
+        runCatching {
+            val manager = getSystemService(Context.CONNECTIVITY_SERVICE)
+                as? ConnectivityManager ?: return@runCatching false
+            val network = manager.activeNetwork ?: return@runCatching false
+            manager.getNetworkCapabilities(network)
+                ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+        }.getOrDefault(false)
     private val basicSyncRestoreRetryState =
         BasicSyncRestoreRetryState()
     private val deviceControlRestoreRetryState =
@@ -3752,6 +3812,8 @@ class SleepManagerService : Service() {
             // still waits for network validation and owns its own cleanup.
             if (wakeTransitionSyncState.isPending) {
                 handler.removeCallbacks(wakeSyncHelperFallbackRunnable)
+                wakeSyncFallbackCycleId = cycle.cycleId
+                wakeSyncFallbackChecks = 0
                 handler.postDelayed(
                     wakeSyncHelperFallbackRunnable,
                     WAKE_SYNC_HELPER_FALLBACK_DELAY_MS
