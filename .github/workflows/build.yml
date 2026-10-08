@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - build/0.7.2-wake-recovery-signed
     tags:
       - "v*"
 
