@@ -223,20 +223,7 @@ object HelperController {
         }
 
         runCatching {
-            // When called from MainActivity, keep the Helper trampoline
-            // in the caller's task. A separate NEW_TASK returns some OEM
-            // launchers to Home/ES-DE when the Helper Activity finishes.
-            val activationIntent =
-                Intent()
-                    .setComponent(activationActivity(context))
-                    .addFlags(
-                        Intent.FLAG_ACTIVITY_NO_ANIMATION or
-                            Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-                    )
-            if (context !is Activity) {
-                activationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(activationIntent)
+            context.startActivity(buildActivationIntent(context))
             Log.i("SleepManager", "Compatibility Helper activation requested")
         }.onFailure { error ->
             Log.w(
@@ -246,6 +233,28 @@ object HelperController {
             )
         }
     }
+
+    /**
+     * A fresh Helper install may require a one-shot activity to clear its
+     * stopped state. This is internal navigation, not a Home key press:
+     * without NO_USER_ACTION Android may call MainActivity.onUserLeaveHint(),
+     * which intentionally removes the UI task and reveals the OEM launcher.
+     *
+     * Activity callers must reuse their existing task; service callers must
+     * supply NEW_TASK. Both paths suppress the user-leave hint.
+     */
+    internal fun buildActivationIntent(
+        context: Context,
+        launchedFromActivity: Boolean = context is Activity
+    ): Intent =
+        Intent()
+            .setComponent(activationActivity(context))
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS or
+                    Intent.FLAG_ACTIVITY_NO_USER_ACTION or
+                    (if (launchedFromActivity) 0 else Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
 
     private fun commandIntent(action: String): Intent =
         Intent(action)
