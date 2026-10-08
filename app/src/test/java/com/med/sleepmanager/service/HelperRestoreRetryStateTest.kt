@@ -44,6 +44,18 @@ class HelperRestoreRetryStateTest {
     }
 
     @Test
+    fun firstRetryUsesBroadcastOnlyOnce() {
+        val state = HelperRestoreRetryState()
+        assertFalse(state.shouldUseBroadcastFallback())
+        state.begin(cycleId = 42L, requestSent = true)
+        assertTrue(state.shouldUseBroadcastFallback())
+        state.recordRetrySent()
+        assertFalse(state.shouldUseBroadcastFallback())
+        state.acknowledge(resultCycleId = 42L)
+        assertFalse(state.shouldUseBroadcastFallback())
+    }
+
+    @Test
     fun sameCycleAcknowledgementClearsRetry() {
         val state = HelperRestoreRetryState()
         state.begin(cycleId = 77L, requestSent = true)
