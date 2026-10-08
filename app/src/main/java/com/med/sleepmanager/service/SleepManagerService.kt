@@ -110,6 +110,7 @@ class SleepManagerService : Service() {
         private const val OWNED_BASIC_SYNC_RESTORE_MAX_ATTEMPTS = 8
         private const val HELPER_RESTORE_RETRY_DELAY_MS = 2_000L
         private const val HELPER_RESTORE_MAX_ATTEMPTS = 3
+        private const val WAKE_SYNC_HELPER_FALLBACK_DELAY_MS = 5_000L
         private const val CLOSED_LID_GUARD_DELAY_MS = 1500L
         private const val CLOSED_LID_SCREEN_ON_RECHECK_DELAY_MS = 500L
         private const val DOCK_DISCONNECT_DEBOUNCE_MS = 500L
@@ -186,6 +187,26 @@ class SleepManagerService : Service() {
     private var initialScreenStateApplied = false
     private var syncMaintenanceRunner: SyncMaintenanceRunner? = null
     private val wakeTransitionSyncState = WakeTransitionSyncState()
+    private val wakeSyncHelperFallbackRunnable = Runnable {
+        val cycle = SleepCycleStore.current(this)
+        if (
+            cycle.active &&
+            cycle.helperExpected &&
+            !cycle.helperRestored &&
+            wakeTransitionSyncState.mayStartWithHelperPending(
+                realWake = isRealWakeNow(),
+                wifiEnabled = RadioController.currentWifiEnabled(this),
+                networkRestorePending = hasPendingNetworkConnectorRestore()
+            )
+        ) {
+            DiagnosticsStateStore.recordEvent(
+                this,
+                "Wake sync → started with Helper acknowledgement pending"
+            )
+            Log.i(TAG, "Wake sync fallback: Wi-Fi already on; awaiting validated network")
+            maybeStartWakeTransitionSync()
+        }
+    }
     private val basicSyncRestoreRetryState =
         BasicSyncRestoreRetryState()
     private val deviceControlRestoreRetryState =
@@ -272,10 +293,15 @@ class SleepManagerService : Service() {
         }
 
         val sent =
-            if (disableRestoreState.isRequested) {
-                HelperController.restoreNow(this, cycle.cycleId)
-            } else {
-                HelperController.sendWake(this, cycle.cycleId)
+            when {
+                disableRestoreState.isRequested ->
+                    HelperController.restoreNow(this, cycle.cycleId)
+                // startService may queue forever without launching the Helper
+                // process on some handheld ROMs. Retry via its explicit receiver.
+                helperRestoreRetryState.attempts == 0 ->
+                    HelperController.sendWakeBroadcastFallback(this, cycle.cycleId)
+                else ->
+                    HelperController.sendWake(this, cycle.cycleId)
             }
 
         if (!sent) {
@@ -1337,6 +1363,7 @@ class SleepManagerService : Service() {
         }
 
         wakeTransitionSyncState.clear()
+        handler.removeCallbacks(wakeSyncHelperFallbackRunnable)
 
         if (
             SyncMaintenancePolicy.shouldCancelMaintenanceOnScreenOff(
@@ -3720,6 +3747,16 @@ class SleepManagerService : Service() {
                 cycleId = cycle.cycleId,
                 requestSent = helperSent
             )
+            // Do not hold wake sync behind a Helper acknowledgement when the
+            // firmware has already brought Wi-Fi back. The maintenance runner
+            // still waits for network validation and owns its own cleanup.
+            if (wakeTransitionSyncState.isPending) {
+                handler.removeCallbacks(wakeSyncHelperFallbackRunnable)
+                handler.postDelayed(
+                    wakeSyncHelperFallbackRunnable,
+                    WAKE_SYNC_HELPER_FALLBACK_DELAY_MS
+                )
+            }
         } else {
             helperRestoreRetryState.clear()
             handler.removeCallbacks(helperRestoreRetryRunnable)
@@ -4636,6 +4673,7 @@ class SleepManagerService : Service() {
 
     override fun onDestroy() {
         wakeTransitionSyncState.clear()
+        handler.removeCallbacks(wakeSyncHelperFallbackRunnable)
         syncthingPreSleepState.invalidate()
 
         if (isEffectivelySleepingNow()) {
