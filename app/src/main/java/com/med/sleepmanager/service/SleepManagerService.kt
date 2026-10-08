@@ -288,12 +288,14 @@ class SleepManagerService : Service() {
 
     private fun armHelperRestoreRetry(
         cycleId: Long,
-        requestSent: Boolean
+        requestSent: Boolean,
+        initialWasBroadcast: Boolean = false
     ) {
         handler.removeCallbacks(helperRestoreRetryRunnable)
         helperRestoreRetryState.begin(
             cycleId = cycleId,
-            requestSent = requestSent
+            requestSent = requestSent,
+            initialWasBroadcast = initialWasBroadcast
         )
         if (helperRestoreRetryState.pending) {
             handler.postDelayed(
@@ -332,6 +334,7 @@ class SleepManagerService : Service() {
 
             HelperRestoreRetryDecision.EXHAUSTED -> {
                 val attempts = helperRestoreRetryState.attempts
+                val stopped = HelperController.packageStoppedState(this)
                 helperRestoreRetryState.clear()
                 SleepCycleStore.markRestoreProblem(
                     this,
@@ -339,11 +342,13 @@ class SleepManagerService : Service() {
                 )
                 DiagnosticsStateStore.recordEvent(
                     this,
-                    "Helper reconciliation → no acknowledgement after $attempts attempts"
+                    "Helper WAKE → no acknowledgement after $attempts attempts " +
+                        "(packageStopped=$stopped)"
                 )
                 Log.w(
                     TAG,
-                    "Helper restore acknowledgement retries exhausted for cycle=${cycle.cycleId}"
+                    "Helper restore acknowledgement retries exhausted for cycle=${cycle.cycleId} " +
+                        "packageStopped=$stopped"
                 )
                 finishDisableRestoreIfRequested(forceStop = true)
                 return
@@ -352,13 +357,22 @@ class SleepManagerService : Service() {
             HelperRestoreRetryDecision.RETRY -> Unit
         }
 
+        val retryUsesBroadcast = helperRestoreRetryState.shouldUseBroadcastFallback()
+        val stopped = HelperController.packageStoppedState(this)
+        Log.i(
+            TAG,
+            "Helper WAKE retry cycle=${cycle.cycleId} " +
+                "attempt=${helperRestoreRetryState.attempts + 1} " +
+                "transport=${if (retryUsesBroadcast) "broadcast" else "service"} " +
+                "packageStopped=$stopped"
+        )
         val sent =
             when {
                 disableRestoreState.isRequested ->
                     HelperController.restoreNow(this, cycle.cycleId)
                 // startService may queue forever without launching the Helper
                 // process on some handheld ROMs. Retry via its explicit receiver.
-                helperRestoreRetryState.shouldUseBroadcastFallback() ->
+                retryUsesBroadcast ->
                     HelperController.sendWakeBroadcastFallback(this, cycle.cycleId)
                 else ->
                     HelperController.sendWake(this, cycle.cycleId)
@@ -668,10 +682,6 @@ class SleepManagerService : Service() {
                 HelperResultCorrelation.CURRENT -> Unit
             }
 
-            if (phase == HelperController.PHASE_WAKE) {
-                clearHelperRestoreRetry(resultCycleId)
-            }
-
             val wifiManaged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_MANAGED, false)
             val wifiChanged = intent.getBooleanExtra(HelperController.EXTRA_WIFI_CHANGED, false)
             val wifiAttempted =
@@ -691,6 +701,17 @@ class SleepManagerService : Service() {
             val helperStatus =
                 intent.getStringExtra(HelperController.EXTRA_STATUS)
                     ?: HelperController.STATUS_OK
+
+            if (phase == HelperController.PHASE_WAKE) {
+                Log.i(
+                    TAG,
+                    "Helper WAKE result cycle=$resultCycleId status=$helperStatus " +
+                        "restoreSuccess=$restoreSuccess " +
+                        "attempts=${helperRestoreRetryState.attempts} " +
+                        "packageStopped=${HelperController.packageStoppedState(this@SleepManagerService)}"
+                )
+                clearHelperRestoreRetry(resultCycleId)
+            }
 
             if (
                 wifiManaged &&
@@ -3797,15 +3818,35 @@ class SleepManagerService : Service() {
             networkRestoreNeeded = networkRestoreNeeded
         )
 
+        val stoppedAtWake =
+            if (helperRestoreNeeded) HelperController.packageStoppedState(this) else null
+        val initialBroadcast = HelperWakeRoutingPolicy.useBroadcastFirst(stoppedAtWake)
+        if (helperRestoreNeeded) {
+            Log.i(
+                TAG,
+                "Helper WAKE initial cycle=${cycle.cycleId} " +
+                    "packageStopped=$stoppedAtWake " +
+                    "transport=${if (initialBroadcast) "broadcast" else "service"}"
+            )
+            if (initialBroadcast) {
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Wake → Helper package stopped; trying explicit broadcast"
+                )
+            }
+        }
         val helperSent = if (helperRestoreNeeded) {
-            HelperController.sendWake(this, cycle.cycleId)
+            HelperController.sendWake(this, cycle.cycleId, useBroadcast = initialBroadcast)
         } else {
             false
         }
         if (helperRestoreNeeded) {
+            // Retry even when the first startService request was rejected. No ACK
+            // means the radio transaction still belongs to the Helper.
             armHelperRestoreRetry(
                 cycleId = cycle.cycleId,
-                requestSent = helperSent
+                requestSent = true,
+                initialWasBroadcast = initialBroadcast
             )
             // Do not hold wake sync behind a Helper acknowledgement when the
             // firmware has already brought Wi-Fi back. The maintenance runner
