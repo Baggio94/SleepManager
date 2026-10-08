@@ -6,16 +6,16 @@ internal enum class HelperRestoreRetryDecision {
     STALE
 }
 
-/**
- * In-memory timer state for replaying the same cycle-correlated Helper restore
- * when its acknowledgement is lost. Persistent ownership remains in
- * SleepCycleStore and the Helper; this class only bounds replay attempts.
- */
 /** FLAG_STOPPED is distinct from a cached process being killed. */
 internal object HelperWakeRoutingPolicy {
     fun useBroadcastFirst(packageStopped: Boolean?): Boolean = packageStopped == true
 }
 
+/**
+ * In-memory timer state for replaying the same cycle-correlated Helper restore
+ * when its acknowledgement is lost. Persistent ownership remains in
+ * SleepCycleStore and the Helper; this class only bounds replay attempts.
+ */
 internal class HelperRestoreRetryState {
     var pending: Boolean = false
         private set
