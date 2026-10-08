@@ -89,6 +89,9 @@ class SleepManagerService : Service() {
         private const val TAG = "SleepManager"
         private const val CHANNEL_ID = "sleep_manager"
         private const val NOTIFICATION_ID = 5217
+        private const val HELPER_RECOVERY_CHANNEL_ID = "helper_recovery"
+        private const val HELPER_RECOVERY_NOTIFICATION_ID = 5219
+        const val ACTION_HELPER_USER_RETRY = "com.med.sleepmanager.action.HELPER_USER_RETRY"
         private const val NETWORK_READY_TIMEOUT_MS = 15000L
         private const val SYNCTHING_STOP_GRACE_MS = 1000L
         private const val SYNCTHING_UNVERIFIED_STOP_GRACE_MS = 2500L
@@ -350,6 +353,9 @@ class SleepManagerService : Service() {
                     "Helper restore acknowledgement retries exhausted for cycle=${cycle.cycleId} " +
                         "packageStopped=$stopped"
                 )
+                if (isRealWakeNow() && !disableRestoreState.isRequested) {
+                    showHelperRecoveryNotification(cycle.cycleId, stopped)
+                }
                 finishDisableRestoreIfRequested(forceStop = true)
                 return
             }
@@ -821,6 +827,7 @@ class SleepManagerService : Service() {
                     if (SleepCycleStore.isActive(this@SleepManagerService)) {
                         SleepCycleStore.markHelperRestored(this@SleepManagerService)
                     }
+                    cancelHelperRecoveryNotification()
 
                     val restoreNetworkConnectors =
                         helperNetworkRestoreHandoffState.consume()
@@ -1102,6 +1109,48 @@ class SleepManagerService : Service() {
                 }
             )
             Log.i(TAG, message)
+        }
+
+        if (intent?.action == ACTION_HELPER_USER_RETRY) {
+            val requestedCycleId = intent.getLongExtra(
+                HelperController.EXTRA_CYCLE_ID, 0L
+            )
+            val cycle = SleepCycleStore.current(this)
+            val eligible =
+                AppPreferences.isEnabled(this) &&
+                    isRealWakeNow() &&
+                    cycle.active &&
+                    cycle.cycleId == requestedCycleId &&
+                    cycle.helperExpected &&
+                    cycle.helperSleepRequested &&
+                    !cycle.helperRestored
+            if (eligible) {
+                val stopped = HelperController.packageStoppedState(this)
+                val useBroadcast = HelperWakeRoutingPolicy.useBroadcastFirst(stopped)
+                val sent = HelperController.sendWake(
+                    this, cycle.cycleId, useBroadcast = useBroadcast
+                )
+                armHelperRestoreRetry(
+                    cycleId = cycle.cycleId,
+                    requestSent = true,
+                    initialWasBroadcast = useBroadcast
+                )
+                Log.i(
+                    TAG,
+                    "User-triggered Helper recovery cycle=${cycle.cycleId} " +
+                        "stopped=$stopped sent=$sent"
+                )
+                DiagnosticsStateStore.recordEvent(
+                    this,
+                    "Helper recovery → user requested, cycle ${cycle.cycleId}"
+                )
+            } else {
+                Log.i(TAG, "Ignoring stale Helper recovery request cycle=$requestedCycleId")
+                val pending = cycle.active && cycle.helperExpected &&
+                    cycle.helperSleepRequested && !cycle.helperRestored
+                if (!pending) cancelHelperRecoveryNotification()
+            }
+            return START_STICKY
         }
 
         if (intent?.action == ACTION_DISABLE_AND_RESTORE) {
@@ -4682,7 +4731,73 @@ class SleepManagerService : Service() {
             }
             (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
                 ?.createNotificationChannel(channel)
+            val recoveryChannel = NotificationChannel(
+                HELPER_RECOVERY_CHANNEL_ID,
+                "Helper recovery",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Only alerts when Helper radio restoration requires attention"
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+            (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+                ?.createNotificationChannel(recoveryChannel)
         }
+    }
+
+    private fun showHelperRecoveryNotification(cycleId: Long, stopped: Boolean?) {
+        val recoveryIntent = Intent(this, HelperRecoveryActivity::class.java)
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            )
+            .putExtra(HelperController.EXTRA_CYCLE_ID, cycleId)
+        val pending = PendingIntent.getActivity(
+            this,
+            HELPER_RECOVERY_NOTIFICATION_ID,
+            recoveryIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val builder = if (Build.VERSION.SDK_INT >= 26) {
+            Notification.Builder(this, HELPER_RECOVERY_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this).setPriority(Notification.PRIORITY_LOW)
+        }
+        val message = if (stopped == true) {
+            "Android stopped the Helper. Tap to reactivate and restore radios."
+        } else {
+            "Radio restoration wasn't confirmed. Tap to retry the Helper."
+        }
+        val notification = builder
+            .setSmallIcon(R.drawable.ic_notification_sleepmanager)
+            .setContentTitle("Helper needs attention")
+            .setContentText(message)
+            .setContentIntent(pending)
+            .addAction(
+                Notification.Action.Builder(
+                    R.drawable.ic_notification_sleepmanager,
+                    "Restore Helper",
+                    pending
+                ).build()
+            )
+            .setAutoCancel(false)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .build()
+        runCatching {
+            (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+                ?.notify(HELPER_RECOVERY_NOTIFICATION_ID, notification)
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to post Helper recovery notification", error)
+        }
+    }
+
+    private fun cancelHelperRecoveryNotification() {
+        (getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
+            ?.cancel(HELPER_RECOVERY_NOTIFICATION_ID)
     }
 
     private fun startForegroundCompat() {
