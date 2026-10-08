@@ -298,7 +298,7 @@ class SleepManagerService : Service() {
                     HelperController.restoreNow(this, cycle.cycleId)
                 // startService may queue forever without launching the Helper
                 // process on some handheld ROMs. Retry via its explicit receiver.
-                helperRestoreRetryState.attempts == 0 ->
+                helperRestoreRetryState.shouldUseBroadcastFallback() ->
                     HelperController.sendWakeBroadcastFallback(this, cycle.cycleId)
                 else ->
                     HelperController.sendWake(this, cycle.cycleId)
