@@ -1,5 +1,6 @@
 package com.med.sleepmanager
 
+import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.app.AlarmManager
 import android.app.TimePickerDialog
@@ -71,6 +72,9 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
+    // ComponentActivity's override is public, but AndroidX marks it RestrictedApi.
+    // Routing handheld keys here is intentionally needed before Compose has focus.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Hardware navigation is routed before Compose's focus traversal.
         if (ControllerInputBridge.dispatch(event)) return true
