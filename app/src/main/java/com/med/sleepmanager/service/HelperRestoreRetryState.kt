@@ -11,6 +11,11 @@ internal enum class HelperRestoreRetryDecision {
  * when its acknowledgement is lost. Persistent ownership remains in
  * SleepCycleStore and the Helper; this class only bounds replay attempts.
  */
+/** FLAG_STOPPED is distinct from a cached process being killed. */
+internal object HelperWakeRoutingPolicy {
+    fun useBroadcastFirst(packageStopped: Boolean?): Boolean = packageStopped == true
+}
+
 internal class HelperRestoreRetryState {
     var pending: Boolean = false
         private set
@@ -21,7 +26,13 @@ internal class HelperRestoreRetryState {
     var attempts: Int = 0
         private set
 
-    fun begin(cycleId: Long, requestSent: Boolean) {
+    private var initialWasBroadcast: Boolean = false
+
+    fun begin(
+        cycleId: Long,
+        requestSent: Boolean,
+        initialWasBroadcast: Boolean = false
+    ) {
         if (!requestSent || cycleId == 0L) {
             clear()
             return
@@ -29,6 +40,7 @@ internal class HelperRestoreRetryState {
 
         pending = true
         this.cycleId = cycleId
+        this.initialWasBroadcast = initialWasBroadcast
         attempts = 1
     }
 
@@ -53,8 +65,9 @@ internal class HelperRestoreRetryState {
         }
     }
 
-    /** The initial WAKE request is counted as attempt 1. */
-    fun shouldUseBroadcastFallback(): Boolean = pending && attempts == 1
+    /** Alternate transports: SERVICE → BROADCAST → SERVICE, or the reverse. */
+    fun shouldUseBroadcastFallback(): Boolean =
+        pending && if (initialWasBroadcast) attempts % 2 == 0 else attempts % 2 == 1
 
     fun recordRetrySent() {
         if (pending) attempts++
@@ -70,5 +83,6 @@ internal class HelperRestoreRetryState {
         pending = false
         cycleId = 0L
         attempts = 0
+        initialWasBroadcast = false
     }
 }
