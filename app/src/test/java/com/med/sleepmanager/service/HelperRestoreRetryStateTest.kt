@@ -56,6 +56,33 @@ class HelperRestoreRetryStateTest {
     }
 
     @Test
+    fun stoppedPackageStartsWithBroadcast_thenAlternatesWithService() {
+        val state = HelperRestoreRetryState()
+        state.begin(
+            cycleId = 42L,
+            requestSent = true,
+            initialWasBroadcast = true
+        )
+        assertFalse(state.shouldUseBroadcastFallback()) // second attempt: service
+        state.recordRetrySent()
+        assertTrue(state.shouldUseBroadcastFallback()) // third attempt: broadcast
+        state.recordRetrySent()
+        assertEquals(
+            HelperRestoreRetryDecision.EXHAUSTED,
+            state.decision(42L, stillNeedsRestore = true, maxAttempts = 3)
+        )
+        state.acknowledge(42L)
+        assertFalse(state.shouldUseBroadcastFallback())
+    }
+
+    @Test
+    fun packageStoppedRoutingDistinguishesStoppedFromProcessDeath() {
+        assertTrue(HelperWakeRoutingPolicy.useBroadcastFirst(true))
+        assertFalse(HelperWakeRoutingPolicy.useBroadcastFirst(false))
+        assertFalse(HelperWakeRoutingPolicy.useBroadcastFirst(null))
+    }
+
+    @Test
     fun sameCycleAcknowledgementClearsRetry() {
         val state = HelperRestoreRetryState()
         state.begin(cycleId = 77L, requestSent = true)
