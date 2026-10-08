@@ -53,6 +53,9 @@ internal class HelperRestoreRetryState {
         }
     }
 
+    /** The initial WAKE request is counted as attempt 1. */
+    fun shouldUseBroadcastFallback(): Boolean = pending && attempts == 1
+
     fun recordRetrySent() {
         if (pending) attempts++
     }
