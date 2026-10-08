@@ -378,25 +378,22 @@ class SleepManagerService : Service() {
                     HelperController.sendWake(this, cycle.cycleId)
             }
 
-        if (!sent) {
-            helperRestoreRetryState.clear()
-            SleepCycleStore.markRestoreProblem(
-                this,
-                "Compatibility Helper is unavailable, so Wi-Fi / Bluetooth restore is still pending."
-            )
-            DiagnosticsStateStore.recordEvent(
-                this,
-                "Helper reconciliation → replay could not be sent"
-            )
-            finishDisableRestoreIfRequested(forceStop = true)
-            return
-        }
-
+        // Even a rejected service start must not cancel the next (different)
+        // transport attempt. Only a confirmed Helper result ends recovery.
         helperRestoreRetryState.recordRetrySent()
+        if (!sent) {
+            Log.w(
+                TAG,
+                "Helper WAKE dispatch rejected cycle=${cycle.cycleId} " +
+                    "attempt=${helperRestoreRetryState.attempts} " +
+                    "packageStopped=$stopped"
+            )
+        }
         DiagnosticsStateStore.recordEvent(
             this,
-            "Helper reconciliation → replayed cycle ${cycle.cycleId} " +
-                "attempt ${helperRestoreRetryState.attempts}"
+            "Helper reconciliation → cycle ${cycle.cycleId}, " +
+                "attempt ${helperRestoreRetryState.attempts} " +
+                if (sent) "submitted" else "dispatch rejected"
         )
         handler.postDelayed(
             helperRestoreRetryRunnable,
