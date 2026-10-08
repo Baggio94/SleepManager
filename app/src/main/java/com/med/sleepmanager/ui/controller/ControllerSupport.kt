@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -24,6 +26,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -46,6 +51,34 @@ private const val RIGHT_STICK_SCROLL_DP = 42f
 
 private object ControllerInputMode {
     var active by mutableStateOf(false)
+}
+
+internal fun isControllerInputActive(): Boolean = ControllerInputMode.active
+
+internal val LocalControllerFocusMemory = staticCompositionLocalOf<ControllerFocusMemory?> { null }
+internal val LocalControllerSectionId = staticCompositionLocalOf { "" }
+
+/** Interim Switch focus memory; whole-row targets follow in V2's next stage. */
+@Composable
+internal fun Modifier.controllerRememberFocus(targetId: String): Modifier {
+    val sectionId = LocalControllerSectionId.current
+    val memory = LocalControllerFocusMemory.current
+    val requester = remember(sectionId, targetId) { FocusRequester() }
+
+    LaunchedEffect(sectionId, targetId) {
+        if (ControllerInputMode.active && memory?.shouldRestore(sectionId, targetId) == true) {
+            requester.requestFocus()
+            memory.markRestored(sectionId, targetId)
+        }
+    }
+
+    return this
+        .focusRequester(requester)
+        .onFocusChanged { focus ->
+            if (focus.isFocused && ControllerInputMode.active) {
+                memory?.remember(sectionId, targetId)
+            }
+        }
 }
 
 @Composable
@@ -124,6 +157,8 @@ internal fun Modifier.controllerNavigation(
                 else -> return false
             }
         val moved = focusManager.moveFocus(focusDirection)
+        // A first directional input must be meaningful without prior focus.
+        if (!moved && focusManager.moveFocus(FocusDirection.Next)) return true
         if (!moved && direction in 1..2) {
             val viewport =
                 listState.layoutInfo.viewportSize.height
@@ -141,62 +176,74 @@ internal fun Modifier.controllerNavigation(
         return true
     }
 
-    DisposableEffect(view, listState, enabled) {
-        val keyListener =
-            View.OnKeyListener { _, keyCode, event ->
-                if (
-                    event.action != AndroidKeyEvent.ACTION_DOWN ||
-                    event.repeatCount != 0
-                ) {
-                    return@OnKeyListener false
+    val onNavigationKey: (AndroidKeyEvent) -> Boolean = { event ->
+        if (event.action != AndroidKeyEvent.ACTION_DOWN) {
+            false
+        } else {
+            when (event.keyCode) {
+                AndroidKeyEvent.KEYCODE_BUTTON_START,
+                AndroidKeyEvent.KEYCODE_MENU -> {
+                    ControllerInputMode.active = true
+                    onMenuRequested()
+                    true
                 }
-
-                when (keyCode) {
-                    AndroidKeyEvent.KEYCODE_BUTTON_START,
-                    AndroidKeyEvent.KEYCODE_MENU -> {
-                        ControllerInputMode.active = true
-                        onMenuRequested()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_B -> {
-                        ControllerInputMode.active = true
-                        backDispatcher?.onBackPressed()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        onPreviousSection()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        onNextSection()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        pageScroll(-1, event.eventTime)
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        pageScroll(1, event.eventTime)
-                        true
-                    }
-
-                    else -> false
+                AndroidKeyEvent.KEYCODE_BUTTON_B -> {
+                    ControllerInputMode.active = true
+                    backDispatcher?.onBackPressed()
+                    true
                 }
+                AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) onPreviousSection()
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) onNextSection()
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) pageScroll(-1, event.eventTime)
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) pageScroll(1, event.eventTime)
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_DPAD_UP,
+                AndroidKeyEvent.KEYCODE_DPAD_DOWN,
+                AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+                AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        val direction = when (event.keyCode) {
+                            AndroidKeyEvent.KEYCODE_DPAD_UP -> 1
+                            AndroidKeyEvent.KEYCODE_DPAD_DOWN -> 2
+                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> 3
+                            else -> 4
+                        }
+                        moveFocus(direction, event.eventTime)
+                    }
+                }
+                else -> false
             }
-        view.setOnKeyListener(keyListener)
+        }
+    }
+
+    val latestNavigationKey by androidx.compose.runtime.rememberUpdatedState(onNavigationKey)
+    DisposableEffect(view, listState) {
+        val globalHandler: (AndroidKeyEvent) -> Boolean = { e -> latestNavigationKey(e) }
+        ControllerInputBridge.attach(globalHandler)
 
         val listener =
             View.OnGenericMotionListener { _, event ->
@@ -271,7 +318,7 @@ internal fun Modifier.controllerNavigation(
 
         view.setOnGenericMotionListener(listener)
         onDispose {
-            view.setOnKeyListener(null)
+            ControllerInputBridge.detach(globalHandler)
             view.setOnGenericMotionListener(null)
         }
     }
@@ -309,85 +356,8 @@ internal fun Modifier.controllerNavigation(
                 return@onPreviewKeyEvent handled
             }
 
-            if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_B) {
-                ControllerInputMode.active = true
-                if (
-                    native.action == AndroidKeyEvent.ACTION_DOWN &&
-                    native.repeatCount == 0
-                ) {
-                    backDispatcher?.onBackPressed()
-                }
-                return@onPreviewKeyEvent true
-            }
-
-            if (native.action != AndroidKeyEvent.ACTION_DOWN) {
-                return@onPreviewKeyEvent false
-            }
-
-            val keyCode = native.keyCode
-            val controllerKey =
-                keyCode in setOf(
-                    AndroidKeyEvent.KEYCODE_DPAD_UP,
-                    AndroidKeyEvent.KEYCODE_DPAD_DOWN,
-                    AndroidKeyEvent.KEYCODE_DPAD_LEFT,
-                    AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
-                    AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                    AndroidKeyEvent.KEYCODE_BACK,
-                    AndroidKeyEvent.KEYCODE_BUTTON_L1,
-                    AndroidKeyEvent.KEYCODE_BUTTON_R1,
-                    AndroidKeyEvent.KEYCODE_BUTTON_L2,
-                    AndroidKeyEvent.KEYCODE_BUTTON_R2,
-                    AndroidKeyEvent.KEYCODE_BUTTON_START,
-                    AndroidKeyEvent.KEYCODE_MENU
-                )
-            if (controllerKey) {
-                ControllerInputMode.active = true
-            }
-
-            if (!enabled) {
-                return@onPreviewKeyEvent false
-            }
-
-            when (keyCode) {
-                AndroidKeyEvent.KEYCODE_DPAD_UP ->
-                    moveFocus(1, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_DOWN ->
-                    moveFocus(2, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_LEFT ->
-                    moveFocus(3, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_RIGHT ->
-                    moveFocus(4, native.eventTime)
-
-                AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
-                    if (native.repeatCount == 0) {
-                        onPreviousSection()
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
-                    if (native.repeatCount == 0) {
-                        onNextSection()
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
-                    if (native.repeatCount == 0) {
-                        pageScroll(-1, native.eventTime)
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
-                    if (native.repeatCount == 0) {
-                        pageScroll(1, native.eventTime)
-                    }
-                    true
-                }
-
-                else -> false
-            }
+            // Compose injection fallback; Activity consumes real handheld keys.
+            onNavigationKey(native)
         }
         .pointerInput(Unit) {
             awaitPointerEventScope {

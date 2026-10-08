@@ -45,6 +45,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +56,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -97,6 +102,10 @@ import com.med.sleepmanager.ui.components.StatusCard
 import com.med.sleepmanager.ui.components.SyncthingTargetDialog
 import com.med.sleepmanager.ui.components.UpdateAvailableCard
 import com.med.sleepmanager.ui.controller.controllerNavigation
+import com.med.sleepmanager.ui.controller.ControllerFocusMemory
+import com.med.sleepmanager.ui.controller.LocalControllerFocusMemory
+import com.med.sleepmanager.ui.controller.LocalControllerSectionId
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -200,6 +209,17 @@ private class IntegrationUiRow(
         }
         var advancedScrollRequestId by remember {
             mutableStateOf(0)
+        }
+        val controllerFocusMemory = remember { ControllerFocusMemory() }
+        controllerFocusMemory.enter(currentSection.name)
+        val focusManager = LocalFocusManager.current
+        LaunchedEffect(currentSection) {
+            if (isControllerInputActive() &&
+                controllerFocusMemory.lastFocused(currentSection.name) == null
+            ) {
+                withFrameNanos { }
+                focusManager.moveFocus(FocusDirection.Next)
+            }
         }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
@@ -464,11 +484,15 @@ private class IntegrationUiRow(
             )
         }
 
+        CompositionLocalProvider(
+            LocalControllerFocusMemory provides controllerFocusMemory,
+            LocalControllerSectionId provides currentSection.name
+        ) {
         ModalNavigationDrawer(
             modifier =
                 Modifier.controllerNavigation(
                     listState = currentListState,
-                    enabled = drawerState.isClosed,
+                    enabled = drawerState.isClosed && !showTargetDialog,
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {
@@ -1671,5 +1695,5 @@ private class IntegrationUiRow(
                 }
             }
         }
+        } // Controller focus context
     }
-
