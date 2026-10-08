@@ -53,6 +53,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".service.HelperRecoveryActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
