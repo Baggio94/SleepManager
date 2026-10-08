@@ -1,6 +1,7 @@
 package com.med.sleepmanager.integration
 
 import android.Manifest
+import android.app.Activity
 import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Context
@@ -222,15 +223,20 @@ object HelperController {
         }
 
         runCatching {
-            context.startActivity(
+            // When called from MainActivity, keep the Helper trampoline
+            // in the caller's task. A separate NEW_TASK returns some OEM
+            // launchers to Home/ES-DE when the Helper Activity finishes.
+            val activationIntent =
                 Intent()
                     .setComponent(activationActivity(context))
                     .addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION or
                             Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
                     )
-            )
+            if (context !is Activity) {
+                activationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(activationIntent)
             Log.i("SleepManager", "Compatibility Helper activation requested")
         }.onFailure { error ->
             Log.w(
@@ -307,6 +313,28 @@ object HelperController {
         return sent
     }
 
+
+    /**
+     * Recovery-only transport for a WAKE command that was accepted by
+     * startService() but never acknowledged (notably on some OEM ROMs).
+     * The receiver uses the same cycle correlation and is idempotent.
+     */
+    fun sendWakeBroadcastFallback(context: Context, cycleId: Long): Boolean {
+        if (!isInstalled(context)) return false
+        return runCatching {
+            context.sendBroadcast(
+                commandIntent(ACTION_WAKE)
+                    .setComponent(commandReceiver(context))
+                    .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+                    .putExtra(EXTRA_CYCLE_ID, cycleId)
+            )
+            Log.i("SleepManager", "Helper wake fallback broadcast requested")
+            true
+        }.getOrElse { error ->
+            Log.w("SleepManager", "Helper wake fallback broadcast failed", error)
+            false
+        }
+    }
 
     fun setTemporaryWifi(context: Context, enabled: Boolean): Boolean {
         if (!isInstalled(context)) return false
