@@ -4734,7 +4734,7 @@ class SleepManagerService : Service() {
             val recoveryChannel = NotificationChannel(
                 HELPER_RECOVERY_CHANNEL_ID,
                 "Helper recovery",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Only alerts when Helper radio restoration requires attention"
                 setShowBadge(false)
@@ -4764,7 +4764,7 @@ class SleepManagerService : Service() {
             Notification.Builder(this, HELPER_RECOVERY_CHANNEL_ID)
         } else {
             @Suppress("DEPRECATION")
-            Notification.Builder(this).setPriority(Notification.PRIORITY_LOW)
+            Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH)
         }
         val message = if (stopped == true) {
             "Android stopped the Helper. Tap to reactivate and restore radios."
