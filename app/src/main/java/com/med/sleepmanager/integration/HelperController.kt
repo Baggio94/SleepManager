@@ -256,6 +256,13 @@ object HelperController {
                     (if (launchedFromActivity) 0 else Intent.FLAG_ACTIVITY_NEW_TASK)
             )
 
+    /** null means PackageManager could not determine whether the Helper is stopped. */
+    fun packageStoppedState(context: Context): Boolean? =
+        runCatching {
+            val info = context.packageManager.getApplicationInfo(PACKAGE, 0)
+            (info.flags and ApplicationInfo.FLAG_STOPPED) != 0
+        }.getOrNull()
+
     private fun commandIntent(action: String): Intent =
         Intent(action)
 
@@ -265,14 +272,15 @@ object HelperController {
     ): Boolean {
         if (usesOwnerStableService(context)) {
             return runCatching {
-                context.startService(
+                val startedComponent = context.startService(
                     Intent(intent).setComponent(HELPER_COMMAND_SERVICE_V2)
                 )
                 Log.i(
                     "SleepManager",
-                    "Helper command service start: action=${intent.action}"
+                    "Helper command service start: action=${intent.action} " +
+                        "accepted=${startedComponent != null}"
                 )
-                true
+                startedComponent != null
             }.getOrElse { error ->
                 Log.w(
                     "SleepManager",
@@ -310,8 +318,14 @@ object HelperController {
         return sent
     }
 
-    fun sendWake(context: Context, cycleId: Long): Boolean {
+    fun sendWake(
+        context: Context,
+        cycleId: Long,
+        useBroadcast: Boolean = false
+    ): Boolean {
         if (!isInstalled(context)) return false
+        if (useBroadcast) return sendWakeBroadcastFallback(context, cycleId)
+
         val sent =
             dispatchCommand(
                 context,
