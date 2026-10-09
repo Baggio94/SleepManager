@@ -286,7 +286,7 @@ internal fun AdvancedSettingsPage(
                         id = "advanced-battery-threshold",
                         title = stringResource(R.string.battery_level),
                         options = listOf(20, 30, 40, 50, 60).map { level ->
-                            "$"+"{level}%" to level
+                            (level.toString() + "%") to level
                         },
                         selected = batteryBelowPercent,
                         onSelected = onBatteryBelowPercentChange,
@@ -431,7 +431,7 @@ internal fun AdvancedToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .controllerRememberFocus("advanced:$title")
+            .controllerRememberFocus("advanced:$title", onActivate = { if (enabled) onCheckedChange(!checked) })
             .onFocusChanged { toggleFocused = it.isFocused }
             .controllerFocusHighlight(toggleFocused)
             .toggleable(
