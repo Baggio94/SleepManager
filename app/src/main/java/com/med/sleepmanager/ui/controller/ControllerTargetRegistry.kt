@@ -87,6 +87,27 @@ internal class ControllerTargetRegistry {
         return false
     }
 
+    /** Focus a mounted target within the newly scrolled page, never offscreen. */
+    fun focusVisible(
+        section: String,
+        viewportTop: Float,
+        viewportHeight: Int,
+        direction: Int
+    ): Boolean {
+        if (viewportHeight <= 0) return false
+        val bottom = viewportTop + viewportHeight
+        val candidates = visible(section).filter { it.y >= viewportTop + 4f && it.y < bottom - 8f }
+        val ordered = if (direction < 0) candidates.asReversed() else candidates
+        for (target in ordered) {
+            val focused = runCatching { target.requester.requestFocus() }.getOrDefault(false)
+            if (focused) {
+                select(section, target.id)
+                return true
+            }
+        }
+        return false
+    }
+
     /** First A selects rather than toggles an arbitrary default setting. */
     fun activate(section: String): Boolean {
         val target = selectedId?.let { targets[it] }
