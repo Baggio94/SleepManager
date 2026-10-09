@@ -249,8 +249,14 @@ internal fun StatsCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    var cardFocused by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("stats-section:$title")
+            .onFocusChanged { cardFocused = it.isFocused }
+            .controllerFocusHighlight(cardFocused)
+            .focusable(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
