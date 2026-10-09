@@ -142,6 +142,33 @@ class RegressionTest {
     }
 
     @Test
+    fun gracePeriod_directChoicesChangeImmediatelyAndCustomNeedsConfirmation() {
+        val list = composeRule.onNodeWithTag("main_list")
+        list.performScrollToNode(hasText("Grace period"))
+
+        composeRule.onNodeWithTag("controller_option_home-grace-period_2")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.sleepGraceMs(targetContext) == 10_000L
+        }
+
+        composeRule.onNodeWithTag("controller_option_home-grace-period_3")
+            .performClick()
+        composeRule.onNodeWithText("Use custom delay").assertIsDisplayed()
+
+        // Opening the Custom picker cannot commit a delay on its own.
+        assertFalse(AppPreferences.customDelayEnabled(targetContext))
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertFalse(AppPreferences.customDelayEnabled(targetContext))
+
+        composeRule.onNodeWithTag("controller_option_home-grace-period_1")
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.sleepGraceMs(targetContext) == 5_000L
+        }
+    }
+
+    @Test
     fun homeOptions_writeExpectedPreferencesAndCapabilityGatingIsCorrect() {
         AppPreferences.setSetupComplete(targetContext, true)
 
