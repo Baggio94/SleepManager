@@ -20,6 +20,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /** Compact - / current value / +. Touch changes directly, controller edits transactionally. */
@@ -55,6 +58,8 @@ internal fun ControllerNumericStepper(
                 modifier = Modifier.weight(1f)
                     .heightIn(min = 52.dp)
                     .focusProperties { canFocus = !isControllerInputActive() }
+                    .testTag("controller_stepper_${id}_decrement")
+                    .semantics { contentDescription = "Decrease $title" }
             ) { Text("−") }
             Text(
                 text = "$current$suffix",
@@ -68,6 +73,8 @@ internal fun ControllerNumericStepper(
                 modifier = Modifier.weight(1f)
                     .heightIn(min = 52.dp)
                     .focusProperties { canFocus = !isControllerInputActive() }
+                    .testTag("controller_stepper_${id}_increment")
+                    .semantics { contentDescription = "Increase $title" }
             ) { Text("+") }
         }
     }
