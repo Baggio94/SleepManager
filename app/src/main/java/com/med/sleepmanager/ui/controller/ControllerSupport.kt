@@ -379,8 +379,9 @@ internal fun Modifier.controllerNavigation(
             if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_A) {
                 if (native.action == AndroidKeyEvent.ACTION_DOWN) {
                     ControllerInputMode.active = true
-                    if (native.repeatCount == 0) return@onPreviewKeyEvent
-                        registry?.activate(sectionId) ?: false
+                    if (native.repeatCount == 0) {
+                        return@onPreviewKeyEvent (registry?.activate(sectionId) ?: false)
+                    }
                     return@onPreviewKeyEvent true
                 }
                 return@onPreviewKeyEvent true
