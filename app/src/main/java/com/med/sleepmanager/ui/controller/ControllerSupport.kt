@@ -308,14 +308,16 @@ internal fun Modifier.controllerNavigation(
                     }
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
-                    if (!enabled) false else {
+                    if (drawerIsActive) true
+                    else if (!enabled) false else {
                         ControllerInputMode.active = true
                         if (event.repeatCount == 0) pageScroll(-1, event.eventTime)
                         true
                     }
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
-                    if (!enabled) false else {
+                    if (drawerIsActive) true
+                    else if (!enabled) false else {
                         ControllerInputMode.active = true
                         if (event.repeatCount == 0) pageScroll(1, event.eventTime)
                         true
