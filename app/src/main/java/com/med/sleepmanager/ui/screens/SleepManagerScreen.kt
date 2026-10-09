@@ -7,6 +7,12 @@ import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -58,6 +64,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusDirection
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.LocalFocusManager
@@ -111,6 +118,8 @@ import com.med.sleepmanager.ui.controller.ControllerFocusMemory
 import com.med.sleepmanager.ui.controller.LocalControllerFocusMemory
 import com.med.sleepmanager.ui.controller.LocalControllerSectionId
 import com.med.sleepmanager.ui.controller.isControllerInputActive
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -241,16 +250,23 @@ private class IntegrationUiRow(
             AppSection.ABOUT -> aboutListState
         }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        // Synchronous state bridges the gap before the drawer opening animation updates.
+        var controllerDrawerRequested by remember { mutableStateOf(false) }
+        LaunchedEffect(drawerState.currentValue) {
+            if (drawerState.isClosed) controllerDrawerRequested = false
+        }
         val drawerScope = rememberCoroutineScope()
         var drawerControllerIndex by remember { mutableIntStateOf(0) }
         var showControllerHints by remember { mutableStateOf(false) }
+        var controllerHintsShown by rememberSaveable { mutableStateOf(false) }
         val controllerActive = isControllerInputActive()
         val activityBackDispatcher =
             LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
         LaunchedEffect(controllerActive) {
-            if (controllerActive) {
+            if (controllerActive && !controllerHintsShown) {
+                controllerHintsShown = true
                 showControllerHints = true
-                delay(3400L)
+                delay(2600L)
             }
             showControllerHints = false
         }
@@ -512,17 +528,20 @@ private class IntegrationUiRow(
             modifier =
                 Modifier.controllerNavigation(
                     listState = currentListState,
-                    enabled = drawerState.isClosed && !showTargetDialog,
+                    enabled = drawerState.isClosed && !controllerDrawerRequested && !showTargetDialog,
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {
+                        val open = !controllerDrawerRequested && drawerState.isClosed
+                        controllerDrawerRequested = open
                         drawerControllerIndex = AppSection.entries.indexOf(currentSection)
                         drawerScope.launch {
-                            if (drawerState.isClosed) drawerState.open()
-                            else drawerState.close()
+                            if (open) drawerState.open() else drawerState.close()
                         }
                     },
-                    drawerOpen = drawerState.isOpen,
+                    drawerOpen = controllerDrawerRequested || drawerState.isOpen,
+                    drawerOpenNow = { controllerDrawerRequested ||
+                        drawerState.targetValue == DrawerValue.Open },
                     onDrawerMove = { amount ->
                         val sections = AppSection.entries
                         drawerControllerIndex =
@@ -530,9 +549,11 @@ private class IntegrationUiRow(
                     },
                     onDrawerSelect = {
                         currentSection = AppSection.entries[drawerControllerIndex]
+                        controllerDrawerRequested = false
                         drawerScope.launch { drawerState.close() }
                     },
                     onDrawerDismiss = {
+                        controllerDrawerRequested = false
                         drawerScope.launch { drawerState.close() }
                     },
                     onBackRequested = {
@@ -591,6 +612,7 @@ private class IntegrationUiRow(
                                 } else currentSection == section,
                                 onClick = feedbackClick {
                                     currentSection = section
+                                    controllerDrawerRequested = false
                                     drawerScope.launch { drawerState.close() }
                                 }
                             )
@@ -653,6 +675,7 @@ private class IntegrationUiRow(
                         currentSection = currentSection,
                         onSectionSelected = { currentSection = it },
                         onMenuClick = {
+                            controllerDrawerRequested = true
                             drawerScope.launch { drawerState.open() }
                         }
                     )
@@ -663,21 +686,7 @@ private class IntegrationUiRow(
                     containerColor = MaterialTheme.colorScheme.background,
                     snackbarHost = {
                         if (showControllerHints && drawerState.isClosed) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                                color = MaterialTheme.colorScheme.inverseSurface,
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                                tonalElevation = 4.dp
-                            ) {
-                                Text(
-                                    "A Select     B Back     L1/R1 Tabs     L2/R2 Page",
-                                    modifier = Modifier.padding(12.dp),
-                                    color = MaterialTheme.colorScheme.inverseOnSurface,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            }
+                            ControllerHintOverlay()
                         }
                     },
                 topBar = {
@@ -1575,18 +1584,28 @@ private class IntegrationUiRow(
 
                 if (managerEnabled && !setupComplete) {
                     item {
+                        var finishFocused by remember { mutableStateOf(false) }
                         Button(
                             onClick = feedbackClick { onFinishSetupRequested() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .controllerRememberFocus("home-finish-setup", onActivate = onFinishSetupRequested)
+                                .onFocusChanged { finishFocused = it.isFocused }
+                                .controllerFocusHighlight(finishFocused, RoundedCornerShape(12.dp))
                         ) {
                             Text(stringResource(R.string.finish_setup))
                         }
                     }
                 } else if (setupComplete) {
                     item {
+                        var doneFocused by remember { mutableStateOf(false) }
                         Button(
                             onClick = feedbackClick { onFinishAppRequested() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .controllerRememberFocus("home-done", onActivate = onFinishAppRequested)
+                                .onFocusChanged { doneFocused = it.isFocused }
+                                .controllerFocusHighlight(doneFocused, RoundedCornerShape(12.dp))
                         ) {
                             Text(stringResource(R.string.done))
                         }
