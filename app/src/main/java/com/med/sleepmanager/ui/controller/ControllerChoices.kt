@@ -48,15 +48,16 @@ internal fun <T> ControllerChoiceGroup(
     selected: T,
     onSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
-    maxColumns: Int = 4
+    maxColumns: Int = 4,
+    controllerDirectSelect: Boolean = false
 ) {
     var focused by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     val currentIndex = options.indexOfFirst { it.second == selected }.coerceAtLeast(0)
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
+    val groupFocusModifier =
+        if (controllerDirectSelect) Modifier
+        else Modifier
             .controllerRememberFocus("choice:$id", onActivate = { editing = true })
             .onFocusChanged { focused = it.isFocused }
             .controllerFocusHighlight(focused, RoundedCornerShape(14.dp))
@@ -71,7 +72,11 @@ internal fun <T> ControllerChoiceGroup(
                 } else false
             }
             .focusable()
-            // Inset the actual buttons from the focus border on narrow cards.
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(groupFocusModifier)
             .padding(horizontal = 7.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -87,14 +92,28 @@ internal fun <T> ControllerChoiceGroup(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         chunk.forEach { (label, value) ->
+                            val optionIndex = options.indexOfFirst { it.second == value }
                             val isSelected = selected == value
+                            var optionFocused by remember(id, optionIndex) { mutableStateOf(false) }
+                            val controllerOptionModifier =
+                                if (controllerDirectSelect) Modifier
+                                    .controllerRememberFocus(
+                                        "choice:$id:$optionIndex",
+                                        onActivate = { onSelected(value) }
+                                    )
+                                    .onFocusChanged { optionFocused = it.isFocused }
+                                    .controllerFocusHighlight(optionFocused, RoundedCornerShape(12.dp))
+                                else Modifier
                             OutlinedButton(
                                 onClick = { onSelected(value) },
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 52.dp)
-                                    .focusProperties { canFocus = !isControllerInputActive() }
-                                    .testTag("controller_option_${id}_${options.indexOfFirst { it.second == value }}")
+                                    .then(controllerOptionModifier)
+                                    .focusProperties {
+                                        canFocus = controllerDirectSelect || !isControllerInputActive()
+                                    }
+                                    .testTag("controller_option_${id}_$optionIndex")
                                     // Expose the committed choice to accessibility and UI regression tests.
                                     .semantics { this.selected = isSelected },
                                 shape = RoundedCornerShape(12.dp),
