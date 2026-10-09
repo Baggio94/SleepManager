@@ -134,6 +134,8 @@ internal fun Modifier.controllerFocusHighlight(
 @Composable
 internal fun Modifier.controllerNavigation(
     listState: LazyListState,
+    viewportTopPx: Float = 0f,
+    viewportHeightPx: Int = 0,
     enabled: Boolean = true,
     onPreviousSection: () -> Unit,
     onNextSection: () -> Unit,
@@ -195,8 +197,14 @@ internal fun Modifier.controllerNavigation(
         activeScrollJob = scope.launch {
             listState.animateScrollBy(viewport * 0.82f * direction)
             withFrameNanos { }
-            // Move logical focus to a visible target after the page jump.
-            registry?.move(sectionId, if (direction < 0) -1 else 1)
+            // Focus a newly visible element; never pull the viewport back to
+            // an offscreen element that was selected before the L2/R2 jump.
+            registry?.focusVisible(
+                sectionId,
+                viewportTopPx,
+                viewportHeightPx,
+                direction
+            )
         }
     }
 
