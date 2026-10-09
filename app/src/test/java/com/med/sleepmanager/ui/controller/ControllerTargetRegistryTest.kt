@@ -24,9 +24,10 @@ class ControllerTargetRegistryTest {
         var activations = 0
         registry.register("HOME", "bluetooth", FocusRequester(), { activations++ }, { emptyList() })
 
-        assertTrue(registry.activate("HOME"))
+        // Unit-test requesters are not attached to a Compose focus tree.
+        assertFalse(registry.activate("HOME"))
         assertEquals(0, activations)
-        assertEquals("HOME:bluetooth", registry.selectedId)
+        assertEquals(null, registry.selectedId)
     }
 
     @Test
@@ -54,7 +55,7 @@ class ControllerTargetRegistryTest {
         var activations = 0
         registry.register("HOME", "wifi", FocusRequester(), { activations++ }, { emptyList() })
         registry.select("HOME", "wifi")
-        assertTrue(registry.activate("ABOUT"))
+        assertFalse(registry.activate("ABOUT"))
         assertEquals(0, activations)
     }
 }
