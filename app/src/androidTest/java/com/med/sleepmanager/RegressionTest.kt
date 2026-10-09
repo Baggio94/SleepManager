@@ -137,7 +137,7 @@ class RegressionTest {
         composeRule.onNodeWithTag("main_list")
             .performScrollToNode(hasText("Grace period"))
 
-        composeRule.onNodeWithText("5 s")
+        composeRule.onNodeWithTag("controller_option_home-grace-period_1")
             .assertIsSelected()
     }
 
@@ -275,7 +275,15 @@ class RegressionTest {
             AppPreferences.batteryConditionEnabled(targetContext)
         }
 
-        composeRule.onNodeWithText("< 50%")
+        // The V2 threshold is a numeric stepper, not the old "< 50%" chip.
+        // Exercise real touch targets and verify each preference write.
+        composeRule.onNodeWithTag("controller_stepper_advanced-battery-threshold_increment")
+            .performScrollTo()
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            AppPreferences.batteryBelowPercent(targetContext) == 40
+        }
+        composeRule.onNodeWithTag("controller_stepper_advanced-battery-threshold_increment")
             .performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
             AppPreferences.batteryBelowPercent(targetContext) == 50
