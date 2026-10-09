@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -76,6 +78,8 @@ internal fun Modifier.controllerRememberFocus(
     val memory = LocalControllerFocusMemory.current
     val registry = LocalControllerTargetRegistry.current
     val requester = remember(sectionId, targetId) { FocusRequester() }
+    val bringIntoView = remember(sectionId, targetId) { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
     val currentActivate by rememberUpdatedState(onActivate)
     val currentActions by rememberUpdatedState(actions)
 
@@ -96,6 +100,7 @@ internal fun Modifier.controllerRememberFocus(
     }
 
     return this
+        .bringIntoViewRequester(bringIntoView)
         .focusRequester(requester)
         .onGloballyPositioned { coordinates ->
             registry?.position(sectionId, targetId, coordinates.positionInRoot().y)
@@ -104,6 +109,9 @@ internal fun Modifier.controllerRememberFocus(
             if (focus.isFocused && ControllerInputMode.active) {
                 memory?.remember(sectionId, targetId)
                 registry?.select(sectionId, targetId)
+                // Keep the entire selected component within the visible viewport.
+                // This runs on focus changes, not on free right-stick scrolling.
+                scope.launch { runCatching { bringIntoView.bringIntoView() } }
             }
         }
 }
@@ -185,8 +193,10 @@ internal fun Modifier.controllerNavigation(
         }
     }
 
-    fun moveFocus(direction: Int, eventTime: Long): Boolean {
-        val shouldMove =
+    fun moveFocus(direction: Int, eventTime: Long, repeated: Boolean = true): Boolean {
+        // Fresh D-pad presses always count; holding the D-pad or left stick shares
+        // the same controlled repeat cadence.
+        val shouldMove = !repeated ||
             direction != lastStickDirection || eventTime - lastStickMoveAt >= STICK_REPEAT_MS
         if (!shouldMove) return true
         lastStickDirection = direction
@@ -214,11 +224,9 @@ internal fun Modifier.controllerNavigation(
                 scope.launch {
                     listState.animateScrollBy(viewport * 0.66f * step)
                     withFrameNanos { }
-                    if (registry?.move(sectionId, step) != true) {
-                        focusManager.moveFocus(
-                            if (step < 0) FocusDirection.Up else FocusDirection.Down
-                        )
-                    }
+                    // On read-only pages (Stats/Activity), scrolling must work
+                    // even when no additional focusable child exists.
+                    registry?.move(sectionId, step)
                 }
                 return true
             }
@@ -321,7 +329,7 @@ internal fun Modifier.controllerNavigation(
                                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> 3
                                 else -> 4
                             }
-                            moveFocus(direction, event.eventTime)
+                            moveFocus(direction, event.eventTime, repeated = event.repeatCount > 0)
                         }
                     }
                 }
@@ -387,8 +395,12 @@ internal fun Modifier.controllerNavigation(
                 }
                 analogTriggerLatch = 0
 
-                val x = event.getAxisValue(MotionEvent.AXIS_X)
-                val y = event.getAxisValue(MotionEvent.AXIS_Y)
+                val stickX = event.getAxisValue(MotionEvent.AXIS_X)
+                val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
+                val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                val x = if (abs(hatX) >= STICK_DEAD_ZONE) hatX else stickX
+                val y = if (abs(hatY) >= STICK_DEAD_ZONE) hatY else stickY
                 val direction =
                     when {
                         abs(y) >= STICK_DEAD_ZONE && abs(y) >= abs(x) ->
