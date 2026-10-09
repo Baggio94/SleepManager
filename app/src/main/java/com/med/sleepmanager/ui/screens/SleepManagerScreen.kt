@@ -102,6 +102,8 @@ import com.med.sleepmanager.ui.components.StatusCard
 import com.med.sleepmanager.ui.components.SyncthingTargetDialog
 import com.med.sleepmanager.ui.components.UpdateAvailableCard
 import com.med.sleepmanager.ui.controller.controllerNavigation
+import com.med.sleepmanager.ui.controller.ControllerTargetRegistry
+import com.med.sleepmanager.ui.controller.LocalControllerTargetRegistry
 import com.med.sleepmanager.ui.controller.ControllerFocusMemory
 import com.med.sleepmanager.ui.controller.LocalControllerFocusMemory
 import com.med.sleepmanager.ui.controller.LocalControllerSectionId
@@ -211,6 +213,7 @@ private class IntegrationUiRow(
             mutableStateOf(0)
         }
         val controllerFocusMemory = remember { ControllerFocusMemory() }
+        val controllerTargets = remember { ControllerTargetRegistry() }
         controllerFocusMemory.enter(currentSection.name)
         val focusManager = LocalFocusManager.current
         LaunchedEffect(currentSection) {
@@ -486,6 +489,7 @@ private class IntegrationUiRow(
 
         CompositionLocalProvider(
             LocalControllerFocusMemory provides controllerFocusMemory,
+            LocalControllerTargetRegistry provides controllerTargets,
             LocalControllerSectionId provides currentSection.name
         ) {
         ModalNavigationDrawer(
