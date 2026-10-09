@@ -104,7 +104,9 @@ internal class ControllerTargetRegistry {
         if (target.section != section) return false
         val available = target.actions().filter { it.enabled }
         if (available.size < 2) return false
-        selectedAction = (selectedAction + direction).coerceIn(0, available.lastIndex)
+        val next = (selectedAction + direction).coerceIn(0, available.lastIndex)
+        if (next == selectedAction) return false
+        selectedAction = next
         return true
     }
 
