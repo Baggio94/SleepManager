@@ -9,6 +9,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -54,6 +57,9 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.R
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.ui.feedbackClick
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import java.util.Locale
 
 import kotlinx.coroutines.Dispatchers
@@ -797,8 +803,14 @@ internal fun PendingRestoreCard(
     problem: String,
     onForget: () -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("stats-pending-restore", onActivate = onForget)
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -824,7 +836,8 @@ internal fun PendingRestoreCard(
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
             OutlinedButton(
-                onClick = feedbackClick(onForget)
+                onClick = feedbackClick(onForget),
+                modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
             ) {
                 Text(stringResource(R.string.stats_forget_pending_restore))
             }
