@@ -64,17 +64,6 @@ internal fun ActivityLogPage(
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        OutlinedButton(
-            onClick = onCopyDiagnostics,
-            modifier = Modifier
-                .fillMaxWidth()
-                .controllerRememberFocus(
-                    "activity-copy-log",
-                    onActivate = onCopyDiagnostics
-                )
-        ) {
-            Text(stringResource(R.string.activity_copy_log))
-        }
         if (timeline.isEmpty()) {
             InfoCard(
                 title = stringResource(R.string.nav_activity_log),
@@ -171,40 +160,35 @@ private fun ActivityTimelineCard(
             }
         }
 
-    Column(
+    SettingsCard(
         modifier = Modifier
-            .fillMaxWidth()
             .controllerRememberFocus("activity-event:${group.startedAt}:${group.kind}")
             .onFocusChanged { cardFocused = it.isFocused }
             .controllerFocusHighlight(cardFocused)
-            .focusable(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .focusable()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = activityTimelineTitle(group.kind),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = dateTime,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        SettingsCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = activityTimelineTitle(group.kind),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = dateTime,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
                 text = sequence,
-                modifier =
-                    Modifier.padding(
-                        horizontal = 16.dp,
-                        vertical = 13.dp
-                    ),
                 style = MaterialTheme.typography.bodyMedium
             )
         }
