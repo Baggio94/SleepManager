@@ -69,14 +69,22 @@ internal class ControllerTargetRegistry {
     fun move(section: String, direction: Int): Boolean {
         val ordered = visible(section)
         if (ordered.isEmpty()) return false
-        val index = ordered.indexOfFirst { selectedId == "$section:${it.id}" }
-        val next = if (index < 0) {
-            if (direction < 0) ordered.lastIndex else 0
-        } else (index + direction).coerceIn(0, ordered.lastIndex)
-        if (index == next) return false
-        val target = ordered[next]
-        select(section, target.id)
-        return runCatching { target.requester.requestFocus(); true }.getOrDefault(false)
+        val index = ordered.indexOfFirst { selectedId == "${section}:${it.id}" }
+        val step = if (direction < 0) -1 else 1
+        var next = if (index < 0) {
+            if (step < 0) ordered.lastIndex else 0
+        } else index + step
+        while (next in ordered.indices) {
+            val target = ordered[next]
+            // A disabled row or detached target cannot trap navigation.
+            val focused = runCatching { target.requester.requestFocus() }.getOrDefault(false)
+            if (focused) {
+                select(section, target.id)
+                return true
+            }
+            next += step
+        }
+        return false
     }
 
     /** First A selects rather than toggles an arbitrary default setting. */
