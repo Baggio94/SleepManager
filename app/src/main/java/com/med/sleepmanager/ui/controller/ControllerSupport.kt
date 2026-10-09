@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -123,10 +124,10 @@ internal fun Modifier.controllerFocusHighlight(
 ): Modifier {
     if (!ControllerInputMode.active || !focused) return this
 
-    val color = MaterialTheme.colorScheme.primary
+    val color = Color.White
     return this
-        .background(color.copy(alpha = 0.08f), shape)
-        .border(2.dp, color.copy(alpha = 0.82f), shape)
+        .background(color.copy(alpha = 0.075f), shape)
+        .border(3.dp, color, shape)
 }
 
 @Composable
