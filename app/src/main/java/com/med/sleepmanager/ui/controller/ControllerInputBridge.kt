@@ -1,6 +1,7 @@
 package com.med.sleepmanager.ui.controller
 
 import android.view.KeyEvent
+import android.view.InputDevice
 
 /**
  * Activity-level navigation entry point. Registered only while the Compose
@@ -17,6 +18,12 @@ internal object ControllerInputBridge {
         if (callback === handler) callback = null
     }
 
-    fun dispatch(event: KeyEvent): Boolean =
-        event.action == KeyEvent.ACTION_DOWN && callback?.invoke(event) == true
+    fun dispatch(event: KeyEvent): Boolean {
+        val gamepad =
+            event.isFromSource(InputDevice.SOURCE_GAMEPAD) ||
+                event.isFromSource(InputDevice.SOURCE_JOYSTICK) ||
+                event.isFromSource(InputDevice.SOURCE_DPAD)
+        return gamepad && event.action == KeyEvent.ACTION_DOWN &&
+            callback?.invoke(event) == true
+    }
 }
