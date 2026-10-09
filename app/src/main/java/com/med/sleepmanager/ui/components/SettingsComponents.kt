@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import com.med.sleepmanager.ui.controller.ControllerAction
 import com.med.sleepmanager.ui.controller.controllerRememberFocus
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
@@ -113,7 +114,7 @@ internal fun SettingRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .controllerRememberFocus("setting:$icon:$title")
+            .controllerRememberFocus("setting:$icon:$title", onActivate = { if (enabled) onCheckedChange(!checked) })
             .onFocusChanged { toggleFocused = it.isFocused }
             .controllerFocusHighlight(toggleFocused)
             .toggleable(
@@ -319,7 +320,16 @@ internal fun CompactIntegrationRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .controllerRememberFocus("integration:$icon:$title")
+                .controllerRememberFocus(
+                    "integration:$icon:$title",
+                    actions = buildList {
+                        add(ControllerAction("Toggle", enabled) { onCheckedChange(!checked) })
+                        if (onOpen != null) add(ControllerAction("Open") { onOpen() })
+                        if (secondaryActionLabel != null && onSecondaryAction != null) {
+                            add(ControllerAction(secondaryActionLabel) { onSecondaryAction() })
+                        }
+                    }
+                )
                 .onFocusChanged { toggleFocused = it.isFocused }
                 .controllerFocusHighlight(toggleFocused)
                 .toggleable(
@@ -364,7 +374,16 @@ internal fun CompactIntegrationRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .controllerRememberFocus("integration:$icon:$title")
+                .controllerRememberFocus(
+                    "integration:$icon:$title",
+                    actions = buildList {
+                        add(ControllerAction("Toggle", enabled) { onCheckedChange(!checked) })
+                        if (onOpen != null) add(ControllerAction("Open") { onOpen() })
+                        if (secondaryActionLabel != null && onSecondaryAction != null) {
+                            add(ControllerAction(secondaryActionLabel) { onSecondaryAction() })
+                        }
+                    }
+                )
                 .onFocusChanged { toggleFocused = it.isFocused }
                 .controllerFocusHighlight(toggleFocused)
                 .toggleable(
