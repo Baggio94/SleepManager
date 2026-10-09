@@ -55,7 +55,7 @@ internal fun <T> ControllerChoiceGroup(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .controllerRememberFocus("choice:$id")
+            .controllerRememberFocus("choice:$id", onActivate = { editing = true })
             .onFocusChanged { focused = it.isFocused }
             .controllerFocusHighlight(focused)
             .onPreviewKeyEvent { event ->
