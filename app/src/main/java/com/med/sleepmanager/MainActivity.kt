@@ -1,5 +1,6 @@
 package com.med.sleepmanager
 
+import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.app.AlarmManager
 import android.app.TimePickerDialog
@@ -18,6 +19,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.view.KeyEvent
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
@@ -56,6 +58,7 @@ import com.med.sleepmanager.protection.LidMonitor
 import com.med.sleepmanager.qs.SleepManagerTileService
 import com.med.sleepmanager.service.SleepManagerService
 import com.med.sleepmanager.ui.screens.SleepManagerScreen
+import com.med.sleepmanager.ui.controller.ControllerInputBridge
 import com.med.sleepmanager.ui.state.SleepManagerUiState
 import com.med.sleepmanager.ui.state.SleepManagerViewModel
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
@@ -68,6 +71,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+
+    // ComponentActivity's override is public, but AndroidX marks it RestrictedApi.
+    // Routing handheld keys here is intentionally needed before Compose has focus.
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Hardware navigation is routed before Compose's focus traversal.
+        if (ControllerInputBridge.dispatch(event)) return true
+        return super.dispatchKeyEvent(event)
+    }
 
     private val uiViewModel: SleepManagerViewModel by viewModels()
 

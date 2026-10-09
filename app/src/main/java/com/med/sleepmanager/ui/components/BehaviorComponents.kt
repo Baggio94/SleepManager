@@ -24,6 +24,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusChanged
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +64,7 @@ internal fun BehaviorCard(
     syncThenStopOnSleepWake: Boolean
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var detailsFocused by remember { mutableStateOf(false) }
     val hasSleepAction =
         wifi || bluetooth || batterySaver || syncthing || tailscale ||
             jamesDsp || basicSync || raOfflineProxy ||
@@ -226,7 +230,13 @@ internal fun BehaviorCard(
                     )
                 }
 
-                TextButton(onClick = feedbackClick { expanded = !expanded }) {
+                TextButton(
+                    onClick = feedbackClick { expanded = !expanded },
+                    modifier = Modifier
+                        .controllerRememberFocus("home-behavior-details", onActivate = { expanded = !expanded })
+                        .onFocusChanged { detailsFocused = it.isFocused }
+                        .controllerFocusHighlight(detailsFocused, RoundedCornerShape(12.dp))
+                ) {
                     Text(
                         stringResource(
                             if (expanded) R.string.less else R.string.details

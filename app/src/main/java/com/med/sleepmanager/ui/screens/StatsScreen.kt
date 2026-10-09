@@ -9,6 +9,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -54,6 +58,9 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.R
 import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.ui.feedbackClick
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import java.util.Locale
 
 import kotlinx.coroutines.Dispatchers
@@ -243,8 +250,14 @@ internal fun StatsCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    var cardFocused by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("stats-section:$title")
+            .onFocusChanged { cardFocused = it.isFocused }
+            .controllerFocusHighlight(cardFocused)
+            .focusable(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -329,9 +342,19 @@ internal fun BatteryDashboardCard(
 ) {
     val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
     val last = dashboard.lastSession
+    var batteryFocused by remember { mutableStateOf(false) }
+    var batteryControllerCycle by remember { mutableIntStateOf(0) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus(
+                "home-battery-dashboard",
+                onActivate = { batteryControllerCycle++ }
+            )
+            .onFocusChanged { batteryFocused = it.isFocused }
+            .controllerFocusHighlight(batteryFocused)
+            .focusable(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -354,6 +377,7 @@ internal fun BatteryDashboardCard(
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
                     averageDrainPerHour = stats.averageDrainPerHour,
                     averageDeepSleepPercent = stats.averageDeepSleepPercent,
+                    controllerCycleToken = batteryControllerCycle,
                     modifier = Modifier
                         .weight(1f)
                         .widthIn(max = 280.dp)
@@ -531,10 +555,17 @@ internal fun InteractiveBatteryGauge(
     estimatedHoursRemaining: Double?,
     averageDrainPerHour: Double?,
     averageDeepSleepPercent: Double?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    controllerCycleToken: Int = 0
 ) {
     var infoIndex by remember { mutableIntStateOf(0) }
     var hasInteracted by remember { mutableStateOf(false) }
+    LaunchedEffect(controllerCycleToken) {
+        if (controllerCycleToken > 0) {
+            hasInteracted = true
+            infoIndex = (infoIndex + 1) % 4
+        }
+    }
     val level = (percent ?: 0).coerceIn(0, 100)
     val animatedLevel by animateFloatAsState(
         targetValue = level / 100f,
@@ -797,8 +828,14 @@ internal fun PendingRestoreCard(
     problem: String,
     onForget: () -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("stats-pending-restore", onActivate = onForget)
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -824,7 +861,8 @@ internal fun PendingRestoreCard(
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
             OutlinedButton(
-                onClick = feedbackClick(onForget)
+                onClick = feedbackClick(onForget),
+                modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
             ) {
                 Text(stringResource(R.string.stats_forget_pending_restore))
             }

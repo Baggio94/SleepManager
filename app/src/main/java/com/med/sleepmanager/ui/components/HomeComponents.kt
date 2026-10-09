@@ -2,6 +2,7 @@ package com.med.sleepmanager.ui.components
 
 import android.provider.Settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,9 +36,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -52,6 +56,10 @@ import com.med.sleepmanager.integration.JamesDspController
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.R
 import com.med.sleepmanager.ui.AppSection
+import com.med.sleepmanager.ui.controller.ControllerAction
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -221,9 +229,22 @@ internal fun UpdateAvailableCard(
     onUpdate: () -> Unit,
     onReleaseNotes: (() -> Unit)? = null
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .controllerRememberFocus(
+                "home-update",
+                actions = buildList {
+                    add(ControllerAction("Update") { onUpdate() })
+                    if (onReleaseNotes != null) {
+                        add(ControllerAction("Release notes") { onReleaseNotes() })
+                    }
+                }
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable()
             .testTag("update_available_card"),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
@@ -350,8 +371,15 @@ internal fun StatusCard(
     onToggle: () -> Unit
 ) {
     val active = enabled && running
+    var focused by remember { mutableStateOf(false) }
 
     Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("home-manager", onActivate = onToggle)
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable(),
         colors = CardDefaults.cardColors(
             containerColor = if (active) {
                 MaterialTheme.colorScheme.primaryContainer

@@ -7,6 +7,7 @@ import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -40,21 +41,33 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusDirection
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -89,6 +102,7 @@ import com.med.sleepmanager.ui.components.ClamshellOptionsCard
 import com.med.sleepmanager.ui.components.CompactIntegrationRow
 import com.med.sleepmanager.ui.components.CompactSupportedAppRow
 import com.med.sleepmanager.ui.components.CompactSideRail
+import com.med.sleepmanager.ui.components.ControllerHintOverlay
 import com.med.sleepmanager.ui.components.OnboardingCard
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingRow
@@ -97,6 +111,14 @@ import com.med.sleepmanager.ui.components.StatusCard
 import com.med.sleepmanager.ui.components.SyncthingTargetDialog
 import com.med.sleepmanager.ui.components.UpdateAvailableCard
 import com.med.sleepmanager.ui.controller.controllerNavigation
+import com.med.sleepmanager.ui.controller.ControllerTargetRegistry
+import com.med.sleepmanager.ui.controller.LocalControllerTargetRegistry
+import com.med.sleepmanager.ui.controller.ControllerFocusMemory
+import com.med.sleepmanager.ui.controller.LocalControllerFocusMemory
+import com.med.sleepmanager.ui.controller.LocalControllerSectionId
+import com.med.sleepmanager.ui.controller.isControllerInputActive
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -108,6 +130,7 @@ import com.med.sleepmanager.update.UpdateNotifier
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.med.sleepmanager.ui.feedbackChange
 import com.med.sleepmanager.ui.state.SleepManagerUiState
@@ -201,11 +224,25 @@ private class IntegrationUiRow(
         var advancedScrollRequestId by remember {
             mutableStateOf(0)
         }
+        val controllerFocusMemory = remember { ControllerFocusMemory() }
+        val controllerTargets = remember { ControllerTargetRegistry() }
+        controllerFocusMemory.enter(currentSection.name)
+        val focusManager = LocalFocusManager.current
+        LaunchedEffect(currentSection) {
+            if (isControllerInputActive() &&
+                controllerFocusMemory.lastFocused(currentSection.name) == null
+            ) {
+                withFrameNanos { }
+                focusManager.moveFocus(FocusDirection.Next)
+            }
+        }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
         val statsListState = rememberLazyListState()
         val activityListState = rememberLazyListState()
         val aboutListState = rememberLazyListState()
+        var listViewportTop by remember { mutableFloatStateOf(0f) }
+        var listViewportHeight by remember { mutableIntStateOf(0) }
         val currentListState = when (currentSection) {
             AppSection.HOME -> homeListState
             AppSection.ADVANCED -> advancedListState
@@ -214,7 +251,32 @@ private class IntegrationUiRow(
             AppSection.ABOUT -> aboutListState
         }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        // Synchronous state bridges the gap before the drawer opening animation updates.
+        var controllerDrawerRequested by remember { mutableStateOf(false) }
+        // Ignore the closing animation when routing keys to the new section.
+        var controllerDrawerClosing by remember { mutableStateOf(false) }
+        LaunchedEffect(drawerState.currentValue, drawerState.targetValue) {
+            if (drawerState.isClosed && drawerState.targetValue == DrawerValue.Closed) {
+                controllerDrawerRequested = false
+                controllerDrawerClosing = false
+            }
+        }
         val drawerScope = rememberCoroutineScope()
+        var drawerControllerIndex by remember { mutableIntStateOf(0) }
+        var showControllerHints by remember { mutableStateOf(false) }
+        var controllerHintsShown by rememberSaveable { mutableStateOf(false) }
+        var copyLogFocused by remember { mutableStateOf(false) }
+        val controllerActive = isControllerInputActive()
+        val activityBackDispatcher =
+            LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+        LaunchedEffect(controllerActive) {
+            if (controllerActive && !controllerHintsShown) {
+                controllerHintsShown = true
+                showControllerHints = true
+                delay(2600L)
+            }
+            showControllerHints = false
+        }
 
         fun navigateToAbout(target: AboutScrollTarget) {
             aboutScrollTarget = target
@@ -464,20 +526,64 @@ private class IntegrationUiRow(
             )
         }
 
+        CompositionLocalProvider(
+            LocalControllerFocusMemory provides controllerFocusMemory,
+            LocalControllerTargetRegistry provides controllerTargets,
+            LocalControllerSectionId provides currentSection.name
+        ) {
         ModalNavigationDrawer(
             modifier =
                 Modifier.controllerNavigation(
                     listState = currentListState,
-                    enabled = drawerState.isClosed,
+                    viewportTopPx = listViewportTop,
+                    viewportHeightPx = listViewportHeight,
+                    enabled = (drawerState.isClosed || controllerDrawerClosing) &&
+                        !controllerDrawerRequested && !showTargetDialog,
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {
+                        val open = !controllerDrawerRequested && (drawerState.isClosed || controllerDrawerClosing)
+                        controllerDrawerRequested = open
+                        controllerDrawerClosing = !open
+                        if (open) drawerControllerIndex = AppSection.entries.indexOf(currentSection)
                         drawerScope.launch {
-                            if (drawerState.isClosed) {
-                                drawerState.open()
-                            } else {
-                                drawerState.close()
+                            if (open) drawerState.open() else drawerState.close()
+                        }
+                    },
+                    drawerOpen = !controllerDrawerClosing &&
+                        (controllerDrawerRequested || drawerState.isOpen),
+                    drawerOpenNow = { !controllerDrawerClosing &&
+                        (controllerDrawerRequested || drawerState.targetValue == DrawerValue.Open) },
+                    onDrawerMove = { amount ->
+                        val sections = AppSection.entries
+                        drawerControllerIndex =
+                            (drawerControllerIndex + amount + sections.size) % sections.size
+                    },
+                    onDrawerSelect = {
+                        val nextSection = AppSection.entries[drawerControllerIndex]
+                        controllerDrawerClosing = true
+                        controllerDrawerRequested = false
+                        currentSection = nextSection
+                        drawerScope.launch {
+                            drawerState.close()
+                            withFrameNanos { }
+                            // Reacquire focus only if Compose did not already
+                            // restore the section's previous selection.
+                            if (!controllerTargets.isSelectedMounted(nextSection.name)) {
+                                controllerTargets.move(nextSection.name, +1)
                             }
+                        }
+                    },
+                    onDrawerDismiss = {
+                        controllerDrawerClosing = true
+                        controllerDrawerRequested = false
+                        drawerScope.launch { drawerState.close() }
+                    },
+                    onBackRequested = {
+                        when {
+                            showTargetDialog -> showTargetDialog = false
+                            currentSection != AppSection.HOME -> currentSection = AppSection.HOME
+                            else -> activityBackDispatcher?.onBackPressed()
                         }
                     }
                 ),
@@ -524,9 +630,13 @@ private class IntegrationUiRow(
                                     )
                                 },
                                 label = { Text(stringResource(section.labelRes)) },
-                                selected = currentSection == section,
+                                selected = if (drawerState.isOpen) {
+                                    drawerControllerIndex == AppSection.entries.indexOf(section)
+                                } else currentSection == section,
                                 onClick = feedbackClick {
                                     currentSection = section
+                                    controllerDrawerRequested = false
+                                    controllerDrawerClosing = true
                                     drawerScope.launch { drawerState.close() }
                                 }
                             )
@@ -589,6 +699,8 @@ private class IntegrationUiRow(
                         currentSection = currentSection,
                         onSectionSelected = { currentSection = it },
                         onMenuClick = {
+                            controllerDrawerClosing = false
+                            controllerDrawerRequested = true
                             drawerScope.launch { drawerState.open() }
                         }
                     )
@@ -597,12 +709,19 @@ private class IntegrationUiRow(
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.background,
+                    snackbarHost = {
+                        if (showControllerHints && drawerState.isClosed) {
+                            ControllerHintOverlay()
+                        }
+                    },
                 topBar = {
                     TopAppBar(
                         navigationIcon = {
                             if (compactLayout) {
                                 IconButton(
                                     onClick = feedbackClick {
+                                        controllerDrawerClosing = false
+                                        controllerDrawerRequested = true
                                         drawerScope.launch { drawerState.open() }
                                     },
                                     modifier = Modifier
@@ -634,14 +753,19 @@ private class IntegrationUiRow(
                         actions = {
                             if (currentSection == AppSection.ACTIVITY_LOG) {
                                 OutlinedButton(
-                                    onClick = feedbackClick {
-                                        onCopyDiagnosticsRequested()
-                                    },
-                                    modifier = Modifier.padding(end = 12.dp)
+                                    onClick = feedbackClick(onCopyDiagnosticsRequested),
+                                    modifier = Modifier
+                                        .padding(end = 12.dp)
+                                        .controllerRememberFocus(
+                                            "activity-copy-log",
+                                            onActivate = onCopyDiagnosticsRequested
+                                        )
+                                        .onFocusChanged { copyLogFocused = it.isFocused }
+                                        .controllerFocusHighlight(
+                                            copyLogFocused, RoundedCornerShape(12.dp)
+                                        )
                                 ) {
-                                    Text(
-                                        stringResource(R.string.activity_copy_log)
-                                    )
+                                    Text(stringResource(R.string.activity_copy_log))
                                 }
                             }
                         },
@@ -656,7 +780,11 @@ private class IntegrationUiRow(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .testTag("main_list"),
+                    .testTag("main_list")
+                    .onGloballyPositioned { coordinates ->
+                        listViewportTop = coordinates.positionInRoot().y
+                        listViewportHeight = coordinates.size.height
+                    },
                 contentPadding = PaddingValues(
                     start = 18.dp,
                     end = 18.dp,
@@ -941,12 +1069,16 @@ private class IntegrationUiRow(
                             customDelayEnabled = customDelayEnabled,
                             customDelayMs = customDelayMs,
                             onChange = { value ->
+                                if (customDelayEnabled) onCustomDelayEnabledChange(false)
                                 onSleepGraceChange(value)
                             },
-                            onCustom = {
-                                navigateToAdvanced(
-                                    AdvancedScrollTarget.CUSTOM_DELAY
-                                )
+                            onCustomDelaySelected = { duration ->
+                                if (!onCanScheduleExactAlarmsRequested()) {
+                                    onRequestExactAlarmAccessRequested()
+                                } else {
+                                    onCustomDelayChange(duration)
+                                    onCustomDelayEnabledChange(true)
+                                }
                             }
                         )
                     }
@@ -1488,18 +1620,28 @@ private class IntegrationUiRow(
 
                 if (managerEnabled && !setupComplete) {
                     item {
+                        var finishFocused by remember { mutableStateOf(false) }
                         Button(
                             onClick = feedbackClick { onFinishSetupRequested() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .controllerRememberFocus("home-finish-setup", onActivate = onFinishSetupRequested)
+                                .onFocusChanged { finishFocused = it.isFocused }
+                                .controllerFocusHighlight(finishFocused, RoundedCornerShape(12.dp))
                         ) {
                             Text(stringResource(R.string.finish_setup))
                         }
                     }
                 } else if (setupComplete) {
                     item {
+                        var doneFocused by remember { mutableStateOf(false) }
                         Button(
                             onClick = feedbackClick { onFinishAppRequested() },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .controllerRememberFocus("home-done", onActivate = onFinishAppRequested)
+                                .onFocusChanged { doneFocused = it.isFocused }
+                                .controllerFocusHighlight(doneFocused, RoundedCornerShape(12.dp))
                         ) {
                             Text(stringResource(R.string.done))
                         }
@@ -1581,16 +1723,8 @@ private class IntegrationUiRow(
                                 onScheduleEnabledChange = {
                                     onScheduleEnabledChange(it)
                                 },
-                                onPickScheduleStart = {
-                                    onShowTimePickerRequested(scheduleStartMinutes) { value ->
-                                        onScheduleStartMinutesChange(value)
-                                    }
-                                },
-                                onPickScheduleEnd = {
-                                    onShowTimePickerRequested(scheduleEndMinutes) { value ->
-                                        onScheduleEndMinutesChange(value)
-                                    }
-                                },
+                                onScheduleStartMinutesChange = onScheduleStartMinutesChange,
+                                onScheduleEndMinutesChange = onScheduleEndMinutesChange,
                                 scrollTarget = advancedScrollTarget,
                                 scrollRequestId = advancedScrollRequestId,
                                 onScrollTargetConsumed = {
@@ -1611,7 +1745,8 @@ private class IntegrationUiRow(
                     AppSection.ACTIVITY_LOG -> {
                         item {
                             ActivityLogPage(
-                                context = context
+                                context = context,
+                                onCopyDiagnostics = onCopyDiagnosticsRequested
                             )
                         }
                     }
@@ -1671,5 +1806,5 @@ private class IntegrationUiRow(
                 }
             }
         }
+        } // Controller focus context
     }
-

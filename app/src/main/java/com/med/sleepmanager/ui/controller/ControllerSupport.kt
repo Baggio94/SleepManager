@@ -11,20 +11,32 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -35,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.ui.SleepManagerFeedbackGate
 import com.med.sleepmanager.ui.performSleepManagerFeedback
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -48,6 +61,63 @@ private object ControllerInputMode {
     var active by mutableStateOf(false)
 }
 
+internal fun isControllerInputActive(): Boolean = ControllerInputMode.active
+
+internal val LocalControllerFocusMemory = staticCompositionLocalOf<ControllerFocusMemory?> { null }
+internal val LocalControllerSectionId = staticCompositionLocalOf { "" }
+
+internal val LocalControllerTargetRegistry =
+    staticCompositionLocalOf<ControllerTargetRegistry?> { null }
+
+/** Registers a stable, logical controller target independently of touch nodes. */
+@Composable
+internal fun Modifier.controllerRememberFocus(
+    targetId: String,
+    onActivate: (() -> Unit)? = null,
+    actions: List<ControllerAction> = emptyList()
+): Modifier {
+    val sectionId = LocalControllerSectionId.current
+    val memory = LocalControllerFocusMemory.current
+    val registry = LocalControllerTargetRegistry.current
+    val requester = remember(sectionId, targetId) { FocusRequester() }
+    val bringIntoView = remember(sectionId, targetId) { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    val currentActivate by rememberUpdatedState(onActivate)
+    val currentActions by rememberUpdatedState(actions)
+
+    DisposableEffect(registry, sectionId, targetId) {
+        registry?.register(
+            sectionId, targetId, requester,
+            activate = { currentActivate?.invoke() },
+            actions = { currentActions }
+        )
+        onDispose { registry?.unregister(sectionId, targetId) }
+    }
+
+    LaunchedEffect(sectionId, targetId) {
+        if (ControllerInputMode.active && memory?.shouldRestore(sectionId, targetId) == true) {
+            runCatching { requester.requestFocus() }
+            memory.markRestored(sectionId, targetId)
+        }
+    }
+
+    return this
+        .bringIntoViewRequester(bringIntoView)
+        .focusRequester(requester)
+        .onGloballyPositioned { coordinates ->
+            registry?.position(sectionId, targetId, coordinates.positionInRoot().y)
+        }
+        .onFocusChanged { focus ->
+            if (focus.isFocused && ControllerInputMode.active) {
+                memory?.remember(sectionId, targetId)
+                registry?.select(sectionId, targetId)
+                // Keep the entire selected component within the visible viewport.
+                // This runs on focus changes, not on free right-stick scrolling.
+                scope.launch { runCatching { bringIntoView.bringIntoView() } }
+            }
+        }
+}
+
 @Composable
 internal fun Modifier.controllerFocusHighlight(
     focused: Boolean,
@@ -55,21 +125,31 @@ internal fun Modifier.controllerFocusHighlight(
 ): Modifier {
     if (!ControllerInputMode.active || !focused) return this
 
-    val color = MaterialTheme.colorScheme.primary
+    val color = Color.White
     return this
-        .background(color.copy(alpha = 0.08f), shape)
-        .border(2.dp, color.copy(alpha = 0.82f), shape)
+        .background(color.copy(alpha = 0.075f), shape)
+        .border(3.dp, color, shape)
 }
 
 @Composable
 internal fun Modifier.controllerNavigation(
     listState: LazyListState,
+    viewportTopPx: Float = 0f,
+    viewportHeightPx: Int = 0,
     enabled: Boolean = true,
     onPreviousSection: () -> Unit,
     onNextSection: () -> Unit,
-    onMenuRequested: () -> Unit
+    onMenuRequested: () -> Unit,
+    drawerOpen: Boolean = false,
+    drawerOpenNow: () -> Boolean = { false },
+    onDrawerMove: (Int) -> Unit = {},
+    onDrawerSelect: () -> Unit = {},
+    onDrawerDismiss: () -> Unit = {},
+    onBackRequested: (() -> Unit)? = null
 ): Modifier {
     val focusManager = LocalFocusManager.current
+    val registry = LocalControllerTargetRegistry.current
+    val sectionId = LocalControllerSectionId.current
     val view = LocalView.current
     val backDispatcher =
         LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -88,6 +168,15 @@ internal fun Modifier.controllerNavigation(
     var lastPageScrollAt by remember(listState) {
         mutableLongStateOf(0L)
     }
+    var activeScrollJob by remember(listState) { mutableStateOf<Job?>(null) }
+    var selectedAnchorIndex by remember(listState) { mutableIntStateOf(0) }
+    var selectedAnchorOffset by remember(listState) { mutableIntStateOf(0) }
+    LaunchedEffect(registry?.selectedId, sectionId) {
+        if (registry?.isSelectedMounted(sectionId) == true) {
+            selectedAnchorIndex = listState.firstVisibleItemIndex
+            selectedAnchorOffset = listState.firstVisibleItemScrollOffset
+        }
+    }
 
     fun pageScroll(
         direction: Int,
@@ -101,107 +190,215 @@ internal fun Modifier.controllerNavigation(
                 .takeIf { it > 0 }
                 ?: view.height
         if (viewport <= 0) return
+        if (direction > 0 && !listState.canScrollForward) return
+        if (direction < 0 && !listState.canScrollBackward) return
 
-        scope.launch {
+        activeScrollJob?.cancel()
+        activeScrollJob = scope.launch {
             listState.animateScrollBy(viewport * 0.82f * direction)
+            withFrameNanos { }
+            // Focus a newly visible element; never pull the viewport back to
+            // an offscreen element that was selected before the L2/R2 jump.
+            registry?.focusVisible(
+                sectionId,
+                viewportTopPx,
+                viewportHeightPx,
+                direction
+            )
         }
     }
 
-    fun moveFocus(direction: Int, eventTime: Long): Boolean {
-        val shouldMove =
-            direction != lastStickDirection ||
-                eventTime - lastStickMoveAt >= STICK_REPEAT_MS
+    fun moveFocus(direction: Int, eventTime: Long, repeated: Boolean = true): Boolean {
+        // Fresh D-pad presses always count; holding the D-pad or left stick shares
+        // the same controlled repeat cadence.
+        val shouldMove = !repeated ||
+            direction != lastStickDirection || eventTime - lastStickMoveAt >= STICK_REPEAT_MS
         if (!shouldMove) return true
-
         lastStickDirection = direction
         lastStickMoveAt = eventTime
-        val focusDirection =
-            when (direction) {
-                1 -> FocusDirection.Up
-                2 -> FocusDirection.Down
-                3 -> FocusDirection.Left
-                4 -> FocusDirection.Right
-                else -> return false
-            }
-        val moved = focusManager.moveFocus(focusDirection)
-        if (!moved && direction in 1..2) {
-            val viewport =
-                listState.layoutInfo.viewportSize.height
-                    .takeIf { it > 0 }
-                    ?: view.height
-            if (viewport > 0) {
-                scope.launch {
-                    listState.animateScrollBy(
-                        viewport * 0.36f * if (direction == 1) -1f else 1f
-                    )
-                    focusManager.moveFocus(focusDirection)
+
+        if (direction == 1 || direction == 2) {
+            // Cancel any pending movement in the opposite direction immediately.
+            activeScrollJob?.cancel()
+            val step = if (direction == 1) -1 else 1
+            if (registry?.selectedId != null &&
+                registry.isSelectedMounted(sectionId) == false
+            ) {
+                // Free scrolling can uncompose the selected LazyColumn item. Restore
+                // its last viewport before moving, rather than jumping randomly.
+                activeScrollJob = scope.launch {
+                    listState.scrollToItem(selectedAnchorIndex, selectedAnchorOffset)
+                    withFrameNanos { }
+                    registry.move(sectionId, step)
                 }
+                return true
+            }
+            if (registry?.move(sectionId, step) == true) return true
+            // At either end of the list, consume the key without scheduling an
+            // animation that could rebound after the next direction press.
+            if (step > 0 && !listState.canScrollForward) return true
+            if (step < 0 && !listState.canScrollBackward) return true
+            // A target may lie below the current LazyColumn viewport.
+            val viewport = listState.layoutInfo.viewportSize.height
+                .takeIf { it > 0 } ?: view.height
+            if (viewport > 0) {
+                activeScrollJob = scope.launch {
+                    listState.animateScrollBy(viewport * 0.66f * step)
+                    withFrameNanos { }
+                    // On read-only pages (Stats/Activity), scrolling must work
+                    // even when no additional focusable child exists.
+                    registry?.move(sectionId, step)
+                }
+                return true
             }
         }
-        return true
+        // Left/right stays local to the selected card before spatial fallback.
+        if (direction == 3 && registry?.changeAction(sectionId, -1) == true) return true
+        if (direction == 4 && registry?.changeAction(sectionId, 1) == true) return true
+        val focusDirection = if (direction == 3) FocusDirection.Left else FocusDirection.Right
+        return focusManager.moveFocus(focusDirection)
     }
 
-    DisposableEffect(view, listState, enabled) {
-        val keyListener =
-            View.OnKeyListener { _, keyCode, event ->
-                if (
-                    event.action != AndroidKeyEvent.ACTION_DOWN ||
-                    event.repeatCount != 0
-                ) {
-                    return@OnKeyListener false
+    fun moveDrawer(direction: Int, eventTime: Long, repeated: Boolean) {
+        val code = if (direction < 0) 1 else 2
+        if (!repeated || code != lastStickDirection ||
+            eventTime - lastStickMoveAt >= STICK_REPEAT_MS
+        ) {
+            lastStickDirection = code
+            lastStickMoveAt = eventTime
+            onDrawerMove(direction)
+        }
+    }
+
+    val onNavigationKey: (AndroidKeyEvent) -> Boolean = { event ->
+        // Consult live drawer state; controller input must not leak behind an opening drawer.
+        val drawerIsActive = drawerOpen || drawerOpenNow()
+        if (event.action != AndroidKeyEvent.ACTION_DOWN) {
+            false
+        } else {
+            when (event.keyCode) {
+                AndroidKeyEvent.KEYCODE_BUTTON_START,
+                AndroidKeyEvent.KEYCODE_MENU -> {
+                    ControllerInputMode.active = true
+                    if (enabled || drawerIsActive) onMenuRequested()
+                    true
                 }
-
-                when (keyCode) {
-                    AndroidKeyEvent.KEYCODE_BUTTON_START,
-                    AndroidKeyEvent.KEYCODE_MENU -> {
-                        ControllerInputMode.active = true
-                        onMenuRequested()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_B -> {
-                        ControllerInputMode.active = true
-                        backDispatcher?.onBackPressed()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        onPreviousSection()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        onNextSection()
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        pageScroll(-1, event.eventTime)
-                        true
-                    }
-
-                    AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
-                        if (!enabled) return@OnKeyListener false
-                        ControllerInputMode.active = true
-                        pageScroll(1, event.eventTime)
-                        true
-                    }
-
-                    else -> false
+                AndroidKeyEvent.KEYCODE_BUTTON_B -> {
+                    ControllerInputMode.active = true
+                    if (drawerIsActive) onDrawerDismiss()
+                    else if (onBackRequested != null) onBackRequested()
+                    else backDispatcher?.onBackPressed()
+                    true
                 }
+                AndroidKeyEvent.KEYCODE_BUTTON_A -> {
+                    if (!enabled && !drawerIsActive) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) {
+                            if (drawerIsActive) {
+                                onDrawerSelect()
+                            } else {
+                                val previouslySelected =
+                                    registry?.isSelectedMounted(sectionId) == true
+                                val handled = registry?.activate(sectionId) == true
+                                if (handled && previouslySelected) {
+                                    view.performSleepManagerFeedback()
+                                }
+                                if (!handled) {
+                                    // A fallback for legacy buttons not yet in the registry.
+                                    val mapped = AndroidKeyEvent(
+                                        event.downTime, event.eventTime, event.action,
+                                        AndroidKeyEvent.KEYCODE_DPAD_CENTER, event.repeatCount,
+                                        event.metaState, event.deviceId, event.scanCode,
+                                        event.flags, event.source
+                                    )
+                                    view.dispatchKeyEvent(mapped)
+                                }
+                            }
+                        }
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
+                    if (!enabled && !drawerIsActive) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) {
+                            onPreviousSection()
+                            if (drawerIsActive) onDrawerMove(-1)
+                        }
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
+                    if (!enabled && !drawerIsActive) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) {
+                            onNextSection()
+                            if (drawerIsActive) onDrawerMove(1)
+                        }
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
+                    if (drawerIsActive) true
+                    else if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) pageScroll(-1, event.eventTime)
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
+                    if (drawerIsActive) true
+                    else if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) pageScroll(1, event.eventTime)
+                        true
+                    }
+                }
+                AndroidKeyEvent.KEYCODE_DPAD_UP,
+                AndroidKeyEvent.KEYCODE_DPAD_DOWN,
+                AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+                AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (!enabled && !drawerIsActive) false else {
+                        ControllerInputMode.active = true
+                        if (drawerIsActive) {
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP) {
+                                moveDrawer(-1, event.eventTime, event.repeatCount > 0)
+                            }
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN) {
+                                moveDrawer(1, event.eventTime, event.repeatCount > 0)
+                            }
+                            true
+                        } else {
+                            val direction = when (event.keyCode) {
+                                AndroidKeyEvent.KEYCODE_DPAD_UP -> 1
+                                AndroidKeyEvent.KEYCODE_DPAD_DOWN -> 2
+                                AndroidKeyEvent.KEYCODE_DPAD_LEFT -> 3
+                                else -> 4
+                            }
+                            moveFocus(direction, event.eventTime, repeated = event.repeatCount > 0)
+                        }
+                    }
+                }
+                else -> false
             }
-        view.setOnKeyListener(keyListener)
+        }
+    }
+
+    val latestNavigationKey by rememberUpdatedState(onNavigationKey)
+    val latestEnabled by rememberUpdatedState(enabled)
+    val latestDrawerOpen by rememberUpdatedState(drawerOpen)
+    val latestDrawerOpenNow by rememberUpdatedState(drawerOpenNow)
+    val latestMoveDrawer by rememberUpdatedState<(Int, Long, Boolean) -> Unit>(
+        { direction, time, repeat -> moveDrawer(direction, time, repeat) }
+    )
+    DisposableEffect(view, listState) {
+        val globalHandler: (AndroidKeyEvent) -> Boolean = { e -> latestNavigationKey(e) }
+        ControllerInputBridge.attach(globalHandler)
 
         val listener =
             View.OnGenericMotionListener { _, event ->
                 if (
-                    !enabled ||
+                    (!latestEnabled && !latestDrawerOpenNow() && !latestDrawerOpen) ||
                     event.action != MotionEvent.ACTION_MOVE ||
                     (event.source and InputDevice.SOURCE_JOYSTICK) !=
                         InputDevice.SOURCE_JOYSTICK
@@ -210,6 +407,23 @@ internal fun Modifier.controllerNavigation(
                 }
 
                 ControllerInputMode.active = true
+
+                // The same left stick navigates the open drawer instead of the page.
+                if (latestDrawerOpenNow() || latestDrawerOpen) {
+                    val axis = event.getAxisValue(MotionEvent.AXIS_Y)
+                    val hat = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                    val y = if (abs(hat) >= STICK_DEAD_ZONE) hat else axis
+                    val direction = when {
+                        y <= -STICK_DEAD_ZONE -> 1
+                        y >= STICK_DEAD_ZONE -> 2
+                        else -> 0
+                    }
+                    if (direction == 0) lastStickDirection = 0
+                    else latestMoveDrawer(
+                        if (direction == 1) -1 else 1, event.eventTime, true
+                    )
+                    return@OnGenericMotionListener true
+                }
 
                 val rz = event.getAxisValue(MotionEvent.AXIS_RZ)
                 val ry = event.getAxisValue(MotionEvent.AXIS_RY)
@@ -250,8 +464,12 @@ internal fun Modifier.controllerNavigation(
                 }
                 analogTriggerLatch = 0
 
-                val x = event.getAxisValue(MotionEvent.AXIS_X)
-                val y = event.getAxisValue(MotionEvent.AXIS_Y)
+                val stickX = event.getAxisValue(MotionEvent.AXIS_X)
+                val stickY = event.getAxisValue(MotionEvent.AXIS_Y)
+                val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                val hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                val x = if (abs(hatX) >= STICK_DEAD_ZONE) hatX else stickX
+                val y = if (abs(hatY) >= STICK_DEAD_ZONE) hatY else stickY
                 val direction =
                     when {
                         abs(y) >= STICK_DEAD_ZONE && abs(y) >= abs(x) ->
@@ -271,7 +489,7 @@ internal fun Modifier.controllerNavigation(
 
         view.setOnGenericMotionListener(listener)
         onDispose {
-            view.setOnKeyListener(null)
+            ControllerInputBridge.detach(globalHandler)
             view.setOnGenericMotionListener(null)
         }
     }
@@ -281,113 +499,18 @@ internal fun Modifier.controllerNavigation(
             val native = event.nativeKeyEvent
 
             if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_A) {
-                ControllerInputMode.active = true
-                val mapped =
-                    AndroidKeyEvent(
-                        native.downTime,
-                        native.eventTime,
-                        native.action,
-                        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                        native.repeatCount,
-                        native.metaState,
-                        native.deviceId,
-                        native.scanCode,
-                        native.flags,
-                        native.source
-                    )
-                val handled =
-                    SleepManagerFeedbackGate.withoutWrappedFeedback {
-                        view.dispatchKeyEvent(mapped)
+                if (native.action == AndroidKeyEvent.ACTION_DOWN) {
+                    ControllerInputMode.active = true
+                    if (native.repeatCount == 0) {
+                        return@onPreviewKeyEvent (registry?.activate(sectionId) ?: false)
                     }
-                if (
-                    handled &&
-                    native.action == AndroidKeyEvent.ACTION_DOWN &&
-                    native.repeatCount == 0
-                ) {
-                    view.performSleepManagerFeedback()
-                }
-                return@onPreviewKeyEvent handled
-            }
-
-            if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_B) {
-                ControllerInputMode.active = true
-                if (
-                    native.action == AndroidKeyEvent.ACTION_DOWN &&
-                    native.repeatCount == 0
-                ) {
-                    backDispatcher?.onBackPressed()
+                    return@onPreviewKeyEvent true
                 }
                 return@onPreviewKeyEvent true
             }
 
-            if (native.action != AndroidKeyEvent.ACTION_DOWN) {
-                return@onPreviewKeyEvent false
-            }
-
-            val keyCode = native.keyCode
-            val controllerKey =
-                keyCode in setOf(
-                    AndroidKeyEvent.KEYCODE_DPAD_UP,
-                    AndroidKeyEvent.KEYCODE_DPAD_DOWN,
-                    AndroidKeyEvent.KEYCODE_DPAD_LEFT,
-                    AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
-                    AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                    AndroidKeyEvent.KEYCODE_BACK,
-                    AndroidKeyEvent.KEYCODE_BUTTON_L1,
-                    AndroidKeyEvent.KEYCODE_BUTTON_R1,
-                    AndroidKeyEvent.KEYCODE_BUTTON_L2,
-                    AndroidKeyEvent.KEYCODE_BUTTON_R2,
-                    AndroidKeyEvent.KEYCODE_BUTTON_START,
-                    AndroidKeyEvent.KEYCODE_MENU
-                )
-            if (controllerKey) {
-                ControllerInputMode.active = true
-            }
-
-            if (!enabled) {
-                return@onPreviewKeyEvent false
-            }
-
-            when (keyCode) {
-                AndroidKeyEvent.KEYCODE_DPAD_UP ->
-                    moveFocus(1, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_DOWN ->
-                    moveFocus(2, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_LEFT ->
-                    moveFocus(3, native.eventTime)
-                AndroidKeyEvent.KEYCODE_DPAD_RIGHT ->
-                    moveFocus(4, native.eventTime)
-
-                AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
-                    if (native.repeatCount == 0) {
-                        onPreviousSection()
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
-                    if (native.repeatCount == 0) {
-                        onNextSection()
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_L2 -> {
-                    if (native.repeatCount == 0) {
-                        pageScroll(-1, native.eventTime)
-                    }
-                    true
-                }
-
-                AndroidKeyEvent.KEYCODE_BUTTON_R2 -> {
-                    if (native.repeatCount == 0) {
-                        pageScroll(1, native.eventTime)
-                    }
-                    true
-                }
-
-                else -> false
-            }
+            // Compose injection fallback; Activity consumes real handheld keys.
+            onNavigationKey(native)
         }
         .pointerInput(Unit) {
             awaitPointerEventScope {
