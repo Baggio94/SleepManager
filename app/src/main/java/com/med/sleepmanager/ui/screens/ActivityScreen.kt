@@ -3,6 +3,7 @@ package com.med.sleepmanager.ui.screens
 import android.content.Context
 import android.text.format.DateFormat
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -147,6 +148,7 @@ private fun ActivityTimelineCard(
             " • " +
             DateFormat.getTimeFormat(context).format(started)
     val errorColor = MaterialTheme.colorScheme.error
+    var cardFocused by remember { mutableStateOf(false) }
     val sequence =
         buildAnnotatedString {
             group.steps.forEachIndexed { index, step ->
@@ -170,6 +172,12 @@ private fun ActivityTimelineCard(
         }
 
     Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("activity-event:${group.startedAt}:${group.kind}")
+            .onFocusChanged { cardFocused = it.isFocused }
+            .controllerFocusHighlight(cardFocused)
+            .focusable(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
