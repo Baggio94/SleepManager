@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import com.med.sleepmanager.ui.controller.LocalControllerSectionId
+import com.med.sleepmanager.ui.controller.LocalControllerTargetRegistry
 import com.med.sleepmanager.ui.controller.ControllerAction
 import com.med.sleepmanager.ui.controller.controllerRememberFocus
 import androidx.compose.ui.graphics.Color
@@ -216,6 +218,9 @@ internal fun CompactIntegrationRow(
     val toggleContentDescription =
         stringResource(R.string.toggle_content_description, title)
     var toggleFocused by remember { mutableStateOf(false) }
+    val sectionId = LocalControllerSectionId.current
+    val actionLabel = LocalControllerTargetRegistry.current
+        ?.activeActionLabel(sectionId, "integration:$icon:$title")
 
     val iconContent: @Composable () -> Unit = {
         Surface(
@@ -288,6 +293,13 @@ internal fun CompactIntegrationRow(
                         }
                     )
                 }
+            }
+            if (toggleFocused && isControllerInputActive() && actionLabel != null) {
+                Text(
+                    "A · $actionLabel   ← / → change action",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
