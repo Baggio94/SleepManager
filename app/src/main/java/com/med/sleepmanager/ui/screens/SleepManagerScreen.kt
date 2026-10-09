@@ -965,12 +965,16 @@ private class IntegrationUiRow(
                             customDelayEnabled = customDelayEnabled,
                             customDelayMs = customDelayMs,
                             onChange = { value ->
+                                if (customDelayEnabled) onCustomDelayEnabledChange(false)
                                 onSleepGraceChange(value)
                             },
-                            onCustom = {
-                                navigateToAdvanced(
-                                    AdvancedScrollTarget.CUSTOM_DELAY
-                                )
+                            onCustomDelaySelected = { duration ->
+                                if (!onCanScheduleExactAlarmsRequested()) {
+                                    onRequestExactAlarmAccessRequested()
+                                } else {
+                                    onCustomDelayChange(duration)
+                                    onCustomDelayEnabledChange(true)
+                                }
                             }
                         )
                     }
