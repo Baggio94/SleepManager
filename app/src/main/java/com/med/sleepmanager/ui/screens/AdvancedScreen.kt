@@ -1,6 +1,7 @@
 package com.med.sleepmanager.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,9 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +40,10 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
+import com.med.sleepmanager.ui.controller.ControllerChoiceGroup
+import com.med.sleepmanager.ui.controller.ControllerChoiceDialog
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import com.med.sleepmanager.ui.feedbackClick
 
@@ -51,67 +58,62 @@ internal fun SleepGraceSelector(
     customDelayEnabled: Boolean,
     customDelayMs: Long,
     onChange: (Long) -> Unit,
-    onCustom: () -> Unit
+    onCustomDelaySelected: (Long) -> Unit
 ) {
-    val options = listOf(
+    val label = stringResource(R.string.grace_period)
+    var showCustomPicker by remember { mutableStateOf(false) }
+    val options: List<Pair<String, Long?>> = listOf(
         stringResource(R.string.grace_immediate) to 0L,
         stringResource(R.string.duration_5_seconds) to 5000L,
-        stringResource(R.string.duration_10_seconds) to 10000L
+        stringResource(R.string.duration_10_seconds) to 10000L,
+        stringResource(R.string.custom) to null
     )
-
     Column(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            stringResource(R.string.grace_period),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
-        )
+        Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         Text(
             stringResource(
-                if (customDelayEnabled) {
-                    R.string.grace_period_custom_delay_active
-                } else {
-                    R.string.grace_period_description
-                }
+                if (customDelayEnabled) R.string.grace_period_custom_delay_active
+                else R.string.grace_period_description
             ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(options.size) { index ->
-                val (label, value) = options[index]
-                FilterChip(
-                    selected = !customDelayEnabled && valueMs == value,
-                    onClick = feedbackClick { onChange(value) },
-                    enabled = !customDelayEnabled,
-                    label = { Text(label) }
-                )
+        ControllerChoiceGroup(
+            id = "home-grace-period",
+            title = label,
+            options = options,
+            selected = if (customDelayEnabled) null else valueMs,
+            onSelected = { selection ->
+                if (selection == null) showCustomPicker = true
+                else onChange(selection)
             }
-
-            item {
-                FilterChip(
-                    selected = customDelayEnabled,
-                    onClick = feedbackClick(onCustom),
-                    label = { Text(stringResource(R.string.custom)) }
-                )
-            }
-        }
-
+        )
         if (customDelayEnabled) {
-            TextButton(onClick = feedbackClick(onCustom)) {
-                Text(
-                    stringResource(
-                        R.string.advanced_with_duration,
-                        formatDuration(customDelayMs)
-                    )
-                )
+            TextButton(onClick = feedbackClick { showCustomPicker = true }) {
+                Text(stringResource(R.string.advanced_with_duration, formatDuration(customDelayMs)))
             }
         }
+    }
+    if (showCustomPicker) {
+        ControllerChoiceDialog(
+            title = stringResource(R.string.use_custom_delay),
+            options = listOf(
+                stringResource(R.string.duration_1_minute) to 60_000L,
+                stringResource(R.string.duration_5_minutes) to 300_000L,
+                stringResource(R.string.duration_10_minutes) to 600_000L,
+                stringResource(R.string.duration_30_minutes) to 1_800_000L
+            ),
+            initialIndex = listOf(60_000L, 300_000L, 600_000L, 1_800_000L)
+                .indexOf(customDelayMs).coerceAtLeast(0),
+            onDismiss = { showCustomPicker = false },
+            onConfirm = { duration ->
+                showCustomPicker = false
+                onCustomDelaySelected(duration)
+            }
+        )
     }
 }
 
@@ -245,21 +247,13 @@ internal fun AdvancedSettingsPage(
                         stringResource(R.string.duration_30_minutes) to 1_800_000L
                     )
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(options.size) { index ->
-                            val (label, value) = options[index]
-                            FilterChip(
-                                modifier = Modifier.testTag(
-                                    "custom_delay_option_$value"
-                                ),
-                                selected = customDelayMs == value,
-                                onClick = feedbackClick { onCustomDelayChange(value) },
-                                label = { Text(label) }
-                            )
-                        }
-                    }
+                    ControllerChoiceGroup(
+                        id = "advanced-custom-delay",
+                        title = stringResource(R.string.delay_before_sleep_actions),
+                        options = options,
+                        selected = customDelayMs,
+                        onSelected = onCustomDelayChange
+                    )
                 }
             }
         }
@@ -288,26 +282,16 @@ internal fun AdvancedSettingsPage(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val levels = listOf(20, 30, 40, 50, 60)
-                        items(levels.size) { index ->
-                            val level = levels[index]
-                            FilterChip(
-                                selected = batteryBelowPercent == level,
-                                onClick = feedbackClick { onBatteryBelowPercentChange(level) },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            R.string.battery_level_chip,
-                                            level
-                                        )
-                                    )
-                                }
-                            )
-                        }
-                    }
+                    ControllerChoiceGroup(
+                        id = "advanced-battery-threshold",
+                        title = stringResource(R.string.battery_level),
+                        options = listOf(20, 30, 40, 50, 60).map { level ->
+                            "$"+"{level}%" to level
+                        },
+                        selected = batteryBelowPercent,
+                        onSelected = onBatteryBelowPercentChange,
+                        maxColumns = 5
+                    )
                 }
             }
 
@@ -367,31 +351,14 @@ internal fun AdvancedSettingsPage(
                             AppPreferences.BATTERY_SAVER_OFF
                     )
 
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(modes.size) { index ->
-                            val (label, mode) = modes[index]
-                            val optionContentDescription =
-                                stringResource(
-                                    R.string.battery_saver_option,
-                                    label
-                                )
-                            FilterChip(
-                                modifier = Modifier
-                                    .testTag("battery_saver_mode_$mode")
-                                    .semantics {
-                                        contentDescription =
-                                            optionContentDescription
-                                    },
-                                selected = batterySaverMode == mode,
-                                onClick = feedbackClick {
-                                    onBatterySaverModeChange(mode)
-                                },
-                                label = { Text(label) }
-                            )
-                        }
-                    }
+                    ControllerChoiceGroup(
+                        id = "advanced-battery-saver",
+                        title = stringResource(R.string.battery_saver),
+                        options = modes,
+                        selected = batterySaverMode,
+                        onSelected = onBatterySaverModeChange,
+                        maxColumns = 3
+                    )
                 }
 
             HorizontalDivider(
@@ -464,7 +431,15 @@ internal fun AdvancedToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .controllerRememberFocus("advanced:$title")
+            .onFocusChanged { toggleFocused = it.isFocused }
             .controllerFocusHighlight(toggleFocused)
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = feedbackChange(onCheckedChange)
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -494,7 +469,7 @@ internal fun AdvancedToggleRow(
             onCheckedChange = feedbackChange(onCheckedChange),
             enabled = enabled,
             modifier = Modifier
-                .onFocusChanged { toggleFocused = it.isFocused }
+                .focusProperties { canFocus = !isControllerInputActive() }
                 .semantics {
                     contentDescription = toggleContentDescription
                 }
