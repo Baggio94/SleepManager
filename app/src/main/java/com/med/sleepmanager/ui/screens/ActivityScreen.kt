@@ -2,12 +2,14 @@ package com.med.sleepmanager.ui.screens
 
 import android.content.Context
 import android.text.format.DateFormat
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +20,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -32,12 +36,15 @@ import com.med.sleepmanager.ui.activity.ActivityTimelineGroup
 import com.med.sleepmanager.ui.activity.ActivityTimelineKind
 import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.controller.controllerFocusHighlight
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import com.med.sleepmanager.ui.feedbackChange
 import java.util.Date
 
 @Composable
 internal fun ActivityLogPage(
-    context: Context
+    context: Context,
+    onCopyDiagnostics: () -> Unit
 ) {
     val events = EventHistoryStore.recent(context)
     val timeline = ActivityTimelineBuilder.build(events)
@@ -48,9 +55,25 @@ internal fun ActivityLogPage(
         mutableStateOf(false)
     }
 
+    fun toggleDiagnostics(value: Boolean) {
+        advancedDiagnostics = value
+        AppPreferences.setAdvancedDiagnosticsEnabled(context, value)
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        OutlinedButton(
+            onClick = onCopyDiagnostics,
+            modifier = Modifier
+                .fillMaxWidth()
+                .controllerRememberFocus(
+                    "activity-copy-log",
+                    onActivate = onCopyDiagnostics
+                )
+        ) {
+            Text(stringResource(R.string.activity_copy_log))
+        }
         if (timeline.isEmpty()) {
             InfoCard(
                 title = stringResource(R.string.nav_activity_log),
@@ -70,7 +93,17 @@ internal fun ActivityLogPage(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .controllerRememberFocus(
+                            "activity-diagnostics",
+                            onActivate = { toggleDiagnostics(!advancedDiagnostics) }
+                        )
+                        .onFocusChanged { diagnosticsFocused = it.isFocused }
                         .controllerFocusHighlight(diagnosticsFocused)
+                        .toggleable(
+                            value = advancedDiagnostics,
+                            role = Role.Switch,
+                            onValueChange = ::toggleDiagnostics
+                        )
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -93,14 +126,10 @@ internal fun ActivityLogPage(
 
                 Switch(
                     checked = advancedDiagnostics,
-                    onCheckedChange = feedbackChange { enabled ->
-                        advancedDiagnostics = enabled
-                        AppPreferences.setAdvancedDiagnosticsEnabled(context, enabled)
-                    },
-                    modifier =
-                        Modifier.onFocusChanged {
-                            diagnosticsFocused = it.isFocused
-                        }
+                    onCheckedChange = feedbackChange(::toggleDiagnostics),
+                    modifier = Modifier.focusProperties {
+                        canFocus = !isControllerInputActive()
+                    }
                 )
             }
         }
