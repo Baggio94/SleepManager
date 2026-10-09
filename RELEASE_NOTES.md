@@ -5,7 +5,7 @@
 > **Recent AYN and Retroid devices:** SleepManager 0.7.2 can now control Wi-Fi and Bluetooth directly, so the **Compatibility Helper is no longer required** on supported recent AYN and Retroid handhelds.
 >
 > **Other devices / brands:** install the new **SleepManager Helper** when prompted and grant its **battery optimization exemption**. If SleepManager reports that Wi-Fi control access is required, enable it in **Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper**.
->
+
 > [!WARNING]
 > **AYANEO / KONKR devices — disable DuraSpeed.**
 >
