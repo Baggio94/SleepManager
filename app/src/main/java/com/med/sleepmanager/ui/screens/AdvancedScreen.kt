@@ -90,6 +90,7 @@ internal fun SleepGraceSelector(
             options = options,
             selected = if (customDelayEnabled) null else valueMs,
             maxColumns = 2,
+            controllerDirectSelect = true,
             onSelected = { selection ->
                 if (selection == null) showCustomPicker = true
                 else onChange(selection)
