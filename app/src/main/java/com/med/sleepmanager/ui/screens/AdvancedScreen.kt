@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.LazyRow
@@ -40,6 +41,7 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
+import com.med.sleepmanager.ui.controller.ControllerTimeEditor
 import com.med.sleepmanager.ui.controller.ControllerChoiceGroup
 import com.med.sleepmanager.ui.controller.ControllerChoiceDialog
 import com.med.sleepmanager.ui.controller.controllerRememberFocus
@@ -144,13 +146,15 @@ internal fun AdvancedSettingsPage(
     onNotChargingOnlyChange: (Boolean) -> Unit,
     onBatterySaverModeChange: (String) -> Unit,
     onScheduleEnabledChange: (Boolean) -> Unit,
-    onPickScheduleStart: () -> Unit,
-    onPickScheduleEnd: () -> Unit,
+    onScheduleStartMinutesChange: (Int) -> Unit,
+    onScheduleEndMinutesChange: (Int) -> Unit,
     scrollTarget: AdvancedScrollTarget? = null,
     scrollRequestId: Int = 0,
     onScrollTargetConsumed: () -> Unit = {}
 ) {
     val customDelayRequester = remember { BringIntoViewRequester() }
+    var editingScheduleStart by remember { mutableStateOf(false) }
+    var editingScheduleEnd by remember { mutableStateOf(false) }
 
     LaunchedEffect(scrollRequestId, scrollTarget) {
         if (scrollTarget == AdvancedScrollTarget.CUSTOM_DELAY) {
@@ -389,8 +393,14 @@ internal fun AdvancedSettingsPage(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = feedbackClick(onPickScheduleStart),
-                        modifier = Modifier.weight(1f)
+                        onClick = feedbackClick { editingScheduleStart = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 52.dp)
+                            .controllerRememberFocus(
+                                "schedule-from",
+                                onActivate = { editingScheduleStart = true }
+                            )
                     ) {
                         Text(
                             stringResource(
@@ -400,8 +410,14 @@ internal fun AdvancedSettingsPage(
                         )
                     }
                     OutlinedButton(
-                        onClick = feedbackClick(onPickScheduleEnd),
-                        modifier = Modifier.weight(1f)
+                        onClick = feedbackClick { editingScheduleEnd = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 52.dp)
+                            .controllerRememberFocus(
+                                "schedule-to",
+                                onActivate = { editingScheduleEnd = true }
+                            )
                     ) {
                         Text(
                             stringResource(
@@ -413,6 +429,28 @@ internal fun AdvancedSettingsPage(
                 }
             }
         }
+    }
+    if (editingScheduleStart) {
+        ControllerTimeEditor(
+            title = stringResource(R.string.schedule),
+            originalMinutes = scheduleStartMinutes,
+            onConfirm = { value ->
+                editingScheduleStart = false
+                onScheduleStartMinutesChange(value)
+            },
+            onDismiss = { editingScheduleStart = false }
+        )
+    }
+    if (editingScheduleEnd) {
+        ControllerTimeEditor(
+            title = stringResource(R.string.schedule),
+            originalMinutes = scheduleEndMinutes,
+            onConfirm = { value ->
+                editingScheduleEnd = false
+                onScheduleEndMinutesChange(value)
+            },
+            onDismiss = { editingScheduleEnd = false }
+        )
     }
 }
 
