@@ -6,6 +6,7 @@ import android.provider.Settings
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -206,9 +208,21 @@ internal fun AboutPage(
         SettingsCard(
             modifier = Modifier.bringIntoViewRequester(updatesContentRequester)
         ) {
+            var automaticChecksFocused by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .controllerRememberFocus(
+                        "about-automatic-updates",
+                        onActivate = { onAutomaticUpdateChecksChange(!automaticUpdateChecks) }
+                    )
+                    .onFocusChanged { automaticChecksFocused = it.isFocused }
+                    .controllerFocusHighlight(automaticChecksFocused)
+                    .toggleable(
+                        value = automaticUpdateChecks,
+                        role = Role.Switch,
+                        onValueChange = onAutomaticUpdateChecksChange
+                    )
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -227,7 +241,8 @@ internal fun AboutPage(
                 }
                 Switch(
                     checked = automaticUpdateChecks,
-                    onCheckedChange = feedbackChange(onAutomaticUpdateChecksChange)
+                    onCheckedChange = feedbackChange(onAutomaticUpdateChecksChange),
+                    modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
                 )
             }
 
@@ -932,8 +947,18 @@ internal fun InfoCard(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onAction != null) Modifier.controllerRememberFocus(
+                    "info:$title", onActivate = onAction
+                ) else Modifier
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable(enabled = onAction != null),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -955,7 +980,10 @@ internal fun InfoCard(
             )
 
             if (actionLabel != null && onAction != null) {
-                TextButton(onClick = feedbackClick(onAction)) {
+                TextButton(
+                    onClick = feedbackClick(onAction),
+                    modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
+                ) {
                     Text(actionLabel)
                 }
             }
