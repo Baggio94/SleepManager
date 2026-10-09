@@ -229,9 +229,22 @@ internal fun UpdateAvailableCard(
     onUpdate: () -> Unit,
     onReleaseNotes: (() -> Unit)? = null
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .controllerRememberFocus(
+                "home-update",
+                actions = buildList {
+                    add(ControllerAction("Update") { onUpdate() })
+                    if (onReleaseNotes != null) {
+                        add(ControllerAction("Release notes") { onReleaseNotes() })
+                    }
+                }
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable()
             .testTag("update_available_card"),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
