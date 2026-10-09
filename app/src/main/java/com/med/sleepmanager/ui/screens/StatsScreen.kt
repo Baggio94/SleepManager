@@ -335,9 +335,15 @@ internal fun BatteryDashboardCard(
 ) {
     val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
     val last = dashboard.lastSession
+    var batteryFocused by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .controllerRememberFocus("home-battery-dashboard")
+            .onFocusChanged { batteryFocused = it.isFocused }
+            .controllerFocusHighlight(batteryFocused)
+            .focusable(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
