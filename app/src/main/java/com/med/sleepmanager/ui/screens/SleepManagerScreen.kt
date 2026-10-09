@@ -1613,16 +1613,8 @@ private class IntegrationUiRow(
                                 onScheduleEnabledChange = {
                                     onScheduleEnabledChange(it)
                                 },
-                                onPickScheduleStart = {
-                                    onShowTimePickerRequested(scheduleStartMinutes) { value ->
-                                        onScheduleStartMinutesChange(value)
-                                    }
-                                },
-                                onPickScheduleEnd = {
-                                    onShowTimePickerRequested(scheduleEndMinutes) { value ->
-                                        onScheduleEndMinutesChange(value)
-                                    }
-                                },
+                                onScheduleStartMinutesChange = onScheduleStartMinutesChange,
+                                onScheduleEndMinutesChange = onScheduleEndMinutesChange,
                                 scrollTarget = advancedScrollTarget,
                                 scrollRequestId = advancedScrollRequestId,
                                 onScrollTargetConsumed = {
