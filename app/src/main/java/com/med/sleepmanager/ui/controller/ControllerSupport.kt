@@ -137,6 +137,7 @@ internal fun Modifier.controllerNavigation(
     onNextSection: () -> Unit,
     onMenuRequested: () -> Unit,
     drawerOpen: Boolean = false,
+    drawerOpenNow: () -> Boolean = { false },
     onDrawerMove: (Int) -> Unit = {},
     onDrawerSelect: () -> Unit = {},
     onDrawerDismiss: () -> Unit = {},
@@ -239,6 +240,8 @@ internal fun Modifier.controllerNavigation(
     }
 
     val onNavigationKey: (AndroidKeyEvent) -> Boolean = { event ->
+        // Consult live drawer state; controller input must not leak behind an opening drawer.
+        val drawerIsActive = drawerOpen || drawerOpenNow()
         if (event.action != AndroidKeyEvent.ACTION_DOWN) {
             false
         } else {
@@ -246,21 +249,21 @@ internal fun Modifier.controllerNavigation(
                 AndroidKeyEvent.KEYCODE_BUTTON_START,
                 AndroidKeyEvent.KEYCODE_MENU -> {
                     ControllerInputMode.active = true
-                    if (enabled || drawerOpen) onMenuRequested()
+                    if (enabled || drawerIsActive) onMenuRequested()
                     true
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_B -> {
                     ControllerInputMode.active = true
-                    if (drawerOpen) onDrawerDismiss()
+                    if (drawerIsActive) onDrawerDismiss()
                     else if (onBackRequested != null) onBackRequested()
                     else backDispatcher?.onBackPressed()
                     true
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_A -> {
-                    if (!enabled && !drawerOpen) false else {
+                    if (!enabled && !drawerIsActive) false else {
                         ControllerInputMode.active = true
                         if (event.repeatCount == 0) {
-                            if (drawerOpen) {
+                            if (drawerIsActive) {
                                 onDrawerSelect()
                             } else {
                                 val previouslySelected =
@@ -285,16 +288,22 @@ internal fun Modifier.controllerNavigation(
                     }
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
-                    if (!enabled) false else {
+                    if (!enabled && !drawerIsActive) false else {
                         ControllerInputMode.active = true
-                        if (event.repeatCount == 0) onPreviousSection()
+                        if (event.repeatCount == 0) {
+                            onPreviousSection()
+                            if (drawerIsActive) onDrawerMove(-1)
+                        }
                         true
                     }
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_R1 -> {
-                    if (!enabled) false else {
+                    if (!enabled && !drawerIsActive) false else {
                         ControllerInputMode.active = true
-                        if (event.repeatCount == 0) onNextSection()
+                        if (event.repeatCount == 0) {
+                            onNextSection()
+                            if (drawerIsActive) onDrawerMove(1)
+                        }
                         true
                     }
                 }
@@ -316,9 +325,9 @@ internal fun Modifier.controllerNavigation(
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT,
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (!enabled && !drawerOpen) false else {
+                    if (!enabled && !drawerIsActive) false else {
                         ControllerInputMode.active = true
-                        if (drawerOpen) {
+                        if (drawerIsActive) {
                             if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP) onDrawerMove(-1)
                             if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN) onDrawerMove(1)
                             true
@@ -346,7 +355,7 @@ internal fun Modifier.controllerNavigation(
         val listener =
             View.OnGenericMotionListener { _, event ->
                 if (
-                    !enabled ||
+                    (!enabled && !drawerOpenNow() && !drawerOpen) ||
                     event.action != MotionEvent.ACTION_MOVE ||
                     (event.source and InputDevice.SOURCE_JOYSTICK) !=
                         InputDevice.SOURCE_JOYSTICK
@@ -355,6 +364,26 @@ internal fun Modifier.controllerNavigation(
                 }
 
                 ControllerInputMode.active = true
+
+                // The same left stick navigates the open drawer instead of the page.
+                if (drawerOpenNow() || drawerOpen) {
+                    val axis = event.getAxisValue(MotionEvent.AXIS_Y)
+                    val hat = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
+                    val y = if (abs(hat) >= STICK_DEAD_ZONE) hat else axis
+                    val direction = when {
+                        y <= -STICK_DEAD_ZONE -> 1
+                        y >= STICK_DEAD_ZONE -> 2
+                        else -> 0
+                    }
+                    if (direction == 0) lastStickDirection = 0
+                    else if (direction != lastStickDirection ||
+                        event.eventTime - lastStickMoveAt >= STICK_REPEAT_MS) {
+                        lastStickDirection = direction
+                        lastStickMoveAt = event.eventTime
+                        onDrawerMove(if (direction == 1) -1 else 1)
+                    }
+                    return@OnGenericMotionListener true
+                }
 
                 val rz = event.getAxisValue(MotionEvent.AXIS_RZ)
                 val ry = event.getAxisValue(MotionEvent.AXIS_RY)
