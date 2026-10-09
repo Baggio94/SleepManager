@@ -53,6 +53,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,6 +66,8 @@ import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -238,6 +241,8 @@ private class IntegrationUiRow(
         val statsListState = rememberLazyListState()
         val activityListState = rememberLazyListState()
         val aboutListState = rememberLazyListState()
+        var listViewportTop by remember { mutableFloatStateOf(0f) }
+        var listViewportHeight by remember { mutableIntStateOf(0) }
         val currentListState = when (currentSection) {
             AppSection.HOME -> homeListState
             AppSection.ADVANCED -> advancedListState
@@ -530,6 +535,8 @@ private class IntegrationUiRow(
             modifier =
                 Modifier.controllerNavigation(
                     listState = currentListState,
+                    viewportTopPx = listViewportTop,
+                    viewportHeightPx = listViewportHeight,
                     enabled = (drawerState.isClosed || controllerDrawerClosing) &&
                         !controllerDrawerRequested && !showTargetDialog,
                     onPreviousSection = { navigateSection(-1) },
@@ -770,7 +777,11 @@ private class IntegrationUiRow(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .testTag("main_list"),
+                    .testTag("main_list")
+                    .onGloballyPositioned { coordinates ->
+                        listViewportTop = coordinates.positionInRoot().y
+                        listViewportHeight = coordinates.size.height
+                    },
                 contentPadding = PaddingValues(
                     start = 18.dp,
                     end = 18.dp,
