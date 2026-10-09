@@ -59,7 +59,7 @@ internal fun <T> ControllerChoiceGroup(
             .fillMaxWidth()
             .controllerRememberFocus("choice:$id", onActivate = { editing = true })
             .onFocusChanged { focused = it.isFocused }
-            .controllerFocusHighlight(focused)
+            .controllerFocusHighlight(focused, RoundedCornerShape(14.dp))
             .onPreviewKeyEvent { event ->
                 val native = event.nativeKeyEvent
                 if (native.action == AndroidKeyEvent.ACTION_DOWN &&
@@ -71,7 +71,8 @@ internal fun <T> ControllerChoiceGroup(
                 } else false
             }
             .focusable()
-            .padding(vertical = 4.dp),
+            // Inset the actual buttons from the focus border on narrow cards.
+            .padding(horizontal = 7.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
