@@ -127,7 +127,12 @@ internal fun Modifier.controllerNavigation(
     enabled: Boolean = true,
     onPreviousSection: () -> Unit,
     onNextSection: () -> Unit,
-    onMenuRequested: () -> Unit
+    onMenuRequested: () -> Unit,
+    drawerOpen: Boolean = false,
+    onDrawerMove: (Int) -> Unit = {},
+    onDrawerSelect: () -> Unit = {},
+    onDrawerDismiss: () -> Unit = {},
+    onBackRequested: (() -> Unit)? = null
 ): Modifier {
     val focusManager = LocalFocusManager.current
     val registry = LocalControllerTargetRegistry.current
@@ -210,18 +215,23 @@ internal fun Modifier.controllerNavigation(
                 AndroidKeyEvent.KEYCODE_BUTTON_START,
                 AndroidKeyEvent.KEYCODE_MENU -> {
                     ControllerInputMode.active = true
-                    onMenuRequested()
+                    if (enabled || drawerOpen) onMenuRequested()
                     true
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_B -> {
                     ControllerInputMode.active = true
-                    backDispatcher?.onBackPressed()
+                    if (drawerOpen) onDrawerDismiss()
+                    else if (onBackRequested != null) onBackRequested()
+                    else backDispatcher?.onBackPressed()
                     true
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_A -> {
-                    if (!enabled) false else {
+                    if (!enabled && !drawerOpen) false else {
                         ControllerInputMode.active = true
-                        if (event.repeatCount == 0) registry?.activate(sectionId) ?: false
+                        if (event.repeatCount == 0) {
+                            if (drawerOpen) onDrawerSelect()
+                            else registry?.activate(sectionId)
+                        }
                         true
                     }
                 }
@@ -257,15 +267,21 @@ internal fun Modifier.controllerNavigation(
                 AndroidKeyEvent.KEYCODE_DPAD_DOWN,
                 AndroidKeyEvent.KEYCODE_DPAD_LEFT,
                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (!enabled) false else {
+                    if (!enabled && !drawerOpen) false else {
                         ControllerInputMode.active = true
-                        val direction = when (event.keyCode) {
-                            AndroidKeyEvent.KEYCODE_DPAD_UP -> 1
-                            AndroidKeyEvent.KEYCODE_DPAD_DOWN -> 2
-                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> 3
-                            else -> 4
+                        if (drawerOpen) {
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP) onDrawerMove(-1)
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN) onDrawerMove(1)
+                            true
+                        } else {
+                            val direction = when (event.keyCode) {
+                                AndroidKeyEvent.KEYCODE_DPAD_UP -> 1
+                                AndroidKeyEvent.KEYCODE_DPAD_DOWN -> 2
+                                AndroidKeyEvent.KEYCODE_DPAD_LEFT -> 3
+                                else -> 4
+                            }
+                            moveFocus(direction, event.eventTime)
                         }
-                        moveFocus(direction, event.eventTime)
                     }
                 }
                 else -> false
