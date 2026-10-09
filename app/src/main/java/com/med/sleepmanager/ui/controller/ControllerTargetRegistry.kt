@@ -83,8 +83,7 @@ internal class ControllerTargetRegistry {
     fun activate(section: String): Boolean {
         val target = selectedId?.let { targets[it] }
         if (target == null || target.section != section) {
-            move(section, +1)
-            return true
+            return move(section, +1)
         }
         val actions = target.actions().filter { it.enabled }
         if (actions.isNotEmpty()) actions[selectedAction.coerceIn(0, actions.lastIndex)].invoke()
