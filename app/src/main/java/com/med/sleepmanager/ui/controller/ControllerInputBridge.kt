@@ -23,7 +23,18 @@ internal object ControllerInputBridge {
             event.isFromSource(InputDevice.SOURCE_GAMEPAD) ||
                 event.isFromSource(InputDevice.SOURCE_JOYSTICK) ||
                 event.isFromSource(InputDevice.SOURCE_DPAD)
-        return gamepad && event.action == KeyEvent.ACTION_DOWN &&
+        // Some handheld firmware exposes its built-in D-pad as a keyboard
+        // instead of SOURCE_GAMEPAD. Recognize the actual controller key codes.
+        val handheldKey = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B,
+            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_R1,
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_BUTTON_R2,
+            KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MENU -> true
+            else -> false
+        }
+        return (gamepad || handheldKey) && event.action == KeyEvent.ACTION_DOWN &&
             callback?.invoke(event) == true
     }
 }
