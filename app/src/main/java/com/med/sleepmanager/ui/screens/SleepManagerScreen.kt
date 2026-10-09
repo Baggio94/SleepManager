@@ -567,8 +567,11 @@ private class IntegrationUiRow(
                         drawerScope.launch {
                             drawerState.close()
                             withFrameNanos { }
-                            // Reacquire a real target in the newly composed section.
-                            controllerTargets.move(nextSection.name, +1)
+                            // Reacquire focus only if Compose did not already
+                            // restore the section's previous selection.
+                            if (!controllerTargets.isSelectedMounted(nextSection.name)) {
+                                controllerTargets.move(nextSection.name, +1)
+                            }
                         }
                     },
                     onDrawerDismiss = {
