@@ -257,6 +257,7 @@ private class IntegrationUiRow(
         var drawerControllerIndex by remember { mutableIntStateOf(0) }
         var showControllerHints by remember { mutableStateOf(false) }
         var controllerHintsShown by rememberSaveable { mutableStateOf(false) }
+        var copyLogFocused by remember { mutableStateOf(false) }
         val controllerActive = isControllerInputActive()
         val activityBackDispatcher =
             LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -721,9 +722,25 @@ private class IntegrationUiRow(
                                 )
                             }
                         },
-                        // Copy Log is already a controller target at the start
-                        // of Activity Log; do not duplicate it in the top app bar.
-                        actions = {},
+                        actions = {
+                            if (currentSection == AppSection.ACTIVITY_LOG) {
+                                OutlinedButton(
+                                    onClick = feedbackClick(onCopyDiagnosticsRequested),
+                                    modifier = Modifier
+                                        .padding(end = 12.dp)
+                                        .controllerRememberFocus(
+                                            "activity-copy-log",
+                                            onActivate = onCopyDiagnosticsRequested
+                                        )
+                                        .onFocusChanged { copyLogFocused = it.isFocused }
+                                        .controllerFocusHighlight(
+                                            copyLogFocused, RoundedCornerShape(12.dp)
+                                        )
+                                ) {
+                                    Text(stringResource(R.string.activity_copy_log))
+                                }
+                            }
+                        },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         )
