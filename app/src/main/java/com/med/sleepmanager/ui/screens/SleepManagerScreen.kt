@@ -7,11 +7,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -254,7 +249,9 @@ private class IntegrationUiRow(
         // Synchronous state bridges the gap before the drawer opening animation updates.
         var controllerDrawerRequested by remember { mutableStateOf(false) }
         LaunchedEffect(drawerState.currentValue) {
-            if (drawerState.isClosed) controllerDrawerRequested = false
+            if (drawerState.isClosed && drawerState.targetValue == DrawerValue.Closed) {
+                controllerDrawerRequested = false
+            }
         }
         val drawerScope = rememberCoroutineScope()
         var drawerControllerIndex by remember { mutableIntStateOf(0) }
@@ -724,20 +721,9 @@ private class IntegrationUiRow(
                                 )
                             }
                         },
-                        actions = {
-                            if (currentSection == AppSection.ACTIVITY_LOG) {
-                                OutlinedButton(
-                                    onClick = feedbackClick {
-                                        onCopyDiagnosticsRequested()
-                                    },
-                                    modifier = Modifier.padding(end = 12.dp)
-                                ) {
-                                    Text(
-                                        stringResource(R.string.activity_copy_log)
-                                    )
-                                }
-                            }
-                        },
+                        // Copy Log is already a controller target at the start
+                        // of Activity Log; do not duplicate it in the top app bar.
+                        actions = {},
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background
                         )
