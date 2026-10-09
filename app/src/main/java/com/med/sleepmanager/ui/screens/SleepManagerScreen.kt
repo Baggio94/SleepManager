@@ -248,9 +248,12 @@ private class IntegrationUiRow(
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         // Synchronous state bridges the gap before the drawer opening animation updates.
         var controllerDrawerRequested by remember { mutableStateOf(false) }
-        LaunchedEffect(drawerState.currentValue) {
+        // Ignore the closing animation when routing keys to the new section.
+        var controllerDrawerClosing by remember { mutableStateOf(false) }
+        LaunchedEffect(drawerState.currentValue, drawerState.targetValue) {
             if (drawerState.isClosed && drawerState.targetValue == DrawerValue.Closed) {
                 controllerDrawerRequested = false
+                controllerDrawerClosing = false
             }
         }
         val drawerScope = rememberCoroutineScope()
@@ -527,31 +530,42 @@ private class IntegrationUiRow(
             modifier =
                 Modifier.controllerNavigation(
                     listState = currentListState,
-                    enabled = drawerState.isClosed && !controllerDrawerRequested && !showTargetDialog,
+                    enabled = (drawerState.isClosed || controllerDrawerClosing) &&
+                        !controllerDrawerRequested && !showTargetDialog,
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {
-                        val open = !controllerDrawerRequested && drawerState.isClosed
+                        val open = !controllerDrawerRequested && (drawerState.isClosed || controllerDrawerClosing)
                         controllerDrawerRequested = open
-                        drawerControllerIndex = AppSection.entries.indexOf(currentSection)
+                        controllerDrawerClosing = !open
+                        if (open) drawerControllerIndex = AppSection.entries.indexOf(currentSection)
                         drawerScope.launch {
                             if (open) drawerState.open() else drawerState.close()
                         }
                     },
-                    drawerOpen = controllerDrawerRequested || drawerState.isOpen,
-                    drawerOpenNow = { controllerDrawerRequested ||
-                        drawerState.targetValue == DrawerValue.Open },
+                    drawerOpen = !controllerDrawerClosing &&
+                        (controllerDrawerRequested || drawerState.isOpen),
+                    drawerOpenNow = { !controllerDrawerClosing &&
+                        (controllerDrawerRequested || drawerState.targetValue == DrawerValue.Open) },
                     onDrawerMove = { amount ->
                         val sections = AppSection.entries
                         drawerControllerIndex =
                             (drawerControllerIndex + amount + sections.size) % sections.size
                     },
                     onDrawerSelect = {
-                        currentSection = AppSection.entries[drawerControllerIndex]
+                        val nextSection = AppSection.entries[drawerControllerIndex]
+                        controllerDrawerClosing = true
                         controllerDrawerRequested = false
-                        drawerScope.launch { drawerState.close() }
+                        currentSection = nextSection
+                        drawerScope.launch {
+                            drawerState.close()
+                            withFrameNanos { }
+                            // Reacquire a real target in the newly composed section.
+                            controllerTargets.move(nextSection.name, +1)
+                        }
                     },
                     onDrawerDismiss = {
+                        controllerDrawerClosing = true
                         controllerDrawerRequested = false
                         drawerScope.launch { drawerState.close() }
                     },
@@ -612,6 +626,7 @@ private class IntegrationUiRow(
                                 onClick = feedbackClick {
                                     currentSection = section
                                     controllerDrawerRequested = false
+                                    controllerDrawerClosing = true
                                     drawerScope.launch { drawerState.close() }
                                 }
                             )
@@ -674,6 +689,7 @@ private class IntegrationUiRow(
                         currentSection = currentSection,
                         onSectionSelected = { currentSection = it },
                         onMenuClick = {
+                            controllerDrawerClosing = false
                             controllerDrawerRequested = true
                             drawerScope.launch { drawerState.open() }
                         }
@@ -694,6 +710,8 @@ private class IntegrationUiRow(
                             if (compactLayout) {
                                 IconButton(
                                     onClick = feedbackClick {
+                                        controllerDrawerClosing = false
+                                        controllerDrawerRequested = true
                                         drawerScope.launch { drawerState.open() }
                                     },
                                     modifier = Modifier
