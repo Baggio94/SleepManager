@@ -252,8 +252,26 @@ internal fun Modifier.controllerNavigation(
                     if (!enabled && !drawerOpen) false else {
                         ControllerInputMode.active = true
                         if (event.repeatCount == 0) {
-                            if (drawerOpen) onDrawerSelect()
-                            else registry?.activate(sectionId)
+                            if (drawerOpen) {
+                                onDrawerSelect()
+                            } else {
+                                val previouslySelected =
+                                    registry?.isSelectedMounted(sectionId) == true
+                                val handled = registry?.activate(sectionId) == true
+                                if (handled && previouslySelected) {
+                                    view.performSleepManagerFeedback()
+                                }
+                                if (!handled) {
+                                    // A fallback for legacy buttons not yet in the registry.
+                                    val mapped = AndroidKeyEvent(
+                                        event.downTime, event.eventTime, event.action,
+                                        AndroidKeyEvent.KEYCODE_DPAD_CENTER, event.repeatCount,
+                                        event.metaState, event.deviceId, event.scanCode,
+                                        event.flags, event.source
+                                    )
+                                    view.dispatchKeyEvent(mapped)
+                                }
+                            }
                         }
                         true
                     }
