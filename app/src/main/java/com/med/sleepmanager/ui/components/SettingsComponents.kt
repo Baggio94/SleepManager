@@ -1,6 +1,7 @@
 package com.med.sleepmanager.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -311,7 +312,14 @@ internal fun CompactIntegrationRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 onOpen?.let { open ->
-                    OutlinedButton(onClick = feedbackClick(open)) {
+                    OutlinedButton(
+                        onClick = feedbackClick(open),
+                        modifier = Modifier.then(
+                            if (toggleFocused && isControllerInputActive() && actionLabel == "Open")
+                                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                    ) {
                         Text(stringResource(R.string.open))
                     }
                 }
@@ -319,7 +327,13 @@ internal fun CompactIntegrationRow(
                 if (secondaryActionLabel != null && onSecondaryAction != null) {
                     TextButton(
                         onClick = feedbackClick(onSecondaryAction),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.then(
+                            if (toggleFocused && isControllerInputActive() &&
+                                actionLabel == secondaryActionLabel)
+                                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
                     ) {
                         Text(secondaryActionLabel)
                     }
