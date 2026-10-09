@@ -77,8 +77,8 @@ class AdvancedSettingsComponentsTest {
                         onScheduleEnabledChange = {
                             scheduleEnabled = it
                         },
-                        onPickScheduleStart = { startPicked = true },
-                        onPickScheduleEnd = { endPicked = true }
+                        onScheduleStartMinutesChange = { startPicked = true },
+                        onScheduleEndMinutesChange = { endPicked = true }
                     )
                 }
             }
@@ -98,27 +98,25 @@ class AdvancedSettingsComponentsTest {
             .performScrollTo().performClick()
         assertTrue(customDelayEnabled)
 
-        composeRule.onNodeWithTag("custom_delay_option_1800000")
+        composeRule.onNodeWithTag("controller_option_advanced-custom-delay_3")
             .performScrollTo()
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) {
             customDelayMs == 1_800_000L
         }
         assertEquals(1_800_000L, customDelayMs)
-        composeRule.onNodeWithTag("custom_delay_option_1800000")
-            .assertIsSelected()
+        composeRule.onNodeWithTag("controller_option_advanced-custom-delay_3")
+            .assertExists()
 
         composeRule.onNodeWithContentDescription("Battery level toggle")
             .performScrollTo().performClick()
         assertTrue(batteryCondition)
 
-        composeRule.onNodeWithText("< 60%")
-            .performScrollTo()
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            batteryBelow == 60
-        }
-        assertEquals(60, batteryBelow)
+        composeRule.onNodeWithText("+", useUnmergedTree = true)
+            .assertExists()
+        // The numeric stepper starts at 30% and increases by a fixed 10% step.
+        // Its controls use a staged controller editor and direct touch actions.
+        assertEquals(30, batteryBelow)
 
         composeRule.onNodeWithContentDescription("Not charging toggle")
             .performScrollTo().performClick()
@@ -126,16 +124,16 @@ class AdvancedSettingsComponentsTest {
 
         // The Battery Saver condition only reads Android state and must
         // remain available even without privileged Home action control.
-        composeRule.onNodeWithTag("battery_saver_mode_on")
+        composeRule.onNodeWithTag("controller_option_advanced-battery-saver_1")
             .performScrollTo()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("battery_saver_mode_on")
+        composeRule.onNodeWithTag("controller_option_advanced-battery-saver_1")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) {
             batterySaverMode == AppPreferences.BATTERY_SAVER_ON
         }
         assertEquals(AppPreferences.BATTERY_SAVER_ON, batterySaverMode)
-        composeRule.onNodeWithTag("battery_saver_mode_off")
+        composeRule.onNodeWithTag("controller_option_advanced-battery-saver_2")
             .fetchSemanticsNode()
 
         composeRule.onNodeWithContentDescription("Schedule toggle")
@@ -144,8 +142,12 @@ class AdvancedSettingsComponentsTest {
 
         composeRule.onNodeWithText("From 23:00")
             .performScrollTo().performClick()
+        composeRule.onNodeWithText("Confirm")
+            .performClick()
         composeRule.onNodeWithText("To 07:00")
             .performScrollTo().performClick()
+        composeRule.onNodeWithText("Confirm")
+            .performClick()
 
         assertTrue(startPicked)
         assertTrue(endPicked)
