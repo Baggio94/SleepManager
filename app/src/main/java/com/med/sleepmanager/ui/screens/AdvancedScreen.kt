@@ -89,6 +89,7 @@ internal fun SleepGraceSelector(
             title = label,
             options = options,
             selected = if (customDelayEnabled) null else valueMs,
+            maxColumns = 2,
             onSelected = { selection ->
                 if (selection == null) showCustomPicker = true
                 else onChange(selection)
