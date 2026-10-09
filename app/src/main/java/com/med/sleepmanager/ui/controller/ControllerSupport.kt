@@ -239,6 +239,17 @@ internal fun Modifier.controllerNavigation(
         return focusManager.moveFocus(focusDirection)
     }
 
+    fun moveDrawer(direction: Int, eventTime: Long, repeated: Boolean) {
+        val code = if (direction < 0) 1 else 2
+        if (!repeated || code != lastStickDirection ||
+            eventTime - lastStickMoveAt >= STICK_REPEAT_MS
+        ) {
+            lastStickDirection = code
+            lastStickMoveAt = eventTime
+            onDrawerMove(direction)
+        }
+    }
+
     val onNavigationKey: (AndroidKeyEvent) -> Boolean = { event ->
         // Consult live drawer state; controller input must not leak behind an opening drawer.
         val drawerIsActive = drawerOpen || drawerOpenNow()
@@ -330,8 +341,12 @@ internal fun Modifier.controllerNavigation(
                     if (!enabled && !drawerIsActive) false else {
                         ControllerInputMode.active = true
                         if (drawerIsActive) {
-                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP) onDrawerMove(-1)
-                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN) onDrawerMove(1)
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP) {
+                                moveDrawer(-1, event.eventTime, event.repeatCount > 0)
+                            }
+                            if (event.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN) {
+                                moveDrawer(1, event.eventTime, event.repeatCount > 0)
+                            }
                             true
                         } else {
                             val direction = when (event.keyCode) {
@@ -378,12 +393,7 @@ internal fun Modifier.controllerNavigation(
                         else -> 0
                     }
                     if (direction == 0) lastStickDirection = 0
-                    else if (direction != lastStickDirection ||
-                        event.eventTime - lastStickMoveAt >= STICK_REPEAT_MS) {
-                        lastStickDirection = direction
-                        lastStickMoveAt = event.eventTime
-                        onDrawerMove(if (direction == 1) -1 else 1)
-                    }
+                    else moveDrawer(if (direction == 1) -1 else 1, event.eventTime, repeated = true)
                     return@OnGenericMotionListener true
                 }
 
