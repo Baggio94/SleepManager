@@ -29,6 +29,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -91,7 +93,9 @@ internal fun <T> ControllerChoiceGroup(
                                     .weight(1f)
                                     .heightIn(min = 52.dp)
                                     .focusProperties { canFocus = !isControllerInputActive() }
-                                    .testTag("controller_option_${id}_${options.indexOfFirst { it.second == value }}"),
+                                    .testTag("controller_option_${id}_${options.indexOfFirst { it.second == value }}")
+                                    // Expose the committed choice to accessibility and UI regression tests.
+                                    .semantics { this.selected = isSelected },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                                     containerColor = if (isSelected) {
@@ -192,7 +196,8 @@ internal fun <T> ControllerChoiceDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 52.dp)
-                            .focusProperties { canFocus = !isControllerInputActive() },
+                            .focusProperties { canFocus = !isControllerInputActive() }
+                            .semantics { this.selected = selected },
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer
                                 else MaterialTheme.colorScheme.surface
