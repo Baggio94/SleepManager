@@ -5,6 +5,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.View
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,6 +44,12 @@ import com.med.sleepmanager.device.BackgroundReliability
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
+import com.med.sleepmanager.ui.controller.ControllerAction
+import com.med.sleepmanager.ui.controller.controllerRememberFocus
+import com.med.sleepmanager.ui.controller.controllerFocusHighlight
+import com.med.sleepmanager.ui.controller.LocalControllerSectionId
+import com.med.sleepmanager.ui.controller.LocalControllerTargetRegistry
+import com.med.sleepmanager.ui.controller.isControllerInputActive
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.update.UpdateChecker
 import com.med.sleepmanager.update.UpdateCheckResult
@@ -750,9 +759,25 @@ internal fun AboutActionRow(
     onSecondaryClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val action = LocalControllerTargetRegistry.current?.activeActionLabel(
+        LocalControllerSectionId.current, "about:$title"
+    )
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
+            .controllerRememberFocus(
+                "about:$title",
+                actions = buildList {
+                    add(ControllerAction(actionLabel, enabled) { onClick() })
+                    if (secondaryActionLabel != null && onSecondaryClick != null) {
+                        add(ControllerAction(secondaryActionLabel, enabled) { onSecondaryClick() })
+                    }
+                }
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .controllerFocusHighlight(focused)
+            .focusable(enabled)
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         val hasSecondaryAction =
@@ -766,7 +791,8 @@ internal fun AboutActionRow(
             ) {
                 AboutActionText(
                     title = title,
-                    subtitle = subtitle
+                    subtitle = subtitle,
+                    selectedAction = if (focused && isControllerInputActive()) action else null
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -792,7 +818,8 @@ internal fun AboutActionRow(
                 Column(modifier = Modifier.weight(1f)) {
                     AboutActionText(
                         title = title,
-                        subtitle = subtitle
+                        subtitle = subtitle,
+                        selectedAction = if (focused && isControllerInputActive()) action else null
                     )
                 }
                 AboutActionButtons(
@@ -811,7 +838,8 @@ internal fun AboutActionRow(
 @Composable
 private fun AboutActionText(
     title: String,
-    subtitle: String
+    subtitle: String,
+    selectedAction: String? = null
 ) {
     Text(
         title,
@@ -823,6 +851,11 @@ private fun AboutActionText(
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+    if (selectedAction != null) {
+        Text("A · $selectedAction   ← / → change action",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary)
+    }
 }
 
 @Composable
@@ -844,7 +877,8 @@ private fun AboutActionButtons(
         ) {
             TextButton(
                 onClick = feedbackClick(onSecondaryClick),
-                enabled = enabled
+                enabled = enabled,
+                modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
             ) {
                 Text(secondaryActionLabel)
             }
@@ -853,7 +887,8 @@ private fun AboutActionButtons(
         if (textAction) {
             TextButton(
                 onClick = feedbackClick(onClick),
-                enabled = enabled
+                enabled = enabled,
+                modifier = Modifier.focusProperties { canFocus = !isControllerInputActive() }
             ) {
                 Text(actionLabel)
             }
