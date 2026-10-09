@@ -155,6 +155,14 @@ internal fun Modifier.controllerNavigation(
     var lastPageScrollAt by remember(listState) {
         mutableLongStateOf(0L)
     }
+    var selectedAnchorIndex by remember(listState) { mutableIntStateOf(0) }
+    var selectedAnchorOffset by remember(listState) { mutableIntStateOf(0) }
+    LaunchedEffect(registry?.selectedId, sectionId) {
+        if (registry?.isSelectedMounted(sectionId) == true) {
+            selectedAnchorIndex = listState.firstVisibleItemIndex
+            selectedAnchorOffset = listState.firstVisibleItemScrollOffset
+        }
+    }
 
     fun pageScroll(
         direction: Int,
@@ -171,6 +179,9 @@ internal fun Modifier.controllerNavigation(
 
         scope.launch {
             listState.animateScrollBy(viewport * 0.82f * direction)
+            withFrameNanos { }
+            // A page jump advances the logical selection, unlike free right-stick scroll.
+            registry?.move(sectionId, if (direction < 0) -1 else 1)
         }
     }
 
@@ -183,6 +194,18 @@ internal fun Modifier.controllerNavigation(
 
         if (direction == 1 || direction == 2) {
             val step = if (direction == 1) -1 else 1
+            if (registry?.selectedId != null &&
+                registry.isSelectedMounted(sectionId) == false
+            ) {
+                // Free scrolling can uncompose the selected LazyColumn item. Restore
+                // its last viewport before moving, rather than jumping randomly.
+                scope.launch {
+                    listState.scrollToItem(selectedAnchorIndex, selectedAnchorOffset)
+                    withFrameNanos { }
+                    registry.move(sectionId, step)
+                }
+                return true
+            }
             if (registry?.move(sectionId, step) == true) return true
             // A target may lie below the current LazyColumn viewport.
             val viewport = listState.layoutInfo.viewportSize.height
