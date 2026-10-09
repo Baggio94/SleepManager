@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.med.sleepmanager.ui.SleepManagerFeedbackGate
 import com.med.sleepmanager.ui.performSleepManagerFeedback
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -165,6 +166,7 @@ internal fun Modifier.controllerNavigation(
     var lastPageScrollAt by remember(listState) {
         mutableLongStateOf(0L)
     }
+    var activeScrollJob by remember(listState) { mutableStateOf<Job?>(null) }
     var selectedAnchorIndex by remember(listState) { mutableIntStateOf(0) }
     var selectedAnchorOffset by remember(listState) { mutableIntStateOf(0) }
     LaunchedEffect(registry?.selectedId, sectionId) {
@@ -186,11 +188,14 @@ internal fun Modifier.controllerNavigation(
                 .takeIf { it > 0 }
                 ?: view.height
         if (viewport <= 0) return
+        if (direction > 0 && !listState.canScrollForward) return
+        if (direction < 0 && !listState.canScrollBackward) return
 
-        scope.launch {
+        activeScrollJob?.cancel()
+        activeScrollJob = scope.launch {
             listState.animateScrollBy(viewport * 0.82f * direction)
             withFrameNanos { }
-            // A page jump advances the logical selection, unlike free right-stick scroll.
+            // Move logical focus to a visible target after the page jump.
             registry?.move(sectionId, if (direction < 0) -1 else 1)
         }
     }
@@ -205,13 +210,15 @@ internal fun Modifier.controllerNavigation(
         lastStickMoveAt = eventTime
 
         if (direction == 1 || direction == 2) {
+            // Cancel any pending movement in the opposite direction immediately.
+            activeScrollJob?.cancel()
             val step = if (direction == 1) -1 else 1
             if (registry?.selectedId != null &&
                 registry.isSelectedMounted(sectionId) == false
             ) {
                 // Free scrolling can uncompose the selected LazyColumn item. Restore
                 // its last viewport before moving, rather than jumping randomly.
-                scope.launch {
+                activeScrollJob = scope.launch {
                     listState.scrollToItem(selectedAnchorIndex, selectedAnchorOffset)
                     withFrameNanos { }
                     registry.move(sectionId, step)
@@ -219,11 +226,15 @@ internal fun Modifier.controllerNavigation(
                 return true
             }
             if (registry?.move(sectionId, step) == true) return true
+            // At either end of the list, consume the key without scheduling an
+            // animation that could rebound after the next direction press.
+            if (step > 0 && !listState.canScrollForward) return true
+            if (step < 0 && !listState.canScrollBackward) return true
             // A target may lie below the current LazyColumn viewport.
             val viewport = listState.layoutInfo.viewportSize.height
                 .takeIf { it > 0 } ?: view.height
             if (viewport > 0) {
-                scope.launch {
+                activeScrollJob = scope.launch {
                     listState.animateScrollBy(viewport * 0.66f * step)
                     withFrameNanos { }
                     // On read-only pages (Stats/Activity), scrolling must work
@@ -365,7 +376,13 @@ internal fun Modifier.controllerNavigation(
         }
     }
 
-    val latestNavigationKey by androidx.compose.runtime.rememberUpdatedState(onNavigationKey)
+    val latestNavigationKey by rememberUpdatedState(onNavigationKey)
+    val latestEnabled by rememberUpdatedState(enabled)
+    val latestDrawerOpen by rememberUpdatedState(drawerOpen)
+    val latestDrawerOpenNow by rememberUpdatedState(drawerOpenNow)
+    val latestMoveDrawer by rememberUpdatedState<(Int, Long, Boolean) -> Unit>(
+        { direction, time, repeat -> moveDrawer(direction, time, repeat) }
+    )
     DisposableEffect(view, listState) {
         val globalHandler: (AndroidKeyEvent) -> Boolean = { e -> latestNavigationKey(e) }
         ControllerInputBridge.attach(globalHandler)
@@ -373,7 +390,7 @@ internal fun Modifier.controllerNavigation(
         val listener =
             View.OnGenericMotionListener { _, event ->
                 if (
-                    (!enabled && !drawerOpenNow() && !drawerOpen) ||
+                    (!latestEnabled && !latestDrawerOpenNow() && !latestDrawerOpen) ||
                     event.action != MotionEvent.ACTION_MOVE ||
                     (event.source and InputDevice.SOURCE_JOYSTICK) !=
                         InputDevice.SOURCE_JOYSTICK
@@ -384,7 +401,7 @@ internal fun Modifier.controllerNavigation(
                 ControllerInputMode.active = true
 
                 // The same left stick navigates the open drawer instead of the page.
-                if (drawerOpenNow() || drawerOpen) {
+                if (latestDrawerOpenNow() || latestDrawerOpen) {
                     val axis = event.getAxisValue(MotionEvent.AXIS_Y)
                     val hat = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
                     val y = if (abs(hat) >= STICK_DEAD_ZONE) hat else axis
@@ -394,7 +411,9 @@ internal fun Modifier.controllerNavigation(
                         else -> 0
                     }
                     if (direction == 0) lastStickDirection = 0
-                    else moveDrawer(if (direction == 1) -1 else 1, event.eventTime, repeated = true)
+                    else latestMoveDrawer(
+                        if (direction == 1) -1 else 1, event.eventTime, true
+                    )
                     return@OnGenericMotionListener true
                 }
 
