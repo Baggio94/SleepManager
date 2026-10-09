@@ -40,6 +40,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -57,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.FocusDirection
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -119,6 +122,7 @@ import com.med.sleepmanager.update.UpdateNotifier
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.med.sleepmanager.ui.feedbackChange
 import com.med.sleepmanager.ui.state.SleepManagerUiState
@@ -238,6 +242,18 @@ private class IntegrationUiRow(
         }
         val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
         val drawerScope = rememberCoroutineScope()
+        var drawerControllerIndex by remember { mutableIntStateOf(0) }
+        var showControllerHints by remember { mutableStateOf(false) }
+        val controllerActive = isControllerInputActive()
+        val activityBackDispatcher =
+            LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+        LaunchedEffect(controllerActive) {
+            if (controllerActive) {
+                showControllerHints = true
+                delay(3400L)
+            }
+            showControllerHints = false
+        }
 
         fun navigateToAbout(target: AboutScrollTarget) {
             aboutScrollTarget = target
@@ -500,12 +516,30 @@ private class IntegrationUiRow(
                     onPreviousSection = { navigateSection(-1) },
                     onNextSection = { navigateSection(1) },
                     onMenuRequested = {
+                        drawerControllerIndex = AppSection.entries.indexOf(currentSection)
                         drawerScope.launch {
-                            if (drawerState.isClosed) {
-                                drawerState.open()
-                            } else {
-                                drawerState.close()
-                            }
+                            if (drawerState.isClosed) drawerState.open()
+                            else drawerState.close()
+                        }
+                    },
+                    drawerOpen = drawerState.isOpen,
+                    onDrawerMove = { amount ->
+                        val sections = AppSection.entries
+                        drawerControllerIndex =
+                            (drawerControllerIndex + amount + sections.size) % sections.size
+                    },
+                    onDrawerSelect = {
+                        currentSection = AppSection.entries[drawerControllerIndex]
+                        drawerScope.launch { drawerState.close() }
+                    },
+                    onDrawerDismiss = {
+                        drawerScope.launch { drawerState.close() }
+                    },
+                    onBackRequested = {
+                        when {
+                            showTargetDialog -> showTargetDialog = false
+                            currentSection != AppSection.HOME -> currentSection = AppSection.HOME
+                            else -> activityBackDispatcher?.onBackPressed()
                         }
                     }
                 ),
@@ -552,7 +586,9 @@ private class IntegrationUiRow(
                                     )
                                 },
                                 label = { Text(stringResource(section.labelRes)) },
-                                selected = currentSection == section,
+                                selected = if (drawerState.isOpen) {
+                                    drawerControllerIndex == AppSection.entries.indexOf(section)
+                                } else currentSection == section,
                                 onClick = feedbackClick {
                                     currentSection = section
                                     drawerScope.launch { drawerState.close() }
@@ -625,6 +661,25 @@ private class IntegrationUiRow(
                 Scaffold(
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.background,
+                    snackbarHost = {
+                        if (showControllerHints && drawerState.isClosed) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                                color = MaterialTheme.colorScheme.inverseSurface,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                                tonalElevation = 4.dp
+                            ) {
+                                Text(
+                                    "A Select     B Back     L1/R1 Tabs     L2/R2 Page",
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    },
                 topBar = {
                     TopAppBar(
                         navigationIcon = {
