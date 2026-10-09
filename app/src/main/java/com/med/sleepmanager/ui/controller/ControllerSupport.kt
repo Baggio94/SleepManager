@@ -23,12 +23,16 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -58,25 +62,48 @@ internal fun isControllerInputActive(): Boolean = ControllerInputMode.active
 internal val LocalControllerFocusMemory = staticCompositionLocalOf<ControllerFocusMemory?> { null }
 internal val LocalControllerSectionId = staticCompositionLocalOf { "" }
 
-/** Interim Switch focus memory; whole-row targets follow in V2's next stage. */
+internal val LocalControllerTargetRegistry =
+    staticCompositionLocalOf<ControllerTargetRegistry?> { null }
+
+/** Registers a stable, logical controller target independently of touch nodes. */
 @Composable
-internal fun Modifier.controllerRememberFocus(targetId: String): Modifier {
+internal fun Modifier.controllerRememberFocus(
+    targetId: String,
+    onActivate: (() -> Unit)? = null,
+    actions: List<ControllerAction> = emptyList()
+): Modifier {
     val sectionId = LocalControllerSectionId.current
     val memory = LocalControllerFocusMemory.current
+    val registry = LocalControllerTargetRegistry.current
     val requester = remember(sectionId, targetId) { FocusRequester() }
+    val currentActivate by rememberUpdatedState(onActivate)
+    val currentActions by rememberUpdatedState(actions)
+
+    DisposableEffect(registry, sectionId, targetId) {
+        registry?.register(
+            sectionId, targetId, requester,
+            activate = { currentActivate?.invoke() },
+            actions = { currentActions }
+        )
+        onDispose { registry?.unregister(sectionId, targetId) }
+    }
 
     LaunchedEffect(sectionId, targetId) {
         if (ControllerInputMode.active && memory?.shouldRestore(sectionId, targetId) == true) {
-            requester.requestFocus()
+            runCatching { requester.requestFocus() }
             memory.markRestored(sectionId, targetId)
         }
     }
 
     return this
         .focusRequester(requester)
+        .onGloballyPositioned { coordinates ->
+            registry?.position(sectionId, targetId, coordinates.positionInRoot().y)
+        }
         .onFocusChanged { focus ->
             if (focus.isFocused && ControllerInputMode.active) {
                 memory?.remember(sectionId, targetId)
+                registry?.select(sectionId, targetId)
             }
         }
 }
@@ -103,6 +130,8 @@ internal fun Modifier.controllerNavigation(
     onMenuRequested: () -> Unit
 ): Modifier {
     val focusManager = LocalFocusManager.current
+    val registry = LocalControllerTargetRegistry.current
+    val sectionId = LocalControllerSectionId.current
     val view = LocalView.current
     val backDispatcher =
         LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -142,38 +171,35 @@ internal fun Modifier.controllerNavigation(
 
     fun moveFocus(direction: Int, eventTime: Long): Boolean {
         val shouldMove =
-            direction != lastStickDirection ||
-                eventTime - lastStickMoveAt >= STICK_REPEAT_MS
+            direction != lastStickDirection || eventTime - lastStickMoveAt >= STICK_REPEAT_MS
         if (!shouldMove) return true
-
         lastStickDirection = direction
         lastStickMoveAt = eventTime
-        val focusDirection =
-            when (direction) {
-                1 -> FocusDirection.Up
-                2 -> FocusDirection.Down
-                3 -> FocusDirection.Left
-                4 -> FocusDirection.Right
-                else -> return false
-            }
-        val moved = focusManager.moveFocus(focusDirection)
-        // A first directional input must be meaningful without prior focus.
-        if (!moved && focusManager.moveFocus(FocusDirection.Next)) return true
-        if (!moved && direction in 1..2) {
-            val viewport =
-                listState.layoutInfo.viewportSize.height
-                    .takeIf { it > 0 }
-                    ?: view.height
+
+        if (direction == 1 || direction == 2) {
+            val step = if (direction == 1) -1 else 1
+            if (registry?.move(sectionId, step) == true) return true
+            // A target may lie below the current LazyColumn viewport.
+            val viewport = listState.layoutInfo.viewportSize.height
+                .takeIf { it > 0 } ?: view.height
             if (viewport > 0) {
                 scope.launch {
-                    listState.animateScrollBy(
-                        viewport * 0.36f * if (direction == 1) -1f else 1f
-                    )
-                    focusManager.moveFocus(focusDirection)
+                    listState.animateScrollBy(viewport * 0.66f * step)
+                    withFrameNanos { }
+                    if (registry?.move(sectionId, step) != true) {
+                        focusManager.moveFocus(
+                            if (step < 0) FocusDirection.Up else FocusDirection.Down
+                        )
+                    }
                 }
+                return true
             }
         }
-        return true
+        // Left/right stays local to the selected card before spatial fallback.
+        if (direction == 3 && registry?.changeAction(sectionId, -1) == true) return true
+        if (direction == 4 && registry?.changeAction(sectionId, 1) == true) return true
+        val focusDirection = if (direction == 3) FocusDirection.Left else FocusDirection.Right
+        return focusManager.moveFocus(focusDirection)
     }
 
     val onNavigationKey: (AndroidKeyEvent) -> Boolean = { event ->
@@ -191,6 +217,13 @@ internal fun Modifier.controllerNavigation(
                     ControllerInputMode.active = true
                     backDispatcher?.onBackPressed()
                     true
+                }
+                AndroidKeyEvent.KEYCODE_BUTTON_A -> {
+                    if (!enabled) false else {
+                        ControllerInputMode.active = true
+                        if (event.repeatCount == 0) registry?.activate(sectionId) ?: false
+                        true
+                    }
                 }
                 AndroidKeyEvent.KEYCODE_BUTTON_L1 -> {
                     if (!enabled) false else {
@@ -328,32 +361,13 @@ internal fun Modifier.controllerNavigation(
             val native = event.nativeKeyEvent
 
             if (native.keyCode == AndroidKeyEvent.KEYCODE_BUTTON_A) {
-                ControllerInputMode.active = true
-                val mapped =
-                    AndroidKeyEvent(
-                        native.downTime,
-                        native.eventTime,
-                        native.action,
-                        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                        native.repeatCount,
-                        native.metaState,
-                        native.deviceId,
-                        native.scanCode,
-                        native.flags,
-                        native.source
-                    )
-                val handled =
-                    SleepManagerFeedbackGate.withoutWrappedFeedback {
-                        view.dispatchKeyEvent(mapped)
-                    }
-                if (
-                    handled &&
-                    native.action == AndroidKeyEvent.ACTION_DOWN &&
-                    native.repeatCount == 0
-                ) {
-                    view.performSleepManagerFeedback()
+                if (native.action == AndroidKeyEvent.ACTION_DOWN) {
+                    ControllerInputMode.active = true
+                    if (native.repeatCount == 0) return@onPreviewKeyEvent
+                        registry?.activate(sectionId) ?: false
+                    return@onPreviewKeyEvent true
                 }
-                return@onPreviewKeyEvent handled
+                return@onPreviewKeyEvent true
             }
 
             // Compose injection fallback; Activity consumes real handheld keys.
