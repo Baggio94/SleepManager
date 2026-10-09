@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -342,11 +343,15 @@ internal fun BatteryDashboardCard(
     val currentText = dashboard.currentPercent?.let { "$it%" } ?: "—"
     val last = dashboard.lastSession
     var batteryFocused by remember { mutableStateOf(false) }
+    var batteryControllerCycle by remember { mutableIntStateOf(0) }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .controllerRememberFocus("home-battery-dashboard")
+            .controllerRememberFocus(
+                "home-battery-dashboard",
+                onActivate = { batteryControllerCycle++ }
+            )
             .onFocusChanged { batteryFocused = it.isFocused }
             .controllerFocusHighlight(batteryFocused)
             .focusable(),
@@ -372,6 +377,7 @@ internal fun BatteryDashboardCard(
                     estimatedHoursRemaining = stats.estimatedHoursRemaining,
                     averageDrainPerHour = stats.averageDrainPerHour,
                     averageDeepSleepPercent = stats.averageDeepSleepPercent,
+                    controllerCycleToken = batteryControllerCycle,
                     modifier = Modifier
                         .weight(1f)
                         .widthIn(max = 280.dp)
@@ -549,10 +555,17 @@ internal fun InteractiveBatteryGauge(
     estimatedHoursRemaining: Double?,
     averageDrainPerHour: Double?,
     averageDeepSleepPercent: Double?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    controllerCycleToken: Int = 0
 ) {
     var infoIndex by remember { mutableIntStateOf(0) }
     var hasInteracted by remember { mutableStateOf(false) }
+    LaunchedEffect(controllerCycleToken) {
+        if (controllerCycleToken > 0) {
+            hasInteracted = true
+            infoIndex = (infoIndex + 1) % 4
+        }
+    }
     val level = (percent ?: 0).coerceIn(0, 100)
     val animatedLevel by animateFloatAsState(
         targetValue = level / 100f,
