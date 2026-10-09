@@ -6,7 +6,12 @@
 >
 > **Other devices / brands:** install the new **SleepManager Helper** when prompted and grant its **battery optimization exemption**. If SleepManager reports that Wi-Fi control access is required, enable it in **Settings → Apps → Special app access → Wi-Fi control → SleepManager Helper**.
 >
-> **Warning — AYANEO / KONKR devices with DuraSpeed:** Disable **DuraSpeed** in Android Settings for reliable sleep/wake behavior. DuraSpeed can restrict SleepManager, its Helper and sync integrations in the background, causing Wi-Fi/Bluetooth restoration problems after long standby. **Battery usage → Unrestricted** does not disable DuraSpeed. Disabling it resolved overnight restoration failures observed on a KONKR Pocket Advance.
+> [!WARNING]
+> **AYANEO / KONKR devices — disable DuraSpeed.**
+>
+> On devices with **DuraSpeed**, turn it **OFF** in Android Settings. DuraSpeed may restrict SleepManager, its Compatibility Helper and sync integrations in the background, preventing Wi-Fi/Bluetooth restoration after long standby.
+>
+> **Battery usage → Unrestricted is not enough:** DuraSpeed must be disabled separately. This resolved overnight restoration failures on a KONKR Pocket Advance.
 
 ## What’s New
 
