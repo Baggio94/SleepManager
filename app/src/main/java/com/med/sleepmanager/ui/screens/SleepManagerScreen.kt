@@ -104,6 +104,7 @@ import com.med.sleepmanager.ui.components.ClamshellOptionsCard
 import com.med.sleepmanager.ui.components.CompactIntegrationRow
 import com.med.sleepmanager.ui.components.CompactSupportedAppRow
 import com.med.sleepmanager.ui.components.CompactSideRail
+import com.med.sleepmanager.ui.components.ControllerHintOverlay
 import com.med.sleepmanager.ui.components.OnboardingCard
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingRow
