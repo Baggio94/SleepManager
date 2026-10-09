@@ -34,7 +34,12 @@ Recent compatible **AYN and Retroid** handhelds can control Wi-Fi and Bluetooth 
 
 Depending on the features you use, Android may ask for additional permissions. See [Permissions](#permissions) for details.
 
-> **Warning — AYANEO / KONKR handhelds with DuraSpeed:** Turn **DuraSpeed OFF** in Android Settings (search for **DuraSpeed** if necessary). DuraSpeed can restrict SleepManager, its Compatibility Helper and connected sync apps in the background, potentially preventing Wi-Fi/Bluetooth restoration after a long sleep. This is **separate from** Android's **Battery usage → Unrestricted** setting; that exemption alone does not disable DuraSpeed. Disabling DuraSpeed resolved overnight radio-restoration failures observed on a KONKR Pocket Advance.
+> [!WARNING]
+> **AYANEO / KONKR devices — disable DuraSpeed.**
+>
+> On devices with **DuraSpeed**, turn it **OFF** in Android Settings. DuraSpeed may restrict SleepManager, its Compatibility Helper and sync integrations in the background, preventing Wi-Fi/Bluetooth restoration after long standby.
+>
+> **Battery usage → Unrestricted is not enough:** DuraSpeed must be disabled separately. This resolved overnight restoration failures on a KONKR Pocket Advance.
 
 > **Note:** The Helper has no launcher icon or separate interface.
 
