@@ -42,6 +42,7 @@ import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.controller.ControllerTimeEditor
+import com.med.sleepmanager.ui.controller.ControllerNumericStepper
 import com.med.sleepmanager.ui.controller.ControllerChoiceGroup
 import com.med.sleepmanager.ui.controller.ControllerChoiceDialog
 import com.med.sleepmanager.ui.controller.controllerRememberFocus
@@ -286,15 +287,12 @@ internal fun AdvancedSettingsPage(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    ControllerChoiceGroup(
+                    ControllerNumericStepper(
                         id = "advanced-battery-threshold",
                         title = stringResource(R.string.battery_level),
-                        options = listOf(20, 30, 40, 50, 60).map { level ->
-                            (level.toString() + "%") to level
-                        },
-                        selected = batteryBelowPercent,
-                        onSelected = onBatteryBelowPercentChange,
-                        maxColumns = 5
+                        choices = listOf(20, 30, 40, 50, 60),
+                        current = batteryBelowPercent,
+                        onChange = onBatteryBelowPercentChange
                     )
                 }
             }
