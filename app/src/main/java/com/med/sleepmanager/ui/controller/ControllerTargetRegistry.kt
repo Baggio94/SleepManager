@@ -76,7 +76,7 @@ internal class ControllerTargetRegistry {
 
     /** First A selects rather than toggles an arbitrary default setting. */
     fun activate(section: String): Boolean {
-        val target = targets[selectedId]
+        val target = selectedId?.let { targets[it] }
         if (target == null || target.section != section) {
             move(section, +1)
             return true
@@ -88,7 +88,7 @@ internal class ControllerTargetRegistry {
     }
 
     fun changeAction(section: String, direction: Int): Boolean {
-        val target = targets[selectedId] ?: return false
+        val target = selectedId?.let { targets[it] } ?: return false
         if (target.section != section) return false
         val available = target.actions().filter { it.enabled }
         if (available.size < 2) return false
@@ -98,7 +98,7 @@ internal class ControllerTargetRegistry {
 
     fun activeActionLabel(section: String, id: String): String? {
         if (selectedId != "$section:$id") return null
-        val available = targets[selectedId]?.actions()?.filter { it.enabled }.orEmpty()
+        val available = selectedId?.let { targets[it] }?.actions()?.filter { it.enabled }.orEmpty()
         return available.getOrNull(selectedAction)?.label
     }
 }
