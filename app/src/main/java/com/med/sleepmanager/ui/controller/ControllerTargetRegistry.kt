@@ -61,6 +61,11 @@ internal class ControllerTargetRegistry {
             .sortedWith(compareBy<Target> { if (it.y.isNaN()) Float.MAX_VALUE else it.y }
                 .thenBy { it.order })
 
+    fun isSelectedMounted(section: String): Boolean {
+        val selected = selectedId ?: return false
+        return targets[selected]?.section == section
+    }
+
     fun move(section: String, direction: Int): Boolean {
         val ordered = visible(section)
         if (ordered.isEmpty()) return false
