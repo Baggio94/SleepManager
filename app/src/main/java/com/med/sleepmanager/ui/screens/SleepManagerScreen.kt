@@ -1304,6 +1304,29 @@ private class IntegrationUiRow(
                                         R.string.integration_raofflineproxy
                                     )
                                 ) {
+                                    // Keep the two callback branches explicitly typed.
+                                    // Kotlin otherwise infers Any? for a mixed callable/lambda when.
+                                    val requestControlPermission: () -> Unit = {
+                                        onRequestRaOfflineProxyControlPermissionRequested()
+                                    }
+                                    val openBatteryUsageSettings: () -> Unit = {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(
+                                                R.string.raofflineproxy_unrestricted_hint
+                                            ),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        onOpenRaOfflineProxySettingsRequested()
+                                    }
+                                    val secondaryAction: (() -> Unit)? =
+                                        when {
+                                            raOfflineProxyRuntimePermissionSupported ->
+                                                requestControlPermission
+                                            !raOfflineProxyBatteryUnrestricted ->
+                                                openBatteryUsageSettings
+                                            else -> null
+                                        }
                                     CompactIntegrationRow(
                                         icon = R.drawable.ic_raofflineproxy_mono,
                                         title = stringResource(
@@ -1334,23 +1357,7 @@ private class IntegrationUiRow(
                                                     stringResource(R.string.raofflineproxy_app_settings)
                                                 else -> null
                                             },
-                                        onSecondaryAction =
-                                            when {
-                                                raOfflineProxyRuntimePermissionSupported ->
-                                                    onRequestRaOfflineProxyControlPermissionRequested
-                                                !raOfflineProxyBatteryUnrestricted ->
-                                                    {
-                                                        Toast.makeText(
-                                                            context,
-                                                            context.getString(
-                                                                R.string.raofflineproxy_unrestricted_hint
-                                                            ),
-                                                            Toast.LENGTH_LONG
-                                                        ).show()
-                                                        onOpenRaOfflineProxySettingsRequested()
-                                                    }
-                                                else -> null
-                                            }
+                                        onSecondaryAction = secondaryAction
                                     )
                                 }
                             )
