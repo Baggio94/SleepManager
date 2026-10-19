@@ -7,6 +7,7 @@ on:
       - main
       # Signed, non-published test APKs for the 0.7.3 touch preview.
       - dev/0.7.3-touch
+      - dev/0.7.4-ui-refresh
     tags:
       - "v*"
 

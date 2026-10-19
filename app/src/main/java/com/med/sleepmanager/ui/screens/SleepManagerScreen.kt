@@ -176,6 +176,7 @@ private class IntegrationUiRow(
         onUseSystemColorsChanged: (Boolean) -> Unit
     ) {
         val refreshToken = uiState.activityRefreshToken
+        val metadataRefreshToken = uiState.metadataRefreshToken
         var showTargetDialog by remember { mutableStateOf(false) }
         var currentSection by rememberSaveable {
             mutableStateOf(
@@ -248,20 +249,20 @@ private class IntegrationUiRow(
             if (customDelayEnabled) customDelayMs else sleepGraceMs
         val currentBatterySaverState = uiState.currentBatterySaverState
 
-        val setupComplete = remember(refreshToken) {
+        val setupComplete = remember(refreshToken, metadataRefreshToken) {
             AppPreferences.isSetupComplete(context)
         }
 
-        val directRadioControlAvailable = remember(refreshToken) {
+        val directRadioControlAvailable = remember(refreshToken, metadataRefreshToken) {
             RadioController.directAvailable()
         }
-        val helperInstalled = remember(refreshToken) {
+        val helperInstalled = remember(refreshToken, metadataRefreshToken) {
             HelperController.isInstalled(context)
         }
         val radioBackendAvailable =
             directRadioControlAvailable || helperInstalled
         val helperBatteryUnrestricted =
-            remember(refreshToken) {
+            remember(refreshToken, metadataRefreshToken) {
                 if (
                     helperInstalled &&
                     !directRadioControlAvailable
@@ -272,7 +273,7 @@ private class IntegrationUiRow(
                 }
             }
         val helperWifiControlAccess =
-            remember(refreshToken) {
+            remember(refreshToken, metadataRefreshToken) {
                 if (
                     helperInstalled &&
                     !directRadioControlAvailable
@@ -292,36 +293,36 @@ private class IntegrationUiRow(
                 )
         val bluetoothControlReady =
             directRadioControlAvailable || helperRadioReady
-        val helperVersion = remember(refreshToken) {
+        val helperVersion = remember(refreshToken, metadataRefreshToken) {
             runCatching {
                 context.packageManager.getPackageInfo(HelperController.PACKAGE, 0).versionName
             }.getOrNull()
         }
-        val targets = remember(refreshToken) {
+        val targets = remember(refreshToken, metadataRefreshToken) {
             SyncthingController.installedTargets(context)
         }
-        val selectedTarget = remember(refreshToken) {
+        val selectedTarget = remember(refreshToken, metadataRefreshToken) {
             SyncthingController.selectedTarget(context)
         }
-        val tailscaleInstalled = remember(refreshToken) {
+        val tailscaleInstalled = remember(refreshToken, metadataRefreshToken) {
             TailscaleController.isInstalled(context)
         }
-        val tailscaleVersion = remember(refreshToken) {
+        val tailscaleVersion = remember(refreshToken, metadataRefreshToken) {
             TailscaleController.versionName(context)
         }
-        val jamesDspTarget = remember(refreshToken) {
+        val jamesDspTarget = remember(refreshToken, metadataRefreshToken) {
             JamesDspController.selectedTarget(context)
         }
-        val basicSyncInstalled = remember(refreshToken) {
+        val basicSyncInstalled = remember(refreshToken, metadataRefreshToken) {
             BasicSyncController.isInstalled(context)
         }
-        val basicSyncVersion = remember(refreshToken) {
+        val basicSyncVersion = remember(refreshToken, metadataRefreshToken) {
             BasicSyncController.versionName(context)
         }
-        val basicSyncStopped = remember(refreshToken) {
+        val basicSyncStopped = remember(refreshToken, metadataRefreshToken) {
             basicSyncInstalled && BasicSyncController.isStopped(context)
         }
-        val basicSyncStateApi = remember(refreshToken) {
+        val basicSyncStateApi = remember(refreshToken, metadataRefreshToken) {
             BasicSyncController.supportsStateApi(context)
         }
         val basicSyncReady =
@@ -330,27 +331,27 @@ private class IntegrationUiRow(
                 basicSyncStateApi &&
                 uiState.basicSyncReadinessProbeComplete &&
                 uiState.currentBasicSyncState != null
-        val raOfflineProxyInstalled = remember(refreshToken) {
+        val raOfflineProxyInstalled = remember(refreshToken, metadataRefreshToken) {
             RaOfflineProxyController.isInstalled(context)
         }
-        val raOfflineProxyVersion = remember(refreshToken) {
+        val raOfflineProxyVersion = remember(refreshToken, metadataRefreshToken) {
             RaOfflineProxyController.versionName(context)
         }
         val raOfflineProxyProviderAvailable =
-            remember(refreshToken) {
+            remember(refreshToken, metadataRefreshToken) {
                 RaOfflineProxyController.providerAvailable(context)
             }
         val raOfflineProxyControlPermission =
-            remember(refreshToken) {
+            remember(refreshToken, metadataRefreshToken) {
                 RaOfflineProxyController.hasControlPermission(context)
             }
         val raOfflineProxyRuntimePermissionSupported =
-            remember(refreshToken, raOfflineProxyControlPermission) {
+            remember(refreshToken, metadataRefreshToken, raOfflineProxyControlPermission) {
                 !raOfflineProxyControlPermission &&
                     RaOfflineProxyController.canRequestControlPermission(context)
             }
         val raOfflineProxyBatteryUnrestricted =
-            remember(refreshToken) {
+            remember(refreshToken, metadataRefreshToken) {
                 RaOfflineProxyController.isBatteryUnrestricted(context)
             }
         val raOfflineProxyStatus =
@@ -367,7 +368,7 @@ private class IntegrationUiRow(
                 raOfflineProxyControlPermission &&
                 raOfflineProxyBatteryUnrestricted &&
                 raOfflineProxyApiCompatible
-        val closedLidProtectionSupported = remember(refreshToken) {
+        val closedLidProtectionSupported = remember(refreshToken, metadataRefreshToken) {
             LidMonitor.isSupported()
         }
         val expectedThorClamshell = remember {
@@ -377,7 +378,7 @@ private class IntegrationUiRow(
                         Build.DEVICE.contains("thor", ignoreCase = true)
                 )
         }
-        val closedLidPowerSupported = remember(refreshToken) {
+        val closedLidPowerSupported = remember(refreshToken, metadataRefreshToken) {
             PmicPowerButtonMonitor.isSupported()
         }
         val deviceControlCapabilities =
@@ -389,28 +390,28 @@ private class IntegrationUiRow(
                 deviceControlCapabilities?.chargingSeparationControl == true
         val backgroundReliability =
             uiState.currentBackgroundReliability
-        val closedLidAdminActive = remember(refreshToken) {
+        val closedLidAdminActive = remember(refreshToken, metadataRefreshToken) {
             onClosedLidAdminActiveRequested()
         }
-        val batteryDashboard = remember(refreshToken) {
-            BatterySleepStore.dashboard(context)
-        }
-        val batteryStats = remember(refreshToken) {
-            BatterySleepStore.stats(context)
-        }
-        val restoreProblem = remember(refreshToken) {
+        // Initial startup has a synchronous fallback; subsequent live
+        // battery data is calculated on the worker, not during a scroll frame.
+        val batteryDashboard = uiState.liveBatteryDashboard
+            ?: remember(refreshToken) { BatterySleepStore.dashboard(context) }
+        val batteryStats = uiState.liveBatteryStats
+            ?: remember(refreshToken) { BatterySleepStore.stats(context) }
+        val restoreProblem = remember(refreshToken, metadataRefreshToken) {
             SleepCycleStore.restoreProblem(context)
         }
         val automaticUpdateChecks = uiState.automaticUpdateChecks
-        val availableUpdate = remember(refreshToken) {
+        val availableUpdate = remember(refreshToken, metadataRefreshToken) {
             UpdateChecker.cachedUpdate(context)
         }
-        val cachedHelperUpdate = remember(refreshToken) {
+        val cachedHelperUpdate = remember(refreshToken, metadataRefreshToken) {
             UpdateChecker.cachedHelperUpdate(context)
         }
         val availableHelperUpdate =
             cachedHelperUpdate.takeUnless { directRadioControlAvailable }
-        val updateNotificationsAllowed = remember(refreshToken) {
+        val updateNotificationsAllowed = remember(refreshToken, metadataRefreshToken) {
             UpdateNotifier.notificationsAllowed(context)
         }
 
@@ -1547,7 +1548,7 @@ private class IntegrationUiRow(
                         item {
                             ActivityLogPage(
                                 context = context,
-                                refreshToken = refreshToken
+                                refreshToken = refreshToken + uiState.activityLogRefreshToken
                             )
                         }
                     }
