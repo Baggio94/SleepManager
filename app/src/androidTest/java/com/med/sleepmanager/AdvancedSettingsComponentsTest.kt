@@ -170,10 +170,22 @@ class AdvancedSettingsComponentsTest {
         assertEquals(120_000L, customMs)
         assertTrue(customEnabled)
         composeRule.onNodeWithTag("grace_option_custom").assertIsSelected()
+        composeRule.onNodeWithText("Selected: 2 min").assertIsDisplayed()
+
+        // Ensure the new one-hour choice persists and is displayed using
+        // the same readable duration label as the Custom dialog.
+        composeRule.onNodeWithTag("grace_option_custom").performClick()
+        composeRule.onNodeWithTag("custom_delay_option_3600000").performClick()
+        composeRule.onNodeWithText("Done").performClick()
+        assertEquals(3_600_000L, customMs)
+        assertTrue(customEnabled)
+        composeRule.onNodeWithText("Selected: 1 h").assertIsDisplayed()
+        composeRule.onNodeWithText("Advanced • 3600s").assertDoesNotExist()
 
         composeRule.onNodeWithTag("grace_option_10000").performClick()
         assertEquals(10_000L, graceMs)
         assertEquals(false, customEnabled)
         composeRule.onNodeWithTag("grace_option_10000").assertIsSelected()
+        composeRule.onNodeWithTag("grace_custom_selected_duration").assertDoesNotExist()
     }
 }
