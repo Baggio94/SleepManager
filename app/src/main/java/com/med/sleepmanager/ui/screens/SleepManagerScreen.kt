@@ -194,12 +194,6 @@ private class IntegrationUiRow(
         var aboutScrollRequestId by remember {
             mutableStateOf(if (openUpdatesOnLaunch) 1 else 0)
         }
-        var advancedScrollTarget by remember {
-            mutableStateOf<AdvancedScrollTarget?>(null)
-        }
-        var advancedScrollRequestId by remember {
-            mutableStateOf(0)
-        }
         val homeListState = rememberLazyListState()
         val advancedListState = rememberLazyListState()
         val statsListState = rememberLazyListState()
@@ -219,12 +213,6 @@ private class IntegrationUiRow(
             aboutScrollTarget = target
             aboutScrollRequestId++
             currentSection = AppSection.ABOUT
-        }
-
-        fun navigateToAdvanced(target: AdvancedScrollTarget) {
-            advancedScrollTarget = target
-            advancedScrollRequestId++
-            currentSection = AppSection.ADVANCED
         }
 
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
@@ -333,8 +321,9 @@ private class IntegrationUiRow(
         val basicSyncStopped = remember(refreshToken) {
             basicSyncInstalled && BasicSyncController.isStopped(context)
         }
-        val basicSyncStateApi =
+        val basicSyncStateApi = remember(refreshToken) {
             BasicSyncController.supportsStateApi(context)
+        }
         val basicSyncReady =
             basicSyncInstalled &&
                 !basicSyncStopped &&
@@ -916,12 +905,17 @@ private class IntegrationUiRow(
                             customDelayEnabled = customDelayEnabled,
                             customDelayMs = customDelayMs,
                             onChange = { value ->
+                                if (customDelayEnabled) onCustomDelayEnabledChange(false)
                                 onSleepGraceChange(value)
                             },
-                            onCustom = {
-                                navigateToAdvanced(
-                                    AdvancedScrollTarget.CUSTOM_DELAY
-                                )
+                            onCustomDelaySelected = { duration ->
+                                onCustomDelayChange(duration)
+                                if (!onCanScheduleExactAlarmsRequested()) {
+                                    onRequestExactAlarmAccessRequested()
+                                } else {
+                                    onCustomDelayEnabledChange(true)
+                                    onSleepGraceChange(0L)
+                                }
                             }
                         )
                     }
@@ -1509,8 +1503,6 @@ private class IntegrationUiRow(
                                         onServiceRefreshRequested()
                                     }
                                 },
-                                customDelayEnabled = customDelayEnabled,
-                                customDelayMs = customDelayMs,
                                 batteryConditionEnabled = batteryConditionEnabled,
                                 batteryBelowPercent = batteryBelowPercent,
                                 notChargingOnly = notChargingOnly,
@@ -1518,23 +1510,6 @@ private class IntegrationUiRow(
                                 scheduleEnabled = scheduleEnabled,
                                 scheduleStartMinutes = scheduleStartMinutes,
                                 scheduleEndMinutes = scheduleEndMinutes,
-                                onCustomDelayEnabledChange = { enabled ->
-                                    if (
-                                        enabled &&
-                                        !onCanScheduleExactAlarmsRequested()
-                                    ) {
-                                        onRequestExactAlarmAccessRequested()
-                                    } else {
-                                        onCustomDelayEnabledChange(enabled)
-
-                                        if (!enabled) {
-                                            onSleepGraceChange(0L)
-                                        }
-                                    }
-                                },
-                                onCustomDelayChange = {
-                                    onCustomDelayChange(it)
-                                },
                                 onBatteryConditionEnabledChange = {
                                     onBatteryConditionEnabledChange(it)
                                 },
@@ -1565,11 +1540,6 @@ private class IntegrationUiRow(
                                     onShowTimePickerRequested(scheduleEndMinutes) { value ->
                                         onScheduleEndMinutesChange(value)
                                     }
-                                },
-                                scrollTarget = advancedScrollTarget,
-                                scrollRequestId = advancedScrollRequestId,
-                                onScrollTargetConsumed = {
-                                    advancedScrollTarget = null
                                 }
                             )
                         }
