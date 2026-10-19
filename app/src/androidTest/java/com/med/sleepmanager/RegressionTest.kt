@@ -254,7 +254,7 @@ class RegressionTest {
         ).assertIsNotEnabled()
 
         // Custom Delay moved from Advanced to the Home Grace Period dialog.
-        openSection("Home", "Home")
+        openSection("Home", "SleepManager")
         composeRule.onNodeWithTag("main_list")
             .performScrollToNode(hasText("Grace period"))
         composeRule.onNodeWithTag("grace_option_custom").performClick()
