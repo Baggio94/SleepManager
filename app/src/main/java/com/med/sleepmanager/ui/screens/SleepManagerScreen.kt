@@ -5,7 +5,6 @@ import android.os.Build
 import android.provider.Settings
 import android.view.View
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -637,7 +636,7 @@ private class IntegrationUiRow(
             ) {
                 when (currentSection) {
                     AppSection.HOME -> {
-                item {
+                item(key = "home_status") {
                     StatusCard(
                         enabled = managerEnabled,
                         running = SleepManagerService.running,
@@ -686,7 +685,7 @@ private class IntegrationUiRow(
                     )
                 }
 
-                item {
+                item(key = "home_battery_dashboard") {
                     BatteryDashboardCard(
                         dashboard = batteryDashboard,
                         stats = batteryStats
@@ -828,71 +827,44 @@ private class IntegrationUiRow(
                     }
                 }
 
-                item {
-                    AnimatedVisibility(
-                        visible =
-                            !directRadioControlAvailable &&
-                                !helperInstalled
-                    ) {
+                // Render only the warning that exists: empty animated items
+                // unnecessarily add layout work and spacing while scrolling.
+                if (!directRadioControlAvailable && !helperInstalled) {
+                    item(key = "home_helper_missing") {
                         InfoCard(
-                            title = stringResource(
-                                R.string.home_helper_not_installed_title
-                            ),
-                            text = stringResource(
-                                R.string.home_helper_not_installed_description
-                            ),
+                            title = stringResource(R.string.home_helper_not_installed_title),
+                            text = stringResource(R.string.home_helper_not_installed_description),
                             actionLabel = stringResource(R.string.install_helper),
-                            onAction = {
-                                navigateToAbout(AboutScrollTarget.HELPER)
-                            }
+                            onAction = { navigateToAbout(AboutScrollTarget.HELPER) }
                         )
                     }
                 }
 
-                item {
-                    AnimatedVisibility(
-                        visible =
-                            !directRadioControlAvailable &&
-                                helperInstalled &&
-                                !helperBatteryUnrestricted
-                    ) {
+                if (!directRadioControlAvailable &&
+                    helperInstalled &&
+                    !helperBatteryUnrestricted
+                ) {
+                    item(key = "home_helper_background") {
                         InfoCard(
-                            title = stringResource(
-                                R.string.home_helper_background_title
-                            ),
-                            text = stringResource(
-                                R.string.home_helper_background_description
-                            ),
-                            actionLabel = stringResource(
-                                R.string.home_helper_background_action
-                            ),
-                            onAction =
-                                onOpenHelperBatteryOptimizationRequested
+                            title = stringResource(R.string.home_helper_background_title),
+                            text = stringResource(R.string.home_helper_background_description),
+                            actionLabel = stringResource(R.string.home_helper_background_action),
+                            onAction = onOpenHelperBatteryOptimizationRequested
                         )
                     }
                 }
 
-                item {
-                    AnimatedVisibility(
-                        visible =
-                            !directRadioControlAvailable &&
-                                helperInstalled &&
-                                helperBatteryUnrestricted &&
-                                helperWifiControlAccess
-                                    ?.effectivelyAllowed == false
-                    ) {
+                if (!directRadioControlAvailable &&
+                    helperInstalled &&
+                    helperBatteryUnrestricted &&
+                    helperWifiControlAccess?.effectivelyAllowed == false
+                ) {
+                    item(key = "home_helper_wifi_access") {
                         InfoCard(
-                            title = stringResource(
-                                R.string.home_helper_wifi_control_title
-                            ),
-                            text = stringResource(
-                                R.string.home_helper_wifi_control_description
-                            ),
-                            actionLabel = stringResource(
-                                R.string.home_helper_wifi_control_action
-                            ),
-                            onAction =
-                                onOpenHelperWifiControlSettingsRequested
+                            title = stringResource(R.string.home_helper_wifi_control_title),
+                            text = stringResource(R.string.home_helper_wifi_control_description),
+                            actionLabel = stringResource(R.string.home_helper_wifi_control_action),
+                            onAction = onOpenHelperWifiControlSettingsRequested
                         )
                     }
                 }
@@ -904,7 +876,7 @@ private class IntegrationUiRow(
                     )
                 }
 
-                item {
+                item(key = "home_grace_period") {
                     SettingsCard {
                         SleepGraceSelector(
                             valueMs = sleepGraceMs,
