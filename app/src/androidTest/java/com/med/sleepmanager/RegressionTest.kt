@@ -275,8 +275,8 @@ class RegressionTest {
             AppPreferences.batteryConditionEnabled(targetContext)
         }
 
-        // 20 -> 30 -> 40 -> 50% (exactly as supported by the touch stepper).
-        repeat(3) {
+        // The reset baseline is 30%; two taps select 50%.
+        repeat(2) {
             composeRule.onNodeWithTag("battery_threshold_increase").performClick()
         }
         composeRule.waitUntil(timeoutMillis = 5_000) {
