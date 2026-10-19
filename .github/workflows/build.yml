@@ -7,6 +7,8 @@ on:
       - main
       # Signed, non-published test APKs for the 0.7.3 touch preview.
       - dev/0.7.3-touch
+      # Preview a signed stable candidate without publishing it.
+      - release/0.7.3-prep
     tags:
       - "v*"
 
