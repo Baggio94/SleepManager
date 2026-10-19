@@ -164,6 +164,7 @@ private class IntegrationUiRow(
         onOpenHelperBatteryOptimizationRequested: () -> Unit,
         onOpenHelperWifiControlSettingsRequested: () -> Unit,
         onOpenRaOfflineProxySettingsRequested: () -> Unit,
+        onRequestRaOfflineProxyControlPermissionRequested: () -> Unit,
         onOpenUnusedAppRestrictionsRequested: () -> Unit,
         onRequestUpdateNotificationPermissionRequested: () -> Unit,
         onInstallVerifiedUpdateRequested: (String) -> Unit,
@@ -343,6 +344,11 @@ private class IntegrationUiRow(
         val raOfflineProxyControlPermission =
             remember(refreshToken) {
                 RaOfflineProxyController.hasControlPermission(context)
+            }
+        val raOfflineProxyRuntimePermissionSupported =
+            remember(refreshToken, raOfflineProxyControlPermission) {
+                !raOfflineProxyControlPermission &&
+                    RaOfflineProxyController.canRequestControlPermission(context)
             }
         val raOfflineProxyBatteryUnrestricted =
             remember(refreshToken) {
@@ -1013,7 +1019,11 @@ private class IntegrationUiRow(
                                     )
                                 !raOfflineProxyControlPermission ->
                                     stringResource(
-                                        R.string.raofflineproxy_permission_missing
+                                        if (raOfflineProxyRuntimePermissionSupported) {
+                                            R.string.raofflineproxy_permission_grant_needed
+                                        } else {
+                                            R.string.raofflineproxy_permission_missing
+                                        }
                                     )
                                 !raOfflineProxyBatteryUnrestricted ->
                                     stringResource(
@@ -1317,28 +1327,29 @@ private class IntegrationUiRow(
                                             RaOfflineProxyController.open(context)
                                         },
                                         secondaryActionLabel =
-                                            if (!raOfflineProxyBatteryUnrestricted) {
-                                                stringResource(
-                                                    R.string.raofflineproxy_app_settings
-                                                )
-                                            } else {
-                                                null
+                                            when {
+                                                raOfflineProxyRuntimePermissionSupported ->
+                                                    stringResource(R.string.raofflineproxy_app_settings)
+                                                !raOfflineProxyBatteryUnrestricted ->
+                                                    stringResource(R.string.raofflineproxy_app_settings)
+                                                else -> null
                                             },
                                         onSecondaryAction =
-                                            if (!raOfflineProxyBatteryUnrestricted) {
-                                                {
-                                                    Toast.makeText(
-                                                        context,
-                                                        context.getString(
-                                                            R.string
-                                                                .raofflineproxy_unrestricted_hint
-                                                        ),
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                    onOpenRaOfflineProxySettingsRequested()
-                                                }
-                                            } else {
-                                                null
+                                            when {
+                                                raOfflineProxyRuntimePermissionSupported ->
+                                                    onRequestRaOfflineProxyControlPermissionRequested
+                                                !raOfflineProxyBatteryUnrestricted ->
+                                                    {
+                                                        Toast.makeText(
+                                                            context,
+                                                            context.getString(
+                                                                R.string.raofflineproxy_unrestricted_hint
+                                                            ),
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                        onOpenRaOfflineProxySettingsRequested()
+                                                    }
+                                                else -> null
                                             }
                                     )
                                 }

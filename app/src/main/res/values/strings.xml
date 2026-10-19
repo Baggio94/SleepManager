@@ -30,6 +30,7 @@
     <string name="integration_raofflineproxy">RAOfflineProxy</string>
     <string name="raofflineproxy_api_unavailable">Automation API unavailable</string>
     <string name="raofflineproxy_permission_missing">Control permission missing · reinstall SleepManager after RAOfflineProxy</string>
+    <string name="raofflineproxy_permission_grant_needed">Control permission required · tap Allow</string>
     <string name="raofflineproxy_needs_unrestricted">Battery optimization exemption required</string>
     <string name="raofflineproxy_api_unsupported">Unsupported automation API v%1$d</string>
     <string name="raofflineproxy_queue_caching">Caching · %1$d queued</string>
