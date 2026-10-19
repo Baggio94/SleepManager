@@ -35,12 +35,16 @@ import java.util.Date
 
 @Composable
 internal fun ActivityLogPage(
-    context: Context
+    context: Context,
+    refreshToken: Int = 0
 ) {
-    val events = EventHistoryStore.recent(context)
-    val timeline = ActivityTimelineBuilder.build(events)
     var advancedDiagnostics by remember(context) {
         mutableStateOf(AppPreferences.advancedDiagnosticsEnabled(context))
+    }
+    // Timeline parsing and grouping are stable until the event state or
+    // diagnostics mode changes; scrolling must not rebuild them.
+    val timeline = remember(context, refreshToken, advancedDiagnostics) {
+        ActivityTimelineBuilder.build(EventHistoryStore.recent(context))
     }
 
     Column(
