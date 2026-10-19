@@ -74,7 +74,7 @@
     <string name="grace_period_custom_delay_active">Custom delay is active. Tap Custom to change its duration.</string>
     <string name="grace_period_description">Wait before applying sleep actions. If the device wakes during this period, no changes are applied.</string>
     <string name="custom">Custom</string>
-    <string name="advanced_with_duration">Advanced • %1$s</string>
+    <string name="grace_custom_selected_duration">Selected: %1$s</string>
 
     <string name="advanced_sync_behavior">Advanced sync behavior</string>
     <string name="advanced_sync_behavior_description">Control how supported sync apps run during sleep and wake transitions.</string>
@@ -97,6 +97,7 @@
     <string name="duration_5_minutes">5 min</string>
     <string name="duration_10_minutes">10 min</string>
     <string name="duration_30_minutes">30 min</string>
+    <string name="duration_1_hour">1 h</string>
     <string name="duration_seconds_compact">%1$ds</string>
 
     <string name="conditions">Conditions</string>
