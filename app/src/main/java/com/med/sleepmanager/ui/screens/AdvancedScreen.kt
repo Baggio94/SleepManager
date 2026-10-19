@@ -51,6 +51,19 @@ internal fun SleepGraceSelector(
         stringResource(R.string.duration_10_seconds) to 10000L,
         stringResource(R.string.custom) to null
     )
+    val customDurations = listOf(
+        stringResource(R.string.duration_1_minute) to 60_000L,
+        stringResource(R.string.duration_2_minutes) to 120_000L,
+        stringResource(R.string.duration_3_minutes) to 180_000L,
+        stringResource(R.string.duration_5_minutes) to 300_000L,
+        stringResource(R.string.duration_10_minutes) to 600_000L,
+        stringResource(R.string.duration_15_minutes) to 900_000L,
+        stringResource(R.string.duration_30_minutes) to 1_800_000L,
+        stringResource(R.string.duration_1_hour) to 3_600_000L
+    )
+    val selectedCustomDuration = customDurations
+        .firstOrNull { (_, duration) -> duration == customDelayMs }?.first
+        ?: stringResource(R.string.unknown)
     var showCustomPicker by remember { mutableStateOf(false) }
     var stagedCustomDelay by remember { mutableStateOf(customDelayMs) }
 
@@ -90,22 +103,16 @@ internal fun SleepGraceSelector(
             }
         }
         if (customDelayEnabled) {
-            TextButton(onClick = feedbackClick { stagedCustomDelay = customDelayMs; showCustomPicker = true }) {
-                Text(stringResource(R.string.advanced_with_duration, formatDuration(customDelayMs)))
-            }
+            Text(
+                text = stringResource(R.string.grace_custom_selected_duration, selectedCustomDuration),
+                modifier = Modifier.testTag("grace_custom_selected_duration"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 
     if (showCustomPicker) {
-        val durations = listOf(
-            stringResource(R.string.duration_1_minute) to 60_000L,
-            stringResource(R.string.duration_2_minutes) to 120_000L,
-            stringResource(R.string.duration_3_minutes) to 180_000L,
-            stringResource(R.string.duration_5_minutes) to 300_000L,
-            stringResource(R.string.duration_10_minutes) to 600_000L,
-            stringResource(R.string.duration_15_minutes) to 900_000L,
-            stringResource(R.string.duration_30_minutes) to 1_800_000L
-        )
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showCustomPicker = false },
             title = { Text(stringResource(R.string.use_custom_delay)) },
@@ -113,7 +120,7 @@ internal fun SleepGraceSelector(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(stringResource(R.string.custom_delay_description), style = MaterialTheme.typography.bodyMedium)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        durations.chunked(2).forEach { row ->
+                        customDurations.chunked(2).forEach { row ->
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 row.forEach { (label, duration) ->
                                     val selected = stagedCustomDelay == duration
