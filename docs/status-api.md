@@ -1,6 +1,6 @@
 # SleepManager read-only Status API v1
 
-Available in the upcoming SleepManager 0.7.3 touch beta; **not present in 0.7.2**.
+Available starting in SleepManager **0.7.3**; **not present in 0.7.2**.
 
 This public Android `ContentProvider` lets launchers such as slot. for KONKR
 display SleepManager's **configured enabled state** and **live foreground service
