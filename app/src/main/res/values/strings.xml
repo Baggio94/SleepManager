@@ -104,6 +104,8 @@
     <string name="battery_below_percent">Only when battery is below %1$d%%</string>
     <string name="ignore_battery_percentage">Ignore battery percentage</string>
     <string name="battery_level_chip">&lt; %1$d%%</string>
+    <string name="battery_threshold_decrease">Decrease battery threshold</string>
+    <string name="battery_threshold_increase">Increase battery threshold</string>
     <string name="not_charging">Not charging</string>
     <string name="only_when_unplugged">Only when the device is unplugged</string>
     <string name="ignore_charging_state">Ignore charging state</string>
