@@ -219,7 +219,7 @@ object AppPreferences {
     const val BATTERY_SAVER_OFF = "off"
 
     private val CUSTOM_DELAY_VALUES =
-        setOf(60_000L, 300_000L, 600_000L, 1_800_000L)
+        setOf(60_000L, 120_000L, 180_000L, 300_000L, 600_000L, 900_000L, 1_800_000L)
     private val BATTERY_SAVER_MODES =
         setOf(BATTERY_SAVER_IGNORE, BATTERY_SAVER_ON, BATTERY_SAVER_OFF)
 
