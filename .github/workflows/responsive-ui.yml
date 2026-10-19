@@ -12,6 +12,7 @@ on:
     branches:
       - main
       - "dev/**"
+      - "release/0.7.3-prep"
     paths:
       - "app/src/main/**"
       - "app/src/androidTest/**"
