@@ -96,7 +96,6 @@ import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.components.StatusCard
 import com.med.sleepmanager.ui.components.SyncthingTargetDialog
 import com.med.sleepmanager.ui.components.UpdateAvailableCard
-import com.med.sleepmanager.ui.controller.controllerNavigation
 import com.med.sleepmanager.ui.feedbackClick
 import com.med.sleepmanager.ui.iconRes
 import com.med.sleepmanager.ui.labelRes
@@ -226,14 +225,6 @@ private class IntegrationUiRow(
             advancedScrollTarget = target
             advancedScrollRequestId++
             currentSection = AppSection.ADVANCED
-        }
-
-        fun navigateSection(offset: Int) {
-            val sections = AppSection.entries
-            val currentIndex = sections.indexOf(currentSection)
-            val nextIndex =
-                (currentIndex + offset + sections.size) % sections.size
-            currentSection = sections[nextIndex]
         }
 
         val compactLayout = LocalConfiguration.current.screenWidthDp < 600
@@ -465,22 +456,6 @@ private class IntegrationUiRow(
         }
 
         ModalNavigationDrawer(
-            modifier =
-                Modifier.controllerNavigation(
-                    listState = currentListState,
-                    enabled = drawerState.isClosed,
-                    onPreviousSection = { navigateSection(-1) },
-                    onNextSection = { navigateSection(1) },
-                    onMenuRequested = {
-                        drawerScope.launch {
-                            if (drawerState.isClosed) {
-                                drawerState.open()
-                            } else {
-                                drawerState.close()
-                            }
-                        }
-                    }
-                ),
             drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet(modifier = Modifier.width(300.dp)) {

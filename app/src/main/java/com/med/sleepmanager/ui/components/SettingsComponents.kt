@@ -28,7 +28,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -41,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.med.sleepmanager.R
-import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import com.med.sleepmanager.ui.feedbackClick
 
 import kotlinx.coroutines.Dispatchers
@@ -103,12 +101,10 @@ internal fun SettingRow(
     val secondaryAlpha = if (enabled || !dimWhenDisabled) 1f else 0.6f
     val toggleContentDescription =
         stringResource(R.string.toggle_content_description, title)
-    var toggleFocused by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .controllerFocusHighlight(toggleFocused)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -175,8 +171,7 @@ internal fun SettingRow(
             onCheckedChange = feedbackChange(onCheckedChange),
             enabled = enabled,
             modifier = Modifier
-                .onFocusChanged { toggleFocused = it.isFocused }
-                .semantics {
+                                .semantics {
                     contentDescription = toggleContentDescription
                 }
         )
@@ -200,7 +195,6 @@ internal fun CompactIntegrationRow(
     val compact = LocalConfiguration.current.screenWidthDp < 600
     val toggleContentDescription =
         stringResource(R.string.toggle_content_description, title)
-    var toggleFocused by remember { mutableStateOf(false) }
 
     val iconContent: @Composable () -> Unit = {
         Surface(
@@ -305,8 +299,7 @@ internal fun CompactIntegrationRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .controllerFocusHighlight(toggleFocused)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(
@@ -323,8 +316,7 @@ internal fun CompactIntegrationRow(
                     onCheckedChange = feedbackChange(onCheckedChange),
                     enabled = enabled,
                     modifier = Modifier
-                        .onFocusChanged { toggleFocused = it.isFocused }
-                        .semantics {
+                                                .semantics {
                         contentDescription = toggleContentDescription
                     }
                 )
@@ -342,8 +334,7 @@ internal fun CompactIntegrationRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .controllerFocusHighlight(toggleFocused)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -361,8 +352,7 @@ internal fun CompactIntegrationRow(
                 onCheckedChange = feedbackChange(onCheckedChange),
                 enabled = enabled,
                 modifier = Modifier
-                        .onFocusChanged { toggleFocused = it.isFocused }
-                        .semantics {
+                                                .semantics {
                     contentDescription = toggleContentDescription
                 }
             )

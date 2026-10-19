@@ -25,7 +25,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -37,7 +36,6 @@ import com.med.sleepmanager.R
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
-import com.med.sleepmanager.ui.controller.controllerFocusHighlight
 import com.med.sleepmanager.ui.feedbackClick
 
 import kotlinx.coroutines.Dispatchers
@@ -459,12 +457,10 @@ internal fun AdvancedToggleRow(
 ) {
     val toggleContentDescription =
         stringResource(R.string.toggle_content_description, title)
-    var toggleFocused by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .controllerFocusHighlight(toggleFocused)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -494,7 +490,6 @@ internal fun AdvancedToggleRow(
             onCheckedChange = feedbackChange(onCheckedChange),
             enabled = enabled,
             modifier = Modifier
-                .onFocusChanged { toggleFocused = it.isFocused }
                 .semantics {
                     contentDescription = toggleContentDescription
                 }
