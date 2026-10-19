@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import com.med.sleepmanager.data.AppPreferences
 import com.med.sleepmanager.ui.screens.AdvancedSettingsPage
+import com.med.sleepmanager.ui.screens.SleepGraceSelector
 import com.med.sleepmanager.ui.theme.SleepManagerTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -129,5 +130,50 @@ class AdvancedSettingsComponentsTest {
 
         assertTrue(startPicked)
         assertTrue(endPicked)
+    }
+
+    @Test
+    fun gracePeriodLargeTouchTargets_customPickerConfirmsOrCancels() {
+        var graceMs by mutableStateOf(5_000L)
+        var customEnabled by mutableStateOf(false)
+        var customMs by mutableStateOf(60_000L)
+
+        composeRule.setContent {
+            SleepManagerTheme {
+                SleepGraceSelector(
+                    valueMs = graceMs,
+                    customDelayEnabled = customEnabled,
+                    customDelayMs = customMs,
+                    onChange = {
+                        customEnabled = false
+                        graceMs = it
+                    },
+                    onCustomDelaySelected = {
+                        customMs = it
+                        customEnabled = true
+                        graceMs = 0L
+                    }
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("grace_option_5000").assertIsSelected()
+        composeRule.onNodeWithTag("grace_option_custom").performClick()
+        composeRule.onNodeWithTag("custom_delay_option_120000").performClick()
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(60_000L, customMs)
+        assertEquals(false, customEnabled)
+
+        composeRule.onNodeWithTag("grace_option_custom").performClick()
+        composeRule.onNodeWithTag("custom_delay_option_120000").performClick()
+        composeRule.onNodeWithText("Done").performClick()
+        assertEquals(120_000L, customMs)
+        assertTrue(customEnabled)
+        composeRule.onNodeWithTag("grace_option_custom").assertIsSelected()
+
+        composeRule.onNodeWithTag("grace_option_10000").performClick()
+        assertEquals(10_000L, graceMs)
+        assertEquals(false, customEnabled)
+        composeRule.onNodeWithTag("grace_option_10000").assertIsSelected()
     }
 }
