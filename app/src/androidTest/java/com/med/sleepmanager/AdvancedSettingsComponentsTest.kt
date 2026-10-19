@@ -32,8 +32,6 @@ class AdvancedSettingsComponentsTest {
     fun everyAdvancedControl_invokesItsExpectedCallback() {
         var periodic by mutableStateOf(false)
         var syncThenStop by mutableStateOf(false)
-        var customDelayEnabled by mutableStateOf(false)
-        var customDelayMs by mutableStateOf(60_000L)
         var batteryCondition by mutableStateOf(false)
         var batteryBelow by mutableStateOf(30)
         var notCharging by mutableStateOf(false)
@@ -53,8 +51,6 @@ class AdvancedSettingsComponentsTest {
                         syncConditionsAvailable = true,
                         onPeriodicSyncWhileSleepingChange = { periodic = it },
                         onSyncThenStopOnSleepWakeChange = { syncThenStop = it },
-                        customDelayEnabled = customDelayEnabled,
-                        customDelayMs = customDelayMs,
                         batteryConditionEnabled = batteryCondition,
                         batteryBelowPercent = batteryBelow,
                         notChargingOnly = notCharging,
@@ -62,10 +58,6 @@ class AdvancedSettingsComponentsTest {
                         scheduleEnabled = scheduleEnabled,
                         scheduleStartMinutes = 23 * 60,
                         scheduleEndMinutes = 7 * 60,
-                        onCustomDelayEnabledChange = {
-                            customDelayEnabled = it
-                        },
-                        onCustomDelayChange = { customDelayMs = it },
                         onBatteryConditionEnabledChange = {
                             batteryCondition = it
                         },
@@ -94,27 +86,15 @@ class AdvancedSettingsComponentsTest {
         ).performScrollTo().performClick()
         assertTrue(syncThenStop)
 
-        composeRule.onNodeWithContentDescription("Use custom delay toggle")
-            .performScrollTo().performClick()
-        assertTrue(customDelayEnabled)
-
-        composeRule.onNodeWithTag("custom_delay_option_1800000")
-            .performScrollTo()
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            customDelayMs == 1_800_000L
-        }
-        assertEquals(1_800_000L, customDelayMs)
-        composeRule.onNodeWithTag("custom_delay_option_1800000")
-            .assertIsSelected()
-
         composeRule.onNodeWithContentDescription("Battery level toggle")
             .performScrollTo().performClick()
         assertTrue(batteryCondition)
 
-        composeRule.onNodeWithText("< 60%")
-            .performScrollTo()
-            .performSemanticsAction(SemanticsActions.OnClick)
+        repeat(3) {
+            composeRule.onNodeWithTag("battery_threshold_increase")
+                .performScrollTo()
+                .performClick()
+        }
         composeRule.waitUntil(timeoutMillis = 5_000) {
             batteryBelow == 60
         }
