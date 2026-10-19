@@ -1,6 +1,5 @@
 package com.med.sleepmanager.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -37,9 +35,6 @@ import com.med.sleepmanager.ui.components.SectionTitle
 import com.med.sleepmanager.ui.components.SettingsCard
 import com.med.sleepmanager.ui.feedbackClick
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.med.sleepmanager.ui.feedbackChange
 
 @Composable
@@ -238,6 +233,8 @@ internal fun AdvancedSettingsPage(
             )
 
             if (batteryConditionEnabled) {
+                val decreaseDescription = stringResource(R.string.battery_threshold_decrease)
+                val increaseDescription = stringResource(R.string.battery_threshold_increase)
                 Column(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -251,7 +248,7 @@ internal fun AdvancedSettingsPage(
                             onClick = feedbackClick { onBatteryBelowPercentChange((batteryBelowPercent - 10).coerceAtLeast(20)) },
                             enabled = batteryBelowPercent > 20,
                             modifier = Modifier.heightIn(min = 48.dp).testTag("battery_threshold_decrease")
-                                .semantics { contentDescription = "Decrease battery threshold" }
+                                .semantics { contentDescription = decreaseDescription }
                         ) { Text("−") }
                         Text(
                             stringResource(R.string.battery_level_chip, batteryBelowPercent),
@@ -263,7 +260,7 @@ internal fun AdvancedSettingsPage(
                             onClick = feedbackClick { onBatteryBelowPercentChange((batteryBelowPercent + 10).coerceAtMost(60)) },
                             enabled = batteryBelowPercent < 60,
                             modifier = Modifier.heightIn(min = 48.dp).testTag("battery_threshold_increase")
-                                .semantics { contentDescription = "Increase battery threshold" }
+                                .semantics { contentDescription = increaseDescription }
                         ) { Text("+") }
                     }
                 }
