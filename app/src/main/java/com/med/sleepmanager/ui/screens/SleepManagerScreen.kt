@@ -1556,7 +1556,8 @@ private class IntegrationUiRow(
                     AppSection.ACTIVITY_LOG -> {
                         item {
                             ActivityLogPage(
-                                context = context
+                                context = context,
+                                refreshToken = refreshToken
                             )
                         }
                     }
