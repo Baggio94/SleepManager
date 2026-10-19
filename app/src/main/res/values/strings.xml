@@ -70,7 +70,7 @@
     <string name="duration_5_seconds">5 s</string>
     <string name="duration_10_seconds">10 s</string>
     <string name="grace_period">Grace period</string>
-    <string name="grace_period_custom_delay_active">Using custom delay from Advanced settings.</string>
+    <string name="grace_period_custom_delay_active">Custom delay is active. Tap Custom to change its duration.</string>
     <string name="grace_period_description">Wait before applying sleep actions. If the device wakes during this period, no changes are applied.</string>
     <string name="custom">Custom</string>
     <string name="advanced_with_duration">Advanced • %1$s</string>
@@ -90,6 +90,9 @@
     <string name="custom_delay_description">Choose a longer delay before sleep actions than the standard Grace period options.</string>
     <string name="delay_before_sleep_actions">Delay before sleep actions</string>
     <string name="duration_1_minute">1 min</string>
+    <string name="duration_2_minutes">2 min</string>
+    <string name="duration_3_minutes">3 min</string>
+    <string name="duration_15_minutes">15 min</string>
     <string name="duration_5_minutes">5 min</string>
     <string name="duration_10_minutes">10 min</string>
     <string name="duration_30_minutes">30 min</string>
