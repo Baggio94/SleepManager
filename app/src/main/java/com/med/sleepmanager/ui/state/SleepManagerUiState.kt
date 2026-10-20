@@ -1,6 +1,7 @@
 package com.med.sleepmanager.ui.state
 
 import com.med.sleepmanager.device.BackgroundReliability
+import com.med.sleepmanager.data.BatterySleepStore
 import com.med.sleepmanager.device.DeviceControlController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.SyncthingController
@@ -8,6 +9,10 @@ import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatus
 
 internal data class SleepManagerUiState(
     val activityRefreshToken: Int = 0,
+    val metadataRefreshToken: Int = 0,
+    val activityLogRefreshToken: Int = 0,
+    val liveBatteryDashboard: BatterySleepStore.Dashboard? = null,
+    val liveBatteryStats: BatterySleepStore.Stats? = null,
     val managerEnabled: Boolean = false,
     val manageWifiEnabled: Boolean = false,
     val manageBluetoothEnabled: Boolean = false,

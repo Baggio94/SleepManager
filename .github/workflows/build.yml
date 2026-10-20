@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      # Signed, non-published development builds for the 0.7.4 preview.
+      - dev/0.7.4-ui-refresh
     tags:
       - "v*"
 
