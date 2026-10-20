@@ -34,6 +34,13 @@ Recent compatible **AYN and Retroid** handhelds can control Wi-Fi and Bluetooth 
 
 Depending on the features you use, Android may ask for additional permissions. See [Permissions](#permissions) for details.
 
+> [!WARNING]
+> **AYANEO / KONKR devices — disable DuraSpeed.**
+>
+> On devices with **DuraSpeed**, turn it **OFF** in Android Settings. DuraSpeed may restrict SleepManager, its Compatibility Helper and sync integrations in the background, preventing Wi-Fi/Bluetooth restoration after long standby.
+>
+> **Battery usage → Unrestricted is not enough:** DuraSpeed must be disabled separately. This resolved overnight restoration failures on a KONKR Pocket Advance.
+
 > **Note:** The Helper has no launcher icon or separate interface.
 
 ## System Controls
@@ -50,8 +57,8 @@ SleepManager tracks ownership of these changes so it does not overwrite a state 
 
 SleepManager can delay sleep actions after the screen turns off, which helps avoid unnecessary state changes during very short screen-off periods.
 
-- **Grace Period** — choose Immediate, 5 s or 10 s before SleepManager starts the configured sleep actions.
-- **Custom Delay** — choose a longer delay of 1, 5, 10 or 30 minutes from Advanced settings.
+- **Grace Period** — choose Immediate, 5 s, 10 s or Custom on Home before SleepManager starts configured sleep actions.
+- **Custom** — choose 1, 2, 3, 5, 10, 15 or 30 minutes, or 1 hour, in the Home Grace Period dialog.
 
 If the device wakes before the delay finishes, the pending sleep actions are cancelled.
 
@@ -136,7 +143,7 @@ SleepManager can apply additional conditions before running the configured sleep
 
 All enabled conditions use **AND logic**: every enabled condition must be true for the sleep automation to run.
 
-- **Custom Delay** — choose a longer delay before sleep actions start: 1, 5, 10 or 30 minutes.
+- **Grace Period Custom** — configure a longer Home delay before sleep actions start (1, 2, 3, 5, 10, 15, 30 minutes or 1 hour).
 - **Battery Level** — run sleep actions only when the battery is below the selected threshold.
 - **Not Charging** — run sleep actions only when the device is unplugged.
 - **Battery Saver** — run sleep actions only when Android Battery Saver is ON or OFF, or ignore its state.
@@ -182,6 +189,10 @@ Use **Copy log** to generate a detailed diagnostic report that includes:
 
 The diagnostic report is designed to make troubleshooting and bug reports easier without requiring ADB.
 
+## Read-only Status API
+
+Starting in SleepManager 0.7.3, launchers can read the user's enabled setting and the foreground service lifecycle using `content://com.med.sleepmanager.status`. This is a versioned, read-only API, without control commands or private diagnostics. See [Status API v1](docs/status-api.md).
+
 ## Updates
 
 SleepManager includes a built-in updater for both the main app and the optional Helper.
@@ -221,6 +232,8 @@ On devices that need it, the **SleepManager Compatibility Helper** handles Wi-Fi
 ## Troubleshooting
 
 ### Wi-Fi or Bluetooth Does Not Change
+
+On **AYANEO / KONKR devices that have DuraSpeed**, switch **DuraSpeed OFF** in Android Settings first. DuraSpeed may interfere with background sleep/wake restoration even when the app's Android battery setting says **Unrestricted**.
 
 SleepManager uses direct radio control automatically on supported recent AYN and Retroid devices.
 
