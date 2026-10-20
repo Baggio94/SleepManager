@@ -166,8 +166,8 @@ jobs:
     if: >-
       github.repository == 'Baggio94/SleepManager' &&
       github.event_name == 'push' &&
-      ((github.ref_type == 'tag' && !contains(github.ref_name, '-')) ||
-       (github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Release ')))
+      github.ref_type == 'tag' &&
+      !contains(github.ref_name, '-')
     uses: ./.github/workflows/responsive-ui.yml
     with:
       release-validation: true

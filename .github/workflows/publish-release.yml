@@ -56,18 +56,42 @@ jobs:
             --stable \
             --github-env "$GITHUB_ENV"
 
-      - name: Verify release tag
+      - name: Require matching GitHub-verified signed release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ]; then
+
+          [ "$GITHUB_REF_TYPE" = "tag" ] || {
+            echo "::error::Stable publication requires a pushed release tag."
+            exit 1
+          }
+          [ "$GITHUB_REF_NAME" = "$RELEASE_TAG" ] || {
             echo "::error::Tag $GITHUB_REF_NAME does not match $RELEASE_TAG."
             exit 1
-          fi
-          TAG_COMMIT=$(git rev-parse -q --verify "refs/tags/$RELEASE_TAG^{commit}" || true)
-          if [ -n "$TAG_COMMIT" ] && [ "$TAG_COMMIT" != "$SOURCE_COMMIT" ]; then
-            echo "::error::Existing release tag points to a different commit."
+          }
+
+          TAG_REFERENCE=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")
+          TAG_OBJECT_TYPE=$(printf '%s' "$TAG_REFERENCE" | jq -r '.object.type')
+          TAG_OBJECT_SHA=$(printf '%s' "$TAG_REFERENCE" | jq -r '.object.sha')
+          [ "$TAG_OBJECT_TYPE" = "tag" ] || {
+            echo "::error::Stable tag must be a signed annotated tag (not a lightweight tag)."
             exit 1
-          fi
+          }
+
+          TAG_OBJECT=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$TAG_OBJECT_SHA")
+          TAG_VERIFIED=$(printf '%s' "$TAG_OBJECT" | jq -r '.verification.verified')
+          TAG_COMMIT=$(printf '%s' "$TAG_OBJECT" | jq -r '.object.sha')
+          TAG_TARGET_TYPE=$(printf '%s' "$TAG_OBJECT" | jq -r '.object.type')
+          [ "$TAG_VERIFIED" = "true" ] || {
+            echo "::error::GitHub has not verified the release tag signature."
+            exit 1
+          }
+          [ "$TAG_TARGET_TYPE" = "commit" ] && [ "$TAG_COMMIT" = "$SOURCE_COMMIT" ] || {
+            echo "::error::Signed release tag does not point to the verified build commit."
+            exit 1
+          }
+          echo "GitHub-verified signed tag $RELEASE_TAG -> $SOURCE_COMMIT"
 
       - name: Publish the validated files
         env:
@@ -92,6 +116,7 @@ jobs:
             "dist/build-manifest.json" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_COMMIT" \
+            --verify-tag \
             --title "SleepManager $VERSION_NAME" \
             --notes-file RELEASE_NOTES.md \
             --draft
