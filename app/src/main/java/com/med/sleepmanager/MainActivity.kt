@@ -130,6 +130,12 @@ class MainActivity : ComponentActivity() {
             uiViewModel.update { it.copy(manageJamesDspEnabled = value) }
         }
 
+    internal var manageKeyMapperEnabledState: Boolean
+        get() = uiState.manageKeyMapperEnabled
+        set(value) {
+            uiViewModel.update { it.copy(manageKeyMapperEnabled = value) }
+        }
+
     internal var manageBasicSyncEnabledState: Boolean
         get() = uiState.manageBasicSyncEnabled
         set(value) {
@@ -592,6 +598,7 @@ class MainActivity : ComponentActivity() {
         manageSyncthingEnabledState = AppPreferences.manageSyncthing(this)
         manageTailscaleEnabledState = AppPreferences.manageTailscale(this)
         manageJamesDspEnabledState = AppPreferences.manageJamesDsp(this)
+        manageKeyMapperEnabledState = AppPreferences.manageKeyMapper(this)
         manageBasicSyncEnabledState = AppPreferences.manageBasicSync(this)
         manageRaOfflineProxyEnabledState =
             AppPreferences.manageRaOfflineProxy(this)
@@ -713,6 +720,13 @@ class MainActivity : ComponentActivity() {
                     onManageJamesDspChange = { enabled ->
                         AppPreferences.setManageJamesDsp(this@MainActivity, enabled)
                         manageJamesDspEnabledState = enabled
+                    },
+                    onManageKeyMapperChange = { enabled ->
+                        AppPreferences.setManageKeyMapper(this@MainActivity, enabled)
+                        manageKeyMapperEnabledState = enabled
+                        if (!enabled && managerEnabledState) {
+                            refreshRunningService()
+                        }
                     },
                     onManageBasicSyncChange = { enabled ->
                         if (

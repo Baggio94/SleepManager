@@ -1045,6 +1045,7 @@ class SleepManagerService : Service() {
         if (!keyMapperStateReceiverRegistered) registerKeyMapperStateReceiver()
         refreshBasicSyncObserver()
         maybeRestoreOwnedBasicSyncState()
+        if (isRealWakeNow()) restorePendingKeyMapper()
         refreshLidMonitor()
 
         if (!initialScreenStateApplied) {

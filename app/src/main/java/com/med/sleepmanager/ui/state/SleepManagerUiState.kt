@@ -16,6 +16,7 @@ internal data class SleepManagerUiState(
     val manageSyncthingEnabled: Boolean = false,
     val manageTailscaleEnabled: Boolean = false,
     val manageJamesDspEnabled: Boolean = false,
+    val manageKeyMapperEnabled: Boolean = false,
     val manageBasicSyncEnabled: Boolean = false,
     val manageRaOfflineProxyEnabled: Boolean = false,
     val closedLidProtectionEnabled: Boolean = false,

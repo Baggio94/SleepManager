@@ -72,6 +72,8 @@ import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
 import com.med.sleepmanager.integration.connector.SyncthingConnector
 import com.med.sleepmanager.integration.HelperController
 import com.med.sleepmanager.integration.JamesDspController
+import com.med.sleepmanager.integration.KeyMapperController
+import com.med.sleepmanager.integration.KeyMapperMappingsState
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.protection.LidMonitor
@@ -135,6 +137,7 @@ private class IntegrationUiRow(
         onManageSyncthingChange: (Boolean) -> Unit,
         onManageTailscaleChange: (Boolean) -> Unit,
         onManageJamesDspChange: (Boolean) -> Unit,
+        onManageKeyMapperChange: (Boolean) -> Unit,
         onManageBasicSyncChange: (Boolean) -> Unit,
         onManageRaOfflineProxyChange: (Boolean) -> Unit,
         onPeriodicSyncWhileSleepingChange: (Boolean) -> Unit,
@@ -226,6 +229,7 @@ private class IntegrationUiRow(
         val syncthingEnabled = uiState.manageSyncthingEnabled
         val tailscaleEnabled = uiState.manageTailscaleEnabled
         val jamesDspEnabled = uiState.manageJamesDspEnabled
+        val keyMapperEnabled = uiState.manageKeyMapperEnabled
         val basicSyncEnabled = uiState.manageBasicSyncEnabled
         val raOfflineProxyEnabled =
             uiState.manageRaOfflineProxyEnabled
@@ -311,6 +315,18 @@ private class IntegrationUiRow(
         }
         val jamesDspTarget = remember(refreshToken) {
             JamesDspController.selectedTarget(context)
+        }
+        val keyMapperInstalled = remember(refreshToken) {
+            KeyMapperController.isInstalled(context)
+        }
+        val keyMapperVersion = remember(refreshToken) {
+            KeyMapperController.versionName(context)
+        }
+        val keyMapperCompatible = remember(refreshToken) {
+            KeyMapperController.isCompatible(context)
+        }
+        val keyMapperState = remember(refreshToken) {
+            KeyMapperController.currentState(context)
         }
         val basicSyncInstalled = remember(refreshToken) {
             BasicSyncController.isInstalled(context)
@@ -1163,6 +1179,34 @@ private class IntegrationUiRow(
                                             }
                                         },
                                         onOpen = { JamesDspController.open(context) }
+                                    )
+                                },
+                                IntegrationUiRow(
+                                    installed = keyMapperInstalled,
+                                    icon = R.drawable.ic_key_mapper,
+                                    title = stringResource(R.string.integration_keymapper)
+                                ) {
+                                    CompactIntegrationRow(
+                                        icon = R.drawable.ic_key_mapper,
+                                        title = stringResource(R.string.integration_keymapper),
+                                        version = keyMapperVersion
+                                            ?: stringResource(R.string.installed),
+                                        status = if (!keyMapperCompatible) {
+                                            stringResource(R.string.integration_keymapper_requires_47)
+                                        } else {
+                                            when (keyMapperState) {
+                                                KeyMapperMappingsState.ACTIVE ->
+                                                    stringResource(R.string.integration_keymapper_active)
+                                                KeyMapperMappingsState.PAUSED ->
+                                                    stringResource(R.string.integration_keymapper_paused)
+                                                KeyMapperMappingsState.UNKNOWN ->
+                                                    stringResource(R.string.integration_keymapper_unknown)
+                                            }
+                                        },
+                                        checked = keyMapperEnabled && keyMapperCompatible,
+                                        enabled = keyMapperCompatible,
+                                        onCheckedChange = { onManageKeyMapperChange(it) },
+                                        onOpen = { KeyMapperController.open(context) }
                                     )
                                 },
                                 IntegrationUiRow(
