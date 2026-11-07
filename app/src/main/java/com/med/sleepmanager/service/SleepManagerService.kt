@@ -42,6 +42,8 @@ import com.med.sleepmanager.device.RadioBackend
 import com.med.sleepmanager.device.RadioController
 import com.med.sleepmanager.integration.BasicSyncController
 import com.med.sleepmanager.integration.HelperController
+import com.med.sleepmanager.integration.KeyMapperController
+import com.med.sleepmanager.integration.KeyMapperStateReceiver
 import com.med.sleepmanager.integration.SyncthingController
 import com.med.sleepmanager.integration.TailscaleController
 import com.med.sleepmanager.integration.RaOfflineProxyController
@@ -141,6 +143,8 @@ class SleepManagerService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var receiverRegistered = false
     private var helperResultReceiverRegistered = false
+    private var keyMapperStateReceiverRegistered = false
+    private val keyMapperStateReceiver = KeyMapperStateReceiver()
 
     private val helperWakeResultState = HelperWakeResultState()
     private var syncthingSleepSummaryState =
@@ -772,6 +776,7 @@ class SleepManagerService : Service() {
         startForegroundCompat()
         registerScreenReceiver()
         registerHelperResultReceiver()
+        registerKeyMapperStateReceiver()
         refreshBasicSyncObserver()
         maybeRestoreOwnedBasicSyncState()
         maybeRestoreDisabledRaOfflineProxyState()
@@ -1037,6 +1042,7 @@ class SleepManagerService : Service() {
 
         if (!receiverRegistered) registerScreenReceiver()
         if (!helperResultReceiverRegistered) registerHelperResultReceiver()
+        if (!keyMapperStateReceiverRegistered) registerKeyMapperStateReceiver()
         refreshBasicSyncObserver()
         maybeRestoreOwnedBasicSyncState()
         refreshLidMonitor()
@@ -1212,6 +1218,7 @@ class SleepManagerService : Service() {
         maybeRestoreOwnedBasicSyncState()
         prepareTailscaleVerificationForWake()
         restorePendingJamesDsp()
+        restorePendingKeyMapper()
         restorePendingBasicSync()
         restorePendingRaOfflineProxyImmediately()
 
@@ -1864,6 +1871,9 @@ class SleepManagerService : Service() {
         val jamesDsp =
             AppPreferences.manageJamesDsp(this) &&
                 JamesDspConnector.isInstalled(this)
+        val keyMapper =
+            AppPreferences.manageKeyMapper(this) &&
+                KeyMapperController.isCompatible(this)
         val basicSync =
             AppPreferences.manageBasicSync(this) &&
                 BasicSyncConnector.isInstalled(this)
@@ -1948,6 +1958,25 @@ class SleepManagerService : Service() {
                 TailscaleConnector.id,
                 TailscaleConnector.TOKEN_VERIFY_DISCONNECT
             )
+        }
+
+        if (keyMapper) {
+            when (KeyMapperController.pauseIfActive(this)) {
+                KeyMapperController.PauseOutcome.SENT -> {
+                    SleepCycleStore.recordConnectorChange(
+                        this,
+                        KeyMapperController.CONNECTOR_ID,
+                        KeyMapperController.TOKEN_RESUME
+                    )
+                    DiagnosticsStateStore.recordEvent(this, "Sleep → Key Mapper pause requested")
+                }
+                KeyMapperController.PauseOutcome.ALREADY_PAUSED ->
+                    DiagnosticsStateStore.recordEvent(this, "Sleep → Key Mapper already paused")
+                KeyMapperController.PauseOutcome.UNKNOWN ->
+                    DiagnosticsStateStore.recordEvent(this, "Sleep → Key Mapper state unknown; unchanged")
+                KeyMapperController.PauseOutcome.FAILED ->
+                    DiagnosticsStateStore.recordEvent(this, "Sleep → Key Mapper pause failed")
+            }
         }
 
         val jamesDspResult = if (jamesDsp) {
@@ -3093,6 +3122,23 @@ class SleepManagerService : Service() {
         tailscaleVerificationState.reset()
     }
 
+    private fun restorePendingKeyMapper() {
+        val change =
+            SleepCycleStore.connectorChange(this, KeyMapperController.CONNECTOR_ID)
+                ?: return
+        val restored = KeyMapperController.resumeIfOwned(this, change.restoreToken)
+        if (restored) {
+            SleepCycleStore.clearConnectorChange(this, KeyMapperController.CONNECTOR_ID)
+            DiagnosticsStateStore.recordEvent(this, "Wake → Key Mapper state restored")
+        } else {
+            SleepCycleStore.markRestoreProblem(
+                this,
+                "Key Mapper resume is still pending."
+            )
+            DiagnosticsStateStore.recordEvent(this, "Wake → Key Mapper resume pending")
+        }
+    }
+
     private fun restorePendingJamesDsp() {
         val change =
             SleepCycleStore.connectorChange(this, JamesDspConnector.id)
@@ -3646,6 +3692,7 @@ class SleepManagerService : Service() {
         }
 
         restorePendingJamesDsp()
+        restorePendingKeyMapper()
         restorePendingRaOfflineProxyImmediately()
 
         if (wakeTransitionSyncState.isPending) {
@@ -4533,6 +4580,17 @@ class SleepManagerService : Service() {
         receiverRegistered = true
     }
 
+    private fun registerKeyMapperStateReceiver() {
+        if (keyMapperStateReceiverRegistered) return
+        ContextCompat.registerReceiver(
+            this,
+            keyMapperStateReceiver,
+            IntentFilter(KeyMapperController.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_EXPORTED
+        )
+        keyMapperStateReceiverRegistered = true
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             val channel = NotificationChannel(
@@ -4704,6 +4762,14 @@ class SleepManagerService : Service() {
             } catch (_: IllegalArgumentException) {
             }
             receiverRegistered = false
+        }
+
+        if (keyMapperStateReceiverRegistered) {
+            try {
+                unregisterReceiver(keyMapperStateReceiver)
+            } catch (_: IllegalArgumentException) {
+            }
+            keyMapperStateReceiverRegistered = false
         }
 
         if (helperResultReceiverRegistered) {
