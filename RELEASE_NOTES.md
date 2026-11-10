@@ -18,7 +18,7 @@ SleepManager 0.8.0 adds **state-aware Key Mapper integration** and makes the **H
 SleepManager can now manage **Key Mapper mappings** as part of a normal sleep/wake cycle.
 
 - **Pause on sleep:** when mappings are running, SleepManager requests a pause when its sleep actions begin.
-- **Resume on real wake:** SleepManager requests a resume only when it was responsible for pausing those mappings.
+- **Resume on wake:** SleepManager requests a resume only when it was responsible for pausing those mappings.
 - **Respect manual pauses:** mappings already paused before sleep are left untouched, including after wake.
 - **Safe when the state is unknown:** SleepManager does not send a blind pause request before receiving Key Mapper's state.
 - **Optional and off by default:** enable Key Mapper in **App Integrations**. Key Mapper's accessibility service and saved mappings are not modified.
@@ -27,15 +27,7 @@ Requires **Key Mapper 4.7.0 or newer**, which exposes the mapping-state API used
 
 ### Smoother Home Screen
 
-The Home screen now reads and compares live status information **off the main UI thread**. Only sections with changed information are refreshed, reducing unnecessary redraws and improving responsiveness while scrolling.
-
-- Keeps the existing 3-second foreground live-status refresh.
-- Refreshes integration status, battery information and the Activity log when their values change.
-- Preserves immediate updates after user actions and normal sleep/wake service behavior.
-
-### Tested on AYN Thor
-
-SleepManager 0.7.4-beta1 was tested on an AYN Thor with Key Mapper 4.7.0-foss. Key Mapper's own status showed **Running → Paused → Running** across a real sleep/wake cycle. The existing Syncthing-Fork STOP/FOLLOW sleep/wake sequence was also observed.
+Home screen updates now run in the background and refresh only what has changed. This makes scrolling smoother while keeping battery, integration and Activity information up to date.
 
 ## Compatibility
 

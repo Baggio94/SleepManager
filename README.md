@@ -136,7 +136,7 @@ Unlike the other state-aware integrations, JamesDSP does not currently expose a 
 
 ### Key Mapper
 
-With **Key Mapper 4.7.0 or newer**, SleepManager can pause active key mappings during sleep and resume them on a real wake.
+With **Key Mapper 4.7.0 or newer**, SleepManager can pause active key mappings during sleep and resume them on wake.
 
 - Install or update Key Mapper, then enable **Key Mapper** under **App Integrations** in SleepManager. The integration is **off by default**.
 - SleepManager uses Key Mapper's mapping-state broadcasts to check whether mappings are **Running** or **Paused** before taking action.

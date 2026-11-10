@@ -1207,7 +1207,9 @@ private class IntegrationUiRow(
                                         checked = keyMapperEnabled && keyMapperCompatible,
                                         enabled = keyMapperCompatible,
                                         onCheckedChange = { onManageKeyMapperChange(it) },
-                                        onOpen = { KeyMapperController.open(context) }
+                                        onOpen = { KeyMapperController.open(context) },
+                                        statusActive = keyMapperCompatible &&
+                                            keyMapperState == KeyMapperMappingsState.ACTIVE
                                     )
                                 },
                                 IntegrationUiRow(
