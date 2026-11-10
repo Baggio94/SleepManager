@@ -1,37 +1,32 @@
-# Key Mapper integration (experimental)
+# Key Mapper integration
 
-Optional, disabled-by-default integration for Key Mapper **4.7.0+**.
-Source: https://github.com/keymapperorg/KeyMapper/issues/2279
+SleepManager supports optional **Key Mapper 4.7.0+** mapping control. This integration is off by default.
 
-## Protocol
-- Observe `io.github.sds100.keymapper.ACTION_MAPPINGS_STATE_CHANGED`
-  with boolean extra `io.github.sds100.keymapper.EXTRA_MAPPINGS_PAUSED`.
-- The broadcast is sent when mappings change, Key Mapper starts, or its
-  accessibility service starts.
-- Send `ACTION_PAUSE_MAPPINGS` and `ACTION_RESUME_MAPPINGS` explicitly to
-  `io.github.sds100.keymapper.api.PauseMappingsBroadcastReceiver`.
+## Setup
+1. Install Key Mapper **4.7.0 or newer** and enable its accessibility service.
+2. Open Key Mapper at least once so it reports whether mappings are active or paused.
+3. Enable **Key Mapper** under SleepManager's **App Integrations**.
 
-## Safety
-- SleepManager never pauses unknown or already-paused mappings.
-- Only when the last observed state was active and a pause request is sent does
-  SleepManager create a per-cycle restore token.
-- On real wake or manager disable, only an owned pause is restored.
-  If Key Mapper reports ACTIVE already, no resume request is made.
-- Observations are scoped to the current Android boot count.
-- If SleepManager missed the initial state broadcast, open/restart Key Mapper
-  to synchronize. SleepManager leaves mappings unchanged meanwhile.
-- Broadcast commands have no delivery acknowledgement; pending ownership is
-  a record of a request, not guaranteed confirmation of the target's state.
-- Does not disable the accessibility service, terminate Key Mapper or change
-  stored mappings.
+## Sleep and wake
+- When mappings are active at sleep, SleepManager sends a pause request.
+- On wake, SleepManager requests a resume only if it previously requested that pause.
+- Mappings that were already paused remain paused after wake.
+- When the mapping state is unknown, SleepManager leaves it unchanged instead of sending a blind pause request.
+- These controls never stop Key Mapper's process, disable its accessibility service or remove mappings.
 
-## Manual beta test plan
-1. With Key Mapper 4.6.x, the integration toggle must be disabled.
-2. With 4.7+, observe active state; opt in, sleep and wake.
-3. Manually pause before sleep and confirm mappings stay paused after wake.
-4. Test initial state unknown and after a reboot: no blind pause.
-5. Disable SleepManager mid-cycle, verify owned mappings are restored.
-6. Restart either app mid-cycle; check recovery and state notifications.
-7. Verify other connectors and Wi-Fi/Bluetooth/Helper are unchanged.
+## State protocol
+Key Mapper announces its current mapping state when it changes, its process starts or the accessibility service starts:
 
-Keep the PR in Draft until tested with a Key Mapper 4.7 build on a device.
+- Action: `io.github.sds100.keymapper.ACTION_MAPPINGS_STATE_CHANGED`
+- Boolean extra: `io.github.sds100.keymapper.EXTRA_MAPPINGS_PAUSED`
+
+SleepManager sends explicit `ACTION_PAUSE_MAPPINGS` and `ACTION_RESUME_MAPPINGS` requests to Key Mapper's public `PauseMappingsBroadcastReceiver`.
+
+Mapping-state observations are valid only for the current Android boot. SleepManager records when it owns a pause request and preserves that restore ownership through service recovery. An outgoing request does not itself confirm successful delivery.
+
+## Troubleshooting
+If the integration displays **State unknown**, open Key Mapper again to trigger a fresh mapping-state announcement. Verify the accessibility service is enabled and Key Mapper is version 4.7.0 or newer.
+
+Use SleepManager's **Activity log** to inspect pause and restore requests. Confirm actual state changes using Key Mapper's own **Running / Paused** status.
+
+Protocol reference: https://github.com/keymapperorg/KeyMapper/issues/2279
