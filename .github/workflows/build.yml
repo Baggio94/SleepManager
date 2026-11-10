@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      # Signed, non-published development builds for the 0.7.4 combined preview.
+      - dev/0.7.4-combined-beta
     tags:
       - "v*"
 
