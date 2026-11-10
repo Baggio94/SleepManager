@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.0 — 2026-11-10
+
+### Key Mapper integration
+- Added optional **Key Mapper 4.7.0+** state-aware mappings control, off by default.
+- Pauses mappings only when they were observed active before the sleep transaction.
+- Resumes only mappings that SleepManager requested to pause; respects manually paused mappings.
+- Unknown initial state is left unchanged; does not stop Key Mapper or its accessibility service.
+- Added mapping status and restore ownership to App Integrations / diagnostics.
+
+### Home UI responsiveness
+- Moved periodic Home live-status reads and change comparison off the UI thread.
+- Invalidates only affected Compose state for metadata, dashboard, stats and Activity log.
+- Retains the 3-second foreground cadence, immediate action refresh and lifecycle safeguards.
+- Added JVM tests for the change-detection policy and Key Mapper behavior.
+
+### Compatibility and validation
+- Main app: **0.8.0 / versionCode 570**.
+- Helper remains **1.1.7 / versionCode 1121**.
+- Key Mapper **4.7.0+** is required for the new integration.
+- Normal mappings pause/resume and Syncthing-Fork STOP/FOLLOW were observed on AYN Thor.
+- Existing signing identity and Android 9+ minimum remain unchanged.
+
+---
+
 ## 0.7.3
 
 ### Touch-first interface

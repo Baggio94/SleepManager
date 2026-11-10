@@ -5,8 +5,9 @@ on:
   push:
     branches:
       - main
-      # Signed, non-published development builds for the 0.7.4 combined preview.
-      - dev/0.7.4-combined-beta
+      # Signed, non-published validation builds for the 0.8.0 release candidate.
+      # Remove this development trigger before merging the stable release.
+      - dev/0.8.0-release-candidate
     tags:
       - "v*"
 
