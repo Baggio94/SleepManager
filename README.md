@@ -118,7 +118,7 @@ For reliable background restart on Android 12+, set RAOfflineProxy **Battery usa
 
 **Settings → Apps → RAOfflineProxy → Battery usage → Unrestricted**
 
-RAOfflineProxy **v2.0.0-alpha1 or newer** is required for SleepManager integration.
+RAOfflineProxy **v2.0.0-alpha1 or newer** exposing Automation API v1, v2 or v3 is supported by SleepManager 0.8.1.
 
 ### Tailscale
 
