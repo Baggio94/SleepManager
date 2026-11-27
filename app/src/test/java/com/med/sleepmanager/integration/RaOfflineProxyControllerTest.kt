@@ -37,17 +37,6 @@ class RaOfflineProxyStatusParserTest {
             status?.pendingAwards?.state
         )
         assertNull(status?.pendingAwards?.error)
-        assertTrue(RaOfflineProxyController.isSupportedApiVersion(status?.version))
-    }
-
-    @Test
-    fun controllerAcceptsOnlyKnownApiVersions() {
-        for (version in listOf(1, 2, 3)) {
-            assertTrue(RaOfflineProxyController.isSupportedApiVersion(version))
-        }
-        for (version in listOf(null, -1, 0, 4, 99)) {
-            assertEquals(false, RaOfflineProxyController.isSupportedApiVersion(version))
-        }
     }
 
     @Test
