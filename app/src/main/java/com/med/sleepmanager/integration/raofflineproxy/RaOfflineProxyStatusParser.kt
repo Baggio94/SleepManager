@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /**
  * Pure status payload parser kept separate from the Android ContentProvider
- * adapter so API v1/v2 compatibility can be unit-tested on the JVM.
+ * adapter so API v1/v2/v3 compatibility can be unit-tested on the JVM.
  */
 object RaOfflineProxyStatusParser {
     fun parse(raw: String?): RaOfflineProxyStatus? {

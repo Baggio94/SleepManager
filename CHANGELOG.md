@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.1 — 2026-11-27
+
+### RAOfflineProxy compatibility
+- Added support for Automation API v3, including RAOfflineProxy 3.1.0-alpha1, while retaining API v1/v2 compatibility.
+- The additional `host` status field does not change sleep/wake control, queue protection or pending-award handling.
+- Unified the supported API version check used by the UI and sleep policy; unknown future versions remain rejected.
+- Added regression tests for API v3 status parsing, queue protection, stop ownership and wake restoration.
+
+### Compatibility
+- Main app: **0.8.1 / versionCode 571**.
+- Helper remains **1.1.7 / versionCode 1121**.
+- Existing signing identity and Android 9+ minimum remain unchanged.
+
+---
+
 ## 0.8.0 — 2026-11-10
 
 ### Key Mapper integration
