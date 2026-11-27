@@ -11,6 +11,8 @@ object RaOfflineProxyStatusParser {
         if (raw.isNullOrBlank()) return null
 
         return runCatching {
+            // API v3 adds host for emulator discovery. SleepManager does not
+            // use that field: endpoint checks still query the local proxy port.
             val json = JSONObject(raw)
             val queue = json.optJSONObject("queue") ?: JSONObject()
             val nextWindowAt =

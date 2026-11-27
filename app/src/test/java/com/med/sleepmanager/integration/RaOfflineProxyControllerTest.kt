@@ -1,6 +1,7 @@
 package com.med.sleepmanager.integration
 
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyPendingAwardState
+import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyQueueState
 import com.med.sleepmanager.integration.raofflineproxy.RaOfflineProxyStatusParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -30,6 +31,7 @@ class RaOfflineProxyStatusParserTest {
         assertTrue(status?.shouldBeRunning == true)
         assertTrue(status?.online == true)
         assertEquals(342, status?.queue?.count)
+        assertEquals(RaOfflineProxyQueueState.WAITING, status?.queue?.state)
         assertEquals(1759230000000L, status?.queue?.nextWindowAt)
         assertEquals(3, status?.pendingAwards?.count)
         assertEquals(
